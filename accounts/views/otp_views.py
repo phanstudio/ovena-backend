@@ -24,9 +24,6 @@ class VerifyOTPView(APIView):
     def post(self, request):
         phone_number = request.data.get("phone_number")
         otp_code = request.data.get("otp_code")
-        location = request.data.get("location", "lagos, ikeja")
-        name = request.data.get("name", "Unknown")
-        # role = request.data.get("role", "customer")  # optional, default customer
 
         if not phone_number or not otp_code:
             return Response({"error": "Phone number and OTP are required"}, status=400)
@@ -37,10 +34,10 @@ class VerifyOTPView(APIView):
         # ✅ Create or get the user
         user, created = User.objects.get_or_create(
             phone_number=phone_number,
-            defaults={"phone_number": phone_number, "role": "customer", "name": name}  # or any default fields
+            defaults={"phone_number": phone_number, "role": "customer", "name": "..."}  # or any default fields
         )
-        if created:
-            CustomerProfile.objects.create(user=user, location=location)
+        # if created:
+        #     CustomerProfile.objects.create(user=user, location=location)
 
         # ✅ Issue JWT tokens
         refresh = RefreshToken.for_user(user)
