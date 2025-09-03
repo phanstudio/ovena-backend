@@ -1,11 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from ..utils.otp import send_otp, verify_otp
+from ..utils.token_service import _issue_jwt_for_user
 from django.contrib.auth import get_user_model
-from rest_framework_simplejwt.tokens import RefreshToken
-from accounts.models import (
-    CustomerProfile, #DriverProfile, RestaurantProfile
-)
 
 User = get_user_model()
 class SendOTPView(APIView):
@@ -34,16 +31,14 @@ class VerifyOTPView(APIView):
         # ✅ Create or get the user
         user, created = User.objects.get_or_create(
             phone_number=phone_number,
-            defaults={"phone_number": phone_number, "role": "customer", "name": "..."}  # or any default fields
+            defaults={"phone_number": phone_number}
         )
-        # if created:
-        #     CustomerProfile.objects.create(user=user, location=location)
 
         # ✅ Issue JWT tokens
-        refresh = RefreshToken.for_user(user)
+        token = _issue_jwt_for_user(user)
         return Response({
             "message": "OTP verified successfully",
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
+            "refresh": token["refresh"],
+            "access": token["access"],
             "is_new_user": created
         }, status=200)

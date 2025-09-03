@@ -1,0 +1,34 @@
+# -------------------------------
+# Stage 1: build
+# -------------------------------
+FROM ghcr.io/osgeo/gdal:alpine-small-latest AS builder
+
+# Install Python + build deps
+RUN apk add --no-cache \
+    python3 py3-pip \
+    build-base
+
+WORKDIR /build
+
+# Copy requirements and install into venv
+COPY requirements.txt .
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --upgrade pip setuptools wheel && \
+    /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+
+# -------------------------------
+# Stage 2: runtime
+# -------------------------------
+FROM ghcr.io/osgeo/gdal:alpine-small-latest
+
+# Copy venv only
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
+COPY . .
+
+RUN chmod +x /app/entrypoint.sh
+
+ENV PYTHONUNBUFFERED=1
+ENTRYPOINT ["/app/entrypoint.sh"]

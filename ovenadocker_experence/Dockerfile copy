@@ -1,0 +1,39 @@
+# -------------------------------
+# Stage 1: build
+# -------------------------------
+FROM ghcr.io/osgeo/gdal:ubuntu-small-latest AS builder
+
+# Install Python and dev dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 python3-pip python3-venv libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy Python requirements and create virtual environment
+COPY requirements.txt .
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --upgrade pip setuptools wheel && \
+    /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+
+# -------------------------------
+# Stage 2: runtime
+# -------------------------------
+FROM ghcr.io/osgeo/gdal:ubuntu-small-latest
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Set working directory and copy app
+WORKDIR /app
+COPY . .
+
+# Ensure the entrypoint is executable
+RUN chmod +x /app/entrypoint.sh
+
+# Set environment variable to force unbuffered Python output
+ENV PYTHONUNBUFFERED=1
+
+# Entrypoint script handles migrations, collectstatic, and server startup
+ENTRYPOINT ["/app/entrypoint.sh"]

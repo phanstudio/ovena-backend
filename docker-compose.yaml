@@ -1,0 +1,16 @@
+services:
+  web:
+    build: .
+    env_file: .env
+    command: python3 manage.py runserver 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    volumes:
+      - .:/app   # mount your local project into /app in the container
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
