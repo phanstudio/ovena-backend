@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_gis',
+    'addresses',
     'accounts',
     'menu',
     # 'anymail',
@@ -131,6 +132,7 @@ AUTH_USER_MODEL = "accounts.User"
 DATABASES = {
     "default": env.db()  # parses DATABASE_URL
 }
+DATABASES["default"]["ENGINE"] = "django.contrib.gis.db.backends.postgis"
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

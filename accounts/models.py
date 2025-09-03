@@ -1,7 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.db import models
 import uuid
-# from django.contrib.gis.db import models as gis_modles
+from addresses.models import Address
 
 class UserManager(BaseUserManager):
     def create_user(self, email=None, phone_number=None, password=None, **extra_fields):
@@ -51,18 +51,6 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email or self.phone_number
-
-class Address(models.Model):
-    address = models.CharField(max_length=255)  
-    # location = gis_modles.PointField(geography=True)  
-    latitude = models.FloatField()
-    longitude = models.FloatField()
-    label = models.CharField(max_length=50, blank=True, null=True)  # e.g. "Home", "Work", "Other"
-    # place_id = models.CharField(max_length=100, blank=True, null=True)  # optional: Google place_id
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.label or ''} - {self.address}"
 
 class CustomerProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="customer_profile")
