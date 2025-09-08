@@ -1,92 +1,14 @@
 from django.db import models
-from accounts.models import (
-    Restaurant, Branch
+from .main import (
+    MenuCategory, MenuItem, Restaurant, BaseItemAvailability, 
+    CustomerProfile, MenuItemAddon, VariantOption, Branch
 )
-
-class Customer(models.Model):
-    name = models.CharField(max_length= 100)
+from accounts.models import (
+    DriverProfile
+)
 
 class Driver(models.Model):
     name = models.CharField(max_length= 100)
-
-class Menu(models.Model):
-    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="menus")
-    name = models.CharField(max_length=255)  # e.g., "Lunch Menu", "Weekend Specials"
-    description = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
-
-    def __str__(self):
-        return f"{self.restaurant.company_name} - {self.name}"
-
-class MenuCategory(models.Model):
-    menu = models.ForeignKey(Menu, on_delete=models.CASCADE, related_name="categories")
-    name = models.CharField(max_length=255)  # e.g., "Burgers", "Drinks", "Desserts"
-    sort_order = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        ordering = ["sort_order"]
-
-    def __str__(self):
-        return f"{self.menu.name} - {self.name}"
-
-class MenuItem(models.Model):
-    category = models.ForeignKey(MenuCategory, on_delete=models.CASCADE, related_name="items")
-    name = models.CharField(max_length=255)   # e.g., "Cheeseburger"
-    description = models.TextField(blank=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-    image = models.ImageField(upload_to="menu/items/", null=True, blank=True)
-    favorite = models.ManyToManyField(Customer) # check
-
-    def __str__(self):
-        return self.name
-
-# extras, what about (addon and variant) availability?
-class VariantGroup(models.Model):
-    item = models.ForeignKey("MenuItem", on_delete=models.CASCADE, related_name="variant_groups")
-    name = models.CharField(max_length=100)  # e.g., "Size", "Style"
-    is_required = models.BooleanField(default=True)
-
-class VariantOption(models.Model):
-    group = models.ForeignKey(VariantGroup, on_delete=models.CASCADE, related_name="options")
-    name = models.CharField(max_length=100)  # e.g., "Small", "Large", "Crunchy", "Grilled"
-    price_diff = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-
-class MenuItemAddonGroup(models.Model):
-    item = models.ForeignKey("MenuItem", on_delete=models.CASCADE, related_name="addon_groups")
-    name = models.CharField(max_length=100)  # e.g., "Extras", "Toppings"
-    is_required = models.BooleanField(default=False)
-    max_selection = models.PositiveIntegerField(default=0)  # 0 = unlimited
-
-    def __str__(self):
-        return f"{self.item.name} - {self.name}"
-
-class MenuItemAddon(models.Model):
-    group = models.ForeignKey(MenuItemAddonGroup, on_delete=models.CASCADE, related_name="addons")
-    name = models.CharField(max_length=100)  # e.g., "Cheese", "Fries"
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-
-    def __str__(self):
-        return f"{self.group.name} - {self.name}"
-
-class MenuItemAvailability(models.Model):
-    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="availabilities")
-    item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, related_name="branch_availabilities") # this should be one to one
-
-    is_available = models.BooleanField(default=True)
-    override_price = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
-
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        unique_together = ("branch", "item")
-
-    def __str__(self):
-        return f"{self.item.name} @ {self.branch.name} - {'Available' if self.is_available else 'Out'}"
-    
-    def main_price(self): # a way to calculate once with signals # but use a lession to teach me don't write the code for me
-        return self.item.price if self.override_price == None else self.override_price
-
-
 
 # appliing checking and attaching said coupons
 class Coupons(models.Model): # are coupons for the entire order or a single order item
@@ -144,10 +66,10 @@ class Order(models.Model):
         ("cancelled", "Cancelled"),
     ]
 
-    orderer = models.ForeignKey(Customer, on_delete= models.CASCADE, related_name="orders")
+    orderer = models.ForeignKey(CustomerProfile, on_delete= models.CASCADE, related_name="orders")
     branch = models.ForeignKey(Branch, on_delete= models.CASCADE, related_name= "orders")
     
-    driver = models.ForeignKey(Driver, on_delete= models.CASCADE, related_name= "orders")
+    driver = models.ForeignKey(DriverProfile, on_delete= models.CASCADE, related_name= "orders")
     delivery_price = models.DecimalField(decimal_places= 5, max_digits= 10, default= 0)
     ovena_commision = models.DecimalField(max_digits=5, decimal_places=2, default= 10)
     coupons = models.ForeignKey(Coupons, on_delete= models.CASCADE, related_name= "coupons", blank=True, null= True)
@@ -182,7 +104,7 @@ class OrderItem(models.Model):
     is_available = models.BooleanField(default=True)
 
     menu_availability = models.ForeignKey(
-        MenuItemAvailability, on_delete=models.SET_NULL,
+        BaseItemAvailability, on_delete=models.SET_NULL,
         related_name="order_items", null=True, blank=True
     )
 
@@ -195,23 +117,8 @@ class OrderItem(models.Model):
     def save(self, *args, **kwargs): # validate coupons in views
         # Only calculate when creating a new record
         if not self.pk:
-            self.price = (
-                self.menu_availability.override_price
-                if self.menu_availability and self.menu_availability.override_price is not None
-                else self.menu_item.price
-            )
+            self.price = self.menu_availability.effective_price
             self.added_total = self.calculate_addon_price()
             self.line_total = (self.price + self.added_total)* self.quantity
         super().save(*args, **kwargs)
-
-# does coupons apply to the addons
-# if multiple coupons then we use for loop then
-# coupon = models.ForeignKey(Coupon, on_delete=models.SET_NULL, null=True, blank=True, related_name="orders")
-# delivery_address = models.ForeignKey("Address", on_delete=models.SET_NULL, null=True, blank=True)
-
-
-# he wanted refence code
-# how does it work
-
-
 

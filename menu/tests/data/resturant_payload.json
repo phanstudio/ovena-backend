@@ -1,0 +1,260 @@
+{
+    "restaurant_id": 1,
+    "idempotencyKey": "dhfdsdagfds",
+    "menus": [
+      {
+        "name": "Breakfast Menu",
+        "description": "Morning specials, coffee, and light meals",
+        "is_active": true,
+        "categories": [
+          {
+            "name": "Breakfast Combos",
+            "sort_order": 1,
+            "items": [
+              {
+                "name": "Pancake Combo",
+                "description": "Fluffy pancakes with syrup and sausage",
+                "price": 6.99,
+                "image": "menu/items/pancake_combo.jpg",
+                "variant_groups": [
+                  {
+                    "name": "Syrup Choice",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Maple", "price_diff": 0.00 },
+                      { "name": "Chocolate", "price_diff": 0.50 }
+                    ]
+                  }
+                ],
+                "addon_groups": [
+                  {
+                    "name": "Extras",
+                    "is_required": false,
+                    "max_selection": 2,
+                    "addons": [
+                      { "name": "Extra Sausage", "price": 1.50 },
+                      { "name": "Fruit Bowl", "price": 2.00 }
+                    ]
+                  }
+                ],
+                "availabilities": [
+                  {
+                    "branch": "Downtown Branch",
+                    "is_available": true,
+                    "override_price": 7.49
+                  },
+                  {
+                    "branch": "Airport Branch",
+                    "is_available": true
+                  }
+                ]
+              },
+              {
+                "name": "Omelette Special",
+                "description": "3-egg omelette with cheese and toast",
+                "price": 5.49,
+                "variant_groups": [],
+                "addon_groups": [
+                  {
+                    "name": "Fillings",
+                    "is_required": false,
+                    "max_selection": 3,
+                    "addons": [
+                      { "name": "Mushrooms", "price": 0.75 },
+                      { "name": "Spinach", "price": 0.50 },
+                      { "name": "Ham", "price": 1.00 }
+                    ]
+                  }
+                ],
+                "availabilities": [
+                  { "branch": "Downtown Branch", "is_available": true },
+                  { "branch": "Airport Branch", "is_available": false }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Drinks",
+            "sort_order": 2,
+            "items": [
+              {
+                "name": "Coffee",
+                "description": "Freshly brewed coffee",
+                "price": 2.00,
+                "variant_groups": [
+                  {
+                    "name": "Size",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Small", "price_diff": 0.00 },
+                      { "name": "Large", "price_diff": 1.00 }
+                    ]
+                  }
+                ],
+                "addon_groups": [],
+                "availabilities": [
+                  { "branch": "Downtown Branch", "is_available": true },
+                  { "branch": "Airport Branch", "is_available": true }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Lunch Menu",
+        "description": "Burgers, sandwiches, and salads",
+        "is_active": true,
+        "categories": [
+          {
+            "name": "Burgers",
+            "sort_order": 1,
+            "items": [
+              {
+                "name": "Cheeseburger",
+                "description": "Classic cheeseburger with fries",
+                "price": 8.99,
+                "image": "menu/items/cheeseburger.jpg",
+                "variant_groups": [
+                  {
+                    "name": "Size",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Single", "price_diff": 0.00 },
+                      { "name": "Double", "price_diff": 3.00 }
+                    ]
+                  }
+                ],
+                "addon_groups": [
+                  {
+                    "name": "Toppings",
+                    "is_required": false,
+                    "max_selection": 3,
+                    "addons": [
+                      { "name": "Extra Cheese", "price": 1.00 },
+                      { "name": "Bacon", "price": 1.50 },
+                      { "name": "Pickles", "price": 0.50 }
+                    ]
+                  }
+                ],
+                "availabilities": [
+                  { "branch": "Downtown Branch", "is_available": true },
+                  { "branch": "Airport Branch", "is_available": true, "override_price": 9.49 }
+                ]
+              },
+              {
+                "name": "Veggie Burger",
+                "description": "Plant-based burger with lettuce and tomato",
+                "price": 9.49,
+                "variant_groups": [],
+                "addon_groups": [
+                  {
+                    "name": "Extras",
+                    "is_required": false,
+                    "max_selection": 2,
+                    "addons": [
+                      { "name": "Avocado", "price": 1.50 },
+                      { "name": "Grilled Mushrooms", "price": 1.25 }
+                    ]
+                  }
+                ],
+                "availabilities": [
+                  { "branch": "Downtown Branch", "is_available": true },
+                  { "branch": "Airport Branch", "is_available": false }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Drinks",
+            "sort_order": 2,
+            "items": [
+              {
+                "name": "Coca-Cola",
+                "description": "Chilled soft drink",
+                "price": 1.99,
+                "variant_groups": [
+                  {
+                    "name": "Size",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Can", "price_diff": 0.00 },
+                      { "name": "Bottle", "price_diff": 1.00 }
+                    ]
+                  }
+                ],
+                "addon_groups": [],
+                "availabilities": [
+                  { "branch": "Downtown Branch", "is_available": true },
+                  { "branch": "Airport Branch", "is_available": true }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Dinner Specials",
+        "description": "Steaks, pasta, and wine",
+        "is_active": true,
+        "categories": [
+          {
+            "name": "Main Courses",
+            "sort_order": 1,
+            "items": [
+              {
+                "name": "Grilled Steak",
+                "description": "Juicy steak with sides",
+                "price": 15.99,
+                "variant_groups": [
+                  {
+                    "name": "Cooking Preference",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Rare", "price_diff": 0.00 },
+                      { "name": "Medium", "price_diff": 0.00 },
+                      { "name": "Well Done", "price_diff": 0.00 }
+                    ]
+                  }
+                ],
+                "addon_groups": [
+                  {
+                    "name": "Side Dishes",
+                    "is_required": false,
+                    "max_selection": 2,
+                    "addons": [
+                      { "name": "Fries", "price": 2.50 },
+                      { "name": "Salad", "price": 3.00 },
+                      { "name": "Mashed Potatoes", "price": 2.75 }
+                    ]
+                  }
+                ],
+                "availabilities": [
+                  { "branch": "Downtown Branch", "is_available": true },
+                  { "branch": "Airport Branch", "is_available": true }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Beverages",
+            "sort_order": 2,
+            "items": [
+              {
+                "name": "House Red Wine",
+                "description": "Glass of red wine",
+                "price": 6.00,
+                "variant_groups": [],
+                "addon_groups": [],
+                "availabilities": [
+                  { "branch": "Downtown Branch", "is_available": true },
+                  { "branch": "Airport Branch", "is_available": false }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+  

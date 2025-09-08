@@ -52,11 +52,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email or self.phone_number
 
-class CustomerProfile(models.Model):
+class CustomerProfile(models.Model): # create a simple view to change the defualt address
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="customer_profile")
     birth_date = models.DateField(null=True, blank=True)
     addresses = models.ManyToManyField(Address, related_name="customers", blank=True)
-    default_address = models.ForeignKey(Address, on_delete=models.SET_NULL, null=True, blank=True, related_name="default_for_customers")
+    default_address = models.ForeignKey(Address, on_delete=models.SET_NULL, null=True, blank=True, related_name="default_for_customers")# set normally but change if requested
     referral_code = models.CharField(max_length=20, unique=True, blank=True)
     referred_by = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="referrals"

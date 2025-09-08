@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import Restaurant, Menu, MenuCategory, MenuItem, VariantGroup, VariantOption, MenuItemAddonGroup, MenuItemAddon
+from ..models import (
+    Restaurant, Menu, MenuCategory, MenuItem, VariantGroup, 
+    VariantOption, MenuItemAddonGroup, MenuItemAddon
+)
 
 class VariantOptionSerializer(serializers.ModelSerializer):
     class Meta:

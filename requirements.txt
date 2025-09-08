@@ -14,3 +14,5 @@ djangorestframework-gis
 Django==5.1
 gunicorn
 django-environ
+pytest-factoryboy 
+factory_boy

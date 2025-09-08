@@ -57,9 +57,3 @@ class OAuthExchangeView(APIView):
 
         tokens = _issue_jwt_for_user(user)
         return Response({"user": UserSerializer(user).data, "tokens": tokens})
-
-# class ProfileView(APIView):
-#     permission_classes = [permissions.IsAuthenticated]
-
-#     def get(self, request):
-#         return Response(UserSerializer(request.user).data)
