@@ -7,16 +7,19 @@ class ScopePermission(permissions.BasePermission):
         permission_classes = [ScopePermission]
         required_scopes = ["read"]
     """
-    def check_scope(self, request, required_scopes):
-        token_scopes = request.auth.get("scopes", set()) if request.auth else set()
-        return all(scope in token_scopes for scope in required_scopes) or token_scopes == {"*"}
+    def get_scopes(self, request):
+        return request.auth.get("scopes", set()) if request.auth else set()
     
+    def check_scope(self, token_scopes, required_scopes):
+        return all(scope in token_scopes for scope in required_scopes) or token_scopes == {"*"}
+
     def has_permission(self, request, view):
         required_scopes = getattr(view, "required_scopes", [])
-        return self.check_scope(request, required_scopes)
+        return self.check_scope(self.get_scopes(request), required_scopes)
 
-class ReadScopePermission(permissions.BasePermission):
+class ReadScopePermission(ScopePermission):
     def has_permission(self, request, view):
-        required_scope = "read"
-        token_scopes = request.auth.get("scopes", set()) if request.auth else set()
-        return (required_scope in token_scopes and request.method in permissions.SAFE_METHODS) or token_scopes == {"*"}
+        return (
+            request.method in permissions.SAFE_METHODS and 
+            self.check_scope(self.get_scopes(request), {"read"})
+        )

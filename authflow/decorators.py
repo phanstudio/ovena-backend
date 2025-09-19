@@ -1,18 +1,14 @@
-from functools import wraps
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import api_view
-from rest_framework.views import APIView
-
 from .authentication import CustomJWTAuthentication
+from .permissions import ScopePermission
 
-
-def subuser_authentication(view_class):
+def subuser_authentication(view_class): # turn to a mixin later
     """
     Class decorator to apply CustomJWTAuthentication + IsAuthenticated
     to any APIView subclass.
     """
     class Wrapped(view_class):
         authentication_classes = [CustomJWTAuthentication]
-        permission_classes = [IsAuthenticated]
+        permission_classes = [ScopePermission]
+        required_scopes = []
 
     return Wrapped

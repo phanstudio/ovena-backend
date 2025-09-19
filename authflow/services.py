@@ -7,7 +7,7 @@ import random, time
 from django.core.cache import cache
 from accounts.utils.otp import generate_otp
 
-def create_token(user, role="main", scopes=[], expires_in=3600):
+def create_token(user, role="main", scopes=None, expires_in=3600):
     """
     Create a JWT for a user with optional role + scopes.
     - user: Django User instance
@@ -21,18 +21,20 @@ def create_token(user, role="main", scopes=[], expires_in=3600):
         return _issue_jwt_for_user(user)
 
     elif role == "sub":
-        now = datetime.datetime.now(datetime.timezone.utc)
-        exp = now + datetime.timedelta(seconds=expires_in)
-        payload = {
-            "user_id": user['user_id'],
-            "device_id": user['device_id'],
-            "scopes": scopes,
-            "iat": now,
-            "exp": exp,
-        }
+        return make_sub_token(user['user_id'], user['device_id'], scopes, expires_in)
 
-        token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
-        return token
+def make_sub_token(user_id, device_id="dyukljhgf4567890", scopes=None, expires_in=3600):
+    now = datetime.datetime.now(datetime.timezone.utc)
+    exp = now + datetime.timedelta(seconds=expires_in)
+    payload = {
+        "user_id": user_id,
+        "device_id": device_id,
+        "scopes": scopes or ["read"],
+        "iat": now,
+        "exp": exp,
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
+
 
 def _issue_jwt_for_user(user: User):
     refresh = RefreshToken.for_user(user)

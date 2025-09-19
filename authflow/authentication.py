@@ -6,7 +6,6 @@ from rest_framework_simplejwt.exceptions import AuthenticationFailed, InvalidTok
 from django.utils.translation import gettext_lazy as _
 from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.utils import get_md5_hash_password
-
 from accounts.models import LinkedStaff
 
 # add login mechanics also consider when to perfom the login on evry reuest or on every session and whta is a sesion considered
@@ -61,7 +60,7 @@ class CustomJWTAuthentication(BaseAuthentication): # any way to speed this up
                 # also we need to record the person login in like a side efect that should not affect flow speed
             }
 
-            return (account, auth_data) # not sure if this breaks anything
+            return (account, auth_data)
 
         return None
 
@@ -76,7 +75,6 @@ class CustomJWTAuth(SimpleJWTAuth):
             raise InvalidToken(_("Token contained no recognizable user identification"))
 
         try:
-            # ✅ preload primaryagent in the same query
             user = self.user_model.objects.select_related("primaryagent", "primaryagent__branch").get(
                 **{api_settings.USER_ID_FIELD: user_id}
             )

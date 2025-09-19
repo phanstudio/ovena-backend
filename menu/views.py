@@ -3,7 +3,6 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from rest_framework.generics import UpdateAPIView, ListAPIView, GenericAPIView
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.mixins import ListModelMixin, CreateModelMixin, UpdateModelMixin
 from .serializers import ouput_serializers  as otS
 from .serializers import input_serializers as InS
@@ -18,6 +17,7 @@ from django.db.models import Q
 from authflow.decorators import subuser_authentication
 from authflow.authentication import CustomJWTAuthentication
 from authflow.permissions import ScopePermission, ReadScopePermission
+from .pagifications import StandardResultsSetPagination
 
 class RestaurantView(APIView):
     def get(self, request):
@@ -86,18 +86,11 @@ class OrderView(APIView, ListModelMixin, CreateModelMixin, UpdateModelMixin):
     # cancle order
     pass
 
-class StandardResultsSetPagination(PageNumberPagination):
-    page_size = 20                   # default page size
-    page_size_query_param = "page_size"
-    max_page_size = 100
-
-# next test this ordering system the resturant side
-# @subuser_authentication
+@subuser_authentication
 class ResturantOrderView(GenericAPIView):
-    authentication_classes=[CustomJWTAuthentication]
     permission_classes=[ScopePermission, ReadScopePermission]
     pagination_class=StandardResultsSetPagination
-    required_scopes = ["order:accept", "order:cancle"] 
+    required_scopes = ["order:accept", "order:cancle"]
     # and move them to seperate functions but this way is lighter i think?
 
     def get_queryset(self):
@@ -142,7 +135,7 @@ class ResturantOrderView(GenericAPIView):
         else:
             return self.cancle_order(order)
 
-    def accept_order(self, order: Order):
+    def accept_order(self, order: Order): # updates the user and the driver # with consumers or something simular
         if order.status != "pending":
             return Response(
                 {"error": "Order already accepted"},
@@ -156,7 +149,7 @@ class ResturantOrderView(GenericAPIView):
             status=status.HTTP_202_ACCEPTED,
         )
 
-    def order_made(self, order: Order): # change this
+    def order_made(self, order: Order): # change this or move to the driver
         if order.status != "confirmed":
             return Response(
                 {"error": "Order must be confirmed first"},
@@ -169,7 +162,7 @@ class ResturantOrderView(GenericAPIView):
             status=status.HTTP_200_OK,
         )
 
-    def cancle_order(self, order: Order):
+    def cancle_order(self, order: Order): # send request to the drivers and user
         if order.status in ["delivered", "ready"]: # use not in confirmed and pending after thta not the resturants buisnes again
             return Response(
                 {"error": "Cannot cancel after order is ready/delivered"},
