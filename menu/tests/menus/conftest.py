@@ -8,12 +8,11 @@ from django.urls import reverse
 from menu.models import Order, OrderItem
 from menu import models
 
-# we romve availability only 
-
+# we remove availability only 
 @pytest.fixture(scope="session")
 def restaurant_payload():
     """Load raw restaurant JSON from file."""
-    data_path = Path(__file__).parent / "data" / "new_payload.json"#"resturant_payload.json"
+    data_path = Path(__file__).parent / "data" / "new_payload.json"
     with data_path.open() as f:
         return json.load(f)
 
@@ -38,8 +37,6 @@ def registered_restaurant(db, restaurant, restaurant_payload):
     assert response.status_code == 201, response.content
 
     return restaurant  # DB object, now with menus
-
-# photo = models.ImageField(upload_to="drivers/photos/")
 
 @pytest.fixture
 def driverUser(db):
@@ -72,10 +69,7 @@ def user1(db):
 @pytest.fixture
 def orders_taken(db, resturant_manager, driverUser, user1):
     """Create an order with a menu item attached."""
-
-    _, branch = resturant_manager
-
-    # get any MenuItem from the branch
+    _, branch, _ = resturant_manager
     menu_item = branch.restaurant.menus.first().categories.first().items.first()
 
     order = Order.objects.create(
@@ -87,7 +81,7 @@ def orders_taken(db, resturant_manager, driverUser, user1):
         order=order,
         menu_item=menu_item,
     )
-    return order, resturant_manager
+    return order
 
 @pytest.fixture
 def registered_branch(db, registered_restaurant):
@@ -116,100 +110,13 @@ def resturant_manager(db, registered_branch):
         branch=registered_branch,
         user=user
     )
-    # linkeduser=LinkedStaff.objects.create(
-    #     device_name="dyukljhgf4567890",
-    #     created_by=pa,
-    # )
-    return user, registered_branch
+    return user, registered_branch, pa
 
 @pytest.fixture
 def linkedstaff(db, resturant_manager):
-    user, branch = resturant_manager
-    pa = PrimaryAgent.objects.get(
-        branch=branch,
-        user=user
-    )
+    _, _, pa = resturant_manager
     linkeduser=LinkedStaff.objects.create(
         device_name="dyukljhgf4567890",
         created_by=pa,
     )
     return linkeduser
-
-
-# @pytest.fixture
-# def registered_restaurant_fast(db, restaurant_payload, restaurant):
-#     """Create restaurant and menus via ORM, faster than hitting the API."""
-#     from menu.models import Menu, Category, MenuItem, VariantGroup, VariantOption, MenuItemAddonGroup, MenuItemAddon, BaseItemAvailability, BaseItem
-
-#     for menu_data in restaurant_payload["menus"]:
-#         menu = Menu.objects.create(
-#             restaurant=restaurant,
-#             name=menu_data["name"],
-#             description=menu_data.get("description", ""),
-#             is_active=menu_data.get("is_active", True)
-#         )
-
-#         for cat_data in menu_data["categories"]:
-#             category = Category.objects.create(
-#                 menu=menu,
-#                 name=cat_data["name"],
-#                 sort_order=cat_data.get("sort_order", 1)
-#             )
-
-#             for item_data in cat_data["items"]:
-#                 base_item = BaseItem.objects.create(
-#                     name=item_data["base_item"]["name"],
-#                     description=item_data["base_item"]["description"],
-#                     price=item_data["base_item"]["price"]
-#                 )
-
-#                 menu_item = MenuItem.objects.create(
-#                     category=category,
-#                     custom_name=item_data["custom_name"],
-#                     description=item_data.get("description", ""),
-#                     price=item_data.get("price", 0),
-#                     image=item_data.get("image", ""),
-#                     base_item=base_item
-#                 )
-
-#                 for vg_data in item_data.get("variant_groups", []):
-#                     vg = VariantGroup.objects.create(
-#                         menu_item=menu_item,
-#                         name=vg_data["name"],
-#                         is_required=vg_data.get("is_required", False)
-#                     )
-#                     for opt in vg_data.get("options", []):
-#                         VariantOption.objects.create(
-#                             variant_group=vg,
-#                             name=opt["name"],
-#                             price_diff=opt.get("price_diff", 0)
-#                         )
-
-#                 for ag_data in item_data.get("addon_groups", []):
-#                     ag = MenuItemAddonGroup.objects.create(
-#                         menu_item=menu_item,
-#                         name=ag_data["name"],
-#                         is_required=ag_data.get("is_required", False),
-#                         max_selection=ag_data.get("max_selection", 0)
-#                     )
-#                     for addon in ag_data.get("addons", []):
-#                         addon_base = BaseItem.objects.create(
-#                             name=addon["base_item"]["name"],
-#                             description=addon["base_item"]["description"],
-#                             price=addon["base_item"]["price"]
-#                         )
-#                         MenuItemAddon.objects.create(
-#                             group=ag,
-#                             base_item=addon_base,
-#                             price=addon["price"]
-#                         )
-
-#                 # for avail in item_data.get("availabilities", []):
-#                 #     Availability.objects.create(
-#                 #         menu_item=menu_item,
-#                 #         branch=branch if branch.name == avail["branch"] else None,
-#                 #         is_available=avail.get("is_available", True),
-#                 #         override_price=avail.get("override_price")
-#                 #     )
-
-#     return restaurant
