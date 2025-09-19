@@ -11,7 +11,9 @@ class Driver(models.Model):
     name = models.CharField(max_length= 100)
 
 # appliing checking and attaching said coupons
-class Coupons(models.Model): # are coupons for the entire order or a single order item
+class Coupons(models.Model): # are coupons for the entire order or a single order item 
+    #build coupon view
+    # use coupon is in order 
     
     TYPE_CHOICES = [
         ("delivery", "Free-delivery"),
@@ -110,15 +112,19 @@ class OrderItem(models.Model):
 
     def calculate_addon_price(self):
         """Only used once on creation."""
-        variant_total = sum(v.price_diff for v in self.variants.all()) # this feels wrong could be improved
-        addon_total = sum(a.price for a in self.addons.all())
+        addon_total = 0
+        variant_total = 0
+        if self.variants:
+            variant_total = sum(v.price_diff for v in self.variants.all()) # this feels wrong could be improved
+        if self.addons:
+            addon_total = sum(a.price for a in self.addons.all())
         return addon_total + variant_total
     
     def save(self, *args, **kwargs): # validate coupons in views
         # Only calculate when creating a new record
         if not self.pk:
-            self.price = self.menu_availability.effective_price
-            self.added_total = self.calculate_addon_price()
-            self.line_total = (self.price + self.added_total)* self.quantity
+            # self.price = #self.menu_availability.effective_price
+            # self.added_total = self.calculate_addon_price()
+            # self.line_total = (self.price + self.added_total)* self.quantity
+            ...
         super().save(*args, **kwargs)
-

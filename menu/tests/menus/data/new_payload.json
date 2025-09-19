@@ -1,0 +1,377 @@
+{
+  "restaurant_id": 1,
+  "menus": [
+    {
+      "name": "Lunch Menu",
+      "description": "Available from 12-3pm",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "Burgers",
+          "sort_order": 1,
+          "items": [
+            {
+              "custom_name": "Cheeseburger",
+              "description": "Juicy beef burger with cheese",
+              "price": 6.50,
+              "image": "http://example.com/img/cheeseburger.png",
+              "base_item": {
+                "name": "Burger Patty",
+                "description": "Standard beef patty",
+                "price": 5.00
+              },
+              "variant_groups": [
+                {
+                  "name": "Size",
+                  "is_required": true,
+                  "options": [
+                    { "name": "Small", "price_diff": 0.00 },
+                    { "name": "Large", "price_diff": 1.50 }
+                  ]
+                }
+              ],
+              "addon_groups": [
+                {
+                  "name": "Extras",
+                  "is_required": false,
+                  "max_selection": 2,
+                  "addons": [
+                    {
+                      "price": 0.50,
+                      "base_item": {
+                        "name": "Cheese Slice",
+                        "description": "Single slice of cheddar",
+                        "price": 0.50
+                      }
+                    },
+                    {
+                      "price": 1.00,
+                      "base_item": {
+                        "name": "Bacon Strip",
+                        "description": "Crispy bacon",
+                        "price": 1.00
+                      }
+                    }
+                  ]
+                }
+              ],
+              "availabilities": [
+                {
+                  "branch": "Downtown",
+                  "is_available": true,
+                  "override_price": 6.00
+                },
+                {
+                  "branch": "Airport",
+                  "is_available": false
+                }
+              ]
+            },
+            {
+              "custom_name": "Veggie Burger",
+              "description": "Grilled plant-based patty with fresh veggies",
+              "price": 7.00,
+              "image": "http://example.com/img/veggieburger.png",
+              "base_item": {
+                "name": "Veggie Patty",
+                "description": "Made from lentils and chickpeas",
+                "price": 6.00
+              },
+              "variant_groups": [
+                {
+                  "name": "Bun Type",
+                  "is_required": true,
+                  "options": [
+                    { "name": "Regular", "price_diff": 0.00 },
+                    { "name": "Gluten-Free", "price_diff": 1.00 }
+                  ]
+                }
+              ],
+              "addon_groups": [
+                {
+                  "name": "Toppings",
+                  "is_required": false,
+                  "max_selection": 3,
+                  "addons": [
+                    {
+                      "price": 0.75,
+                      "base_item": {
+                        "name": "Avocado",
+                        "description": "Fresh avocado slices",
+                        "price": 0.75
+                      }
+                    },
+                    {
+                      "price": 0.50,
+                      "base_item": {
+                        "name": "Grilled Onions",
+                        "description": "Sweet caramelized onions",
+                        "price": 0.50
+                      }
+                    }
+                  ]
+                }
+              ],
+              "availabilities": [
+                { "branch": "Downtown", "is_available": true },
+                { "branch": "Mall", "is_available": true, "override_price": 7.50 }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pizzas",
+          "sort_order": 2,
+          "items": [
+            {
+              "custom_name": "Margherita Pizza",
+              "description": "Classic pizza with tomato, mozzarella, and basil",
+              "price": 8.50,
+              "image": "http://example.com/img/margherita.png",
+              "base_item": {
+                "name": "Pizza Base",
+                "description": "Hand-tossed thin crust",
+                "price": 6.00
+              },
+              "variant_groups": [
+                {
+                  "name": "Size",
+                  "is_required": true,
+                  "options": [
+                    { "name": "Medium 10\"", "price_diff": 0.00 },
+                    { "name": "Large 14\"", "price_diff": 3.00 }
+                  ]
+                }
+              ],
+              "addon_groups": [
+                {
+                  "name": "Extra Toppings",
+                  "is_required": false,
+                  "max_selection": 4,
+                  "addons": [
+                    {
+                      "price": 1.50,
+                      "base_item": {
+                        "name": "Pepperoni",
+                        "description": "Spicy Italian pepperoni",
+                        "price": 1.50
+                      }
+                    },
+                    {
+                      "price": 1.25,
+                      "base_item": {
+                        "name": "Mushrooms",
+                        "description": "Fresh button mushrooms",
+                        "price": 1.25
+                      }
+                    }
+                  ]
+                }
+              ],
+              "availabilities": [
+                { "branch": "Downtown", "is_available": true },
+                { "branch": "Airport", "is_available": true }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Dinner Menu",
+      "description": "Available from 6-10pm",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "Pasta",
+          "sort_order": 1,
+          "items": [
+            {
+              "custom_name": "Spaghetti Carbonara",
+              "description": "Pasta with creamy sauce and bacon",
+              "price": 10.00,
+              "image": "http://example.com/img/carbonara.png",
+              "base_item": {
+                "name": "Spaghetti",
+                "description": "Durum wheat pasta",
+                "price": 7.00
+              },
+              "variant_groups": [],
+              "addon_groups": [
+                {
+                  "name": "Add Protein",
+                  "is_required": false,
+                  "max_selection": 1,
+                  "addons": [
+                    {
+                      "price": 2.50,
+                      "base_item": {
+                        "name": "Chicken",
+                        "description": "Grilled chicken breast",
+                        "price": 2.50
+                      }
+                    },
+                    {
+                      "price": 3.00,
+                      "base_item": {
+                        "name": "Shrimp",
+                        "description": "Fresh shrimp",
+                        "price": 3.00
+                      }
+                    }
+                  ]
+                }
+              ],
+              "availabilities": [
+                { "branch": "Downtown", "is_available": true },
+                { "branch": "Airport", "is_available": true, "override_price": 11.00 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Drinks",
+      "description": "Cold and hot beverages",
+      "is_active": true,
+      "categories": [
+        {
+          "name": "Soft Drinks",
+          "sort_order": 1,
+          "items": [
+            {
+              "custom_name": "Coca Cola",
+              "description": "Chilled Coke bottle",
+              "price": 2.00,
+              "image": "http://example.com/img/coke.png",
+              "base_item": {
+                "name": "Soft Drink",
+                "description": "Standard soft drink",
+                "price": 2.00
+              },
+              "variant_groups": [
+                {
+                  "name": "Size",
+                  "is_required": true,
+                  "options": [
+                    { "name": "Regular", "price_diff": 0.00 },
+                    { "name": "Large", "price_diff": 0.50 }
+                  ]
+                }
+              ],
+              "addon_groups": [],
+              "availabilities": [
+                { "branch": "Downtown", "is_available": true },
+                { "branch": "Mall", "is_available": true }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Coffee",
+          "sort_order": 2,
+          "items": [
+            {
+              "custom_name": "Cappuccino",
+              "description": "Hot coffee with milk foam",
+              "price": 3.50,
+              "image": "http://example.com/img/cappuccino.png",
+              "base_item": {
+                "name": "Espresso Base",
+                "description": "Strong coffee shot",
+                "price": 2.50
+              },
+              "variant_groups": [
+                {
+                  "name": "Milk Type",
+                  "is_required": true,
+                  "options": [
+                    { "name": "Whole Milk", "price_diff": 0.00 },
+                    { "name": "Soy Milk", "price_diff": 0.50 },
+                    { "name": "Almond Milk", "price_diff": 0.75 }
+                  ]
+                }
+              ],
+              "addon_groups": [
+                {
+                  "name": "Flavor Syrup",
+                  "is_required": false,
+                  "max_selection": 1,
+                  "addons": [
+                    {
+                      "price": 0.50,
+                      "base_item": {
+                        "name": "Vanilla Syrup",
+                        "description": "Sweet vanilla flavor",
+                        "price": 0.50
+                      }
+                    },
+                    {
+                      "price": 0.50,
+                      "base_item": {
+                        "name": "Caramel Syrup",
+                        "description": "Rich caramel flavor",
+                        "price": 0.50
+                      }
+                    }
+                  ]
+                }
+              ],
+              "availabilities": [
+                { "branch": "Downtown", "is_available": true },
+                { "branch": "Airport", "is_available": true }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Specials",
+      "description": "Limited-time offers",
+      "is_active": false,
+      "categories": [
+        {
+          "name": "Desserts",
+          "sort_order": 1,
+          "items": [
+            {
+              "custom_name": "Chocolate Lava Cake",
+              "description": "Warm cake with molten chocolate center",
+              "price": 5.50,
+              "image": "http://example.com/img/lavacake.png",
+              "base_item": {
+                "name": "Chocolate Cake",
+                "description": "Rich dark chocolate base",
+                "price": 4.00
+              },
+              "variant_groups": [],
+              "addon_groups": [
+                {
+                  "name": "Add Ice Cream",
+                  "is_required": false,
+                  "max_selection": 1,
+                  "addons": [
+                    {
+                      "price": 1.50,
+                      "base_item": {
+                        "name": "Vanilla Ice Cream",
+                        "description": "Creamy vanilla scoop",
+                        "price": 1.50
+                      }
+                    }
+                  ]
+                }
+              ],
+              "availabilities": [
+                { "branch": "Downtown", "is_available": false },
+                { "branch": "Airport", "is_available": true }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

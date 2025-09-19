@@ -3,6 +3,23 @@ from django.db import models
 import uuid
 from addresses.models import Address
 
+class Restaurant(models.Model): # does the referral system work with resturants
+    company_name = models.CharField(max_length=255)
+    bn_number = models.CharField(max_length=100)  # business number
+    certification = models.FileField(upload_to="restaurants/certs/", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return self.company_name
+
+class Branch(models.Model):
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="branches")
+    name = models.CharField(max_length=255)  # e.g. "Ikeja Branch"
+    phone_number = models.CharField(max_length=20, blank=True)
+    location = models.ForeignKey(Address, on_delete=models.CASCADE, related_name="branches")
+
+    def __str__(self):
+        return f"{self.restaurant.company_name} - {self.name}"
+
 class UserManager(BaseUserManager):
     def create_user(self, email=None, phone_number=None, password=None, **extra_fields):
         if not email and not phone_number:
@@ -37,7 +54,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     role = models.CharField(max_length=20, choices=[
         ("customer", "Customer"),
         ("driver", "Driver"),
-        ("restaurant", "Restaurant"),
+        ("restaurantstaff", "RestaurantStaff"),
     ], default="customer")
 
     is_active = models.BooleanField(default=True)
@@ -93,35 +110,32 @@ class DriverProfile(models.Model): # does the referral system work with drivers
     vehicle_type = models.CharField(max_length=50)
     photo = models.ImageField(upload_to="drivers/photos/")
 
-class Restaurant(models.Model): # does the referral system work with resturants
-    company_name = models.CharField(max_length=255)
-    bn_number = models.CharField(max_length=100)  # business number
-    certification = models.FileField(upload_to="restaurants/certs/", null=True, blank=True)
+class PrimaryAgent(models.Model): # only one primary users, so the branch should be a one to one
+    branch = models.OneToOneField(Branch, on_delete=models.CASCADE) # related_name="primary"
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"{self.user.name} - vendor agent @ {self.branch.name}"
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["branch"], name="unique_primary_agent_per_branch"
+            )
+        ]
+
+class LinkedStaff(models.Model):
+    created_by = models.ForeignKey(
+        PrimaryAgent, on_delete=models.CASCADE, related_name="linked_staff"
+    )
+    device_name = models.CharField(max_length=200, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    def __str__(self):
-        return self.company_name
-
-class Branch(models.Model):
-    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="branches")
-    name = models.CharField(max_length=255)  # e.g. "Ikeja Branch"
-    phone_number = models.CharField(max_length=20, blank=True)
-    location = models.ForeignKey(Address, on_delete=models.CASCADE, related_name="branches")
+    revoked = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"{self.restaurant.company_name} - {self.name}"
+        return f"{self.device_name or 'Unnamed Device'} - staff for {self.created_by.user.name}"
 
-class Employee(models.Model): # change to manager
-    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="employees")
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="employee_roles")
-
-    role = models.CharField(max_length=50, choices=[
-        ("manager", "Manager"),
-        ("cashier", "Cashier"), # change to desk guy?
-    ])
-
-    def __str__(self):
-        return f"{self.user.name} - {self.role} @ {self.branch.name}"
-
+# two rating systems that inhereting from a base ratng system
 class Rating(models.Model):
     rater = models.ForeignKey(
         User,
@@ -144,4 +158,3 @@ class Rating(models.Model):
 
     def __str__(self):
         return f"{self.rater} → {self.rated}: {self.stars}⭐"
-

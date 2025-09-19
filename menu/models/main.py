@@ -56,6 +56,7 @@ class MenuItemManager(models.Manager):
             base_item__branch_availabilities__is_available=True
         )
 
+# description, image removal
 class MenuItem(models.Model):
     category = models.ForeignKey(MenuCategory, on_delete=models.CASCADE, related_name="items")
     base_item = models.ForeignKey(BaseItem, on_delete=models.CASCADE, related_name="menu_items")
@@ -63,7 +64,7 @@ class MenuItem(models.Model):
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     image = models.ImageField(upload_to="menu/items/", null=True, blank=True)
-    favorite = models.ManyToManyField(CustomerProfile, blank=True, null=True) # check
+    favorite = models.ManyToManyField(CustomerProfile) # check
 
     # objects = MenuItemManager()  # attach the custom manager
 
@@ -73,6 +74,10 @@ class MenuItem(models.Model):
     @property
     def effective_price(self):
         return self.base_price if self.base_price is not None else self.base_item.default_price
+    
+    @property
+    def effective_image(self):
+        return self.image if self.image else self.base_item.image
 
 # extras, what about (addon and variant) availability?
 class VariantGroup(models.Model):
@@ -132,3 +137,4 @@ class BaseItemAvailability(models.Model):
     @property
     def effective_price(self):
         return self.override_price if self.override_price is not None else self.base_item.default_price
+# we need a websocket for the availiability

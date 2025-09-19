@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from ..utils.otp import send_otp, verify_otp
-from ..utils.token_service import _issue_jwt_for_user
+from authflow.services import _issue_jwt_for_user
 from django.contrib.auth import get_user_model
 
 User = get_user_model()

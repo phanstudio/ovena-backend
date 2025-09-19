@@ -17,9 +17,13 @@ class VariantGroupSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "is_required", "options"]
 
 class MenuItemAddonSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
     class Meta:
         model = MenuItemAddon
         fields = ["id", "name", "price"]
+    
+    def get_name(self, obj):
+        return obj.base_item.name
 
 class MenuItemAddonGroupSerializer(serializers.ModelSerializer):
     addons = MenuItemAddonSerializer(many=True, read_only=True)
@@ -34,7 +38,7 @@ class MenuItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MenuItem
-        fields = ["id", "name", "description", "price", "image", "variant_groups", "addon_groups"]
+        fields = ["id", "custom_name", "description", "price", "image", "variant_groups", "addon_groups"]
 
 class MenuCategorySerializer(serializers.ModelSerializer):
     items = MenuItemSerializer(many=True, read_only=True)

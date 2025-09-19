@@ -6,7 +6,7 @@ from accounts.serializers import UserSerializer, OAuthCodeSerializer
 from accounts.models import User
 import jwt
 from ..utils.oath import exchange_code_for_tokens, fetch_userinfo
-from ..utils.token_service import _issue_jwt_for_user
+from authflow.services import _issue_jwt_for_user
 
 class OAuthExchangeView(APIView):
     permission_classes = [permissions.AllowAny]

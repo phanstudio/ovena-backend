@@ -5,7 +5,7 @@ from menu.models import (
     Menu, MenuCategory, MenuItem,
     VariantGroup, VariantOption,
     MenuItemAddonGroup, MenuItemAddon,
-    MenuItemAvailability
+    BaseItemAvailability
 )
 
 
@@ -100,7 +100,7 @@ class MenuItemAddonFactory(factory.django.DjangoModelFactory):
 
 class MenuItemAvailabilityFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = MenuItemAvailability
+        model = BaseItemAvailability
 
     item = factory.SubFactory(MenuItemFactory)
     branch = factory.SubFactory(BranchFactory)

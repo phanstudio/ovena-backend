@@ -46,8 +46,8 @@ INSTALLED_APPS = [
     'addresses',
     'accounts',
     'menu',
+    'authflow',
     # 'anymail',
-    
 ]
 
 MIDDLEWARE = [
@@ -74,6 +74,8 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+
+CUSTOM_TOKEN_LIFETIME = 60*60*24*30 # 30 days like the refreshtoken
 
 # CACHES
 CACHES = {

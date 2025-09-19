@@ -7,9 +7,12 @@ from accounts.serializers import (
     RestaurantProfileSerializer, RegisterCustomerSerializer,
 )
 from accounts.models import(
-    User, Restaurant, Address, Branch, DriverProfile
+    User, Restaurant, Address, Branch, DriverProfile, PrimaryAgent, LinkedStaff
 )
-from django.db import transaction
+from django.db import transaction, IntegrityError
+from authflow.services import create_token, send_otp, verify_otp
+# from auth.permissions import IsResturantManager
+# from auth.decorators import subuser_authentication
 
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -29,7 +32,7 @@ class UserProfileView(APIView):
                 return Response({"detail": "Driver profile not found."}, status=status.HTTP_404_NOT_FOUND)
             serializer = DriverProfileSerializer(profile)
 
-        elif user.role == "restaurant":
+        elif user.role == "restaurant": # these is not neccessary use atomic to prvent this if its not then the person didn't us our app
             profile = getattr(user, "restaurant_profile", None)
             if not profile:
                 return Response({"detail": "Restaurant profile not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -87,6 +90,97 @@ class RegisterResturant(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+
+# finished
+class LinkRequestCreate(APIView):
+    permission_classes = [IsAuthenticated]#IsAuthenticated, IsResturantManager]
+    def post(self, request):
+        user = request.user
+        otp = send_otp(user.id)
+        return Response({"otp": otp})
+
+class LinkApprove(APIView):
+    authentication_classes = []  # mobile only
+    def post(self, request):
+        otp = request.data.get("otp")
+        device_id = request.data.get("device_id")
+        if not otp or not device_id:
+            return Response({"detail": "Otp or Device id not found."}, status=status.HTTP_404_NOT_FOUND)
+        user_id = verify_otp(otp)
+
+        # Fetch PrimaryAgent in one query
+        primary_agent = (
+            PrimaryAgent.objects
+            .select_related("user", "branch")
+            .filter(user_id=user_id)
+            .first()
+        )
+        if not primary_agent:
+            return Response(
+                {"detail": "User not a manager."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        sub_user = LinkedStaff.objects.create(
+            created_by= primary_agent,
+            device_name=device_id
+        )
+        user = {"user_id": primary_agent.user.id, "device_id": device_id}
+        sub_token = create_token(user, role="sub", scopes=["read", "availability:update"])
+        return Response(
+            {
+                "message": "Account registered successfully",
+                "user": {
+                    "id": sub_user.id,
+                    "username": sub_user.device_name,
+                },
+                "tokens": sub_token
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+class RegisterRManager(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        username = request.data.get("username")
+        email = request.data.get("email")
+        branch_id = request.data.get("branch_id")
+
+        if not username or not branch_id:
+            return Response(
+                {"error": "Username and branch are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            with transaction.atomic():
+                user = User.objects.create(name=username, email=email)
+                PrimaryAgent.objects.create(user=user, branch_id=branch_id)
+
+        except IntegrityError as e:
+            # Handle specific uniqueness violations
+            # if "unique" in str(e).lower():
+            #     return Response(
+            #         {"error": "Username or branch already taken"},
+            #         status=status.HTTP_400_BAD_REQUEST,
+            #     )
+            return Response(
+                {"error": "Branch not found or was removed during creation"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        main_token = create_token(user, role="main", expires_in=3600)
+
+        return Response(
+            {
+                "message": "User registered successfully",
+                "user": {"id": user.id, "name": user.name},
+                "tokens": main_token,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+# regular register
 class RegisterDrivers(APIView): # what is the flow for drivers
     permission_classes = [IsAuthenticated]
     # review the drives credentials after a few days
