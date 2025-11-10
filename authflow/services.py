@@ -6,6 +6,7 @@ from accounts.models import User
 import random, time
 from django.core.cache import cache
 from accounts.utils.otp import generate_otp
+from django.utils import timezone
 
 def create_token(user, role="main", scopes=None, expires_in=3600):
     """
@@ -86,3 +87,23 @@ def start_time() -> float:
 def calculate_time(start):
     duration = time.perf_counter() - start
     print(f"View took {duration:.4f} seconds")
+
+import secrets, hashlib
+
+def generate_passphrase():
+    words = ["mango", "horse", "bright", "storm", "leaf", "river", "cloud", "stone"]
+    return "-".join(secrets.choice(words) for _ in range(2)) + "-" + str(secrets.randbelow(99))
+
+def hash_phrase(phrase: str) -> str:
+    return hashlib.sha256(phrase.encode()).hexdigest()
+
+# When driver verifies:
+def verify_delivery_phrase(order, entered_phrase):
+    hashed = hash_phrase(entered_phrase)
+    if hashed == order.delivery_secret_hash:
+        order.status = "delivered"
+        order.delivery_verified = True
+        order.delivery_verified_at = timezone.now()
+        order.save(update_fields=["status", "delivery_verified", "delivery_verified_at"])
+        return True
+    return False

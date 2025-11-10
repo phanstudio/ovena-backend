@@ -31,13 +31,7 @@ class UserProfileView(APIView):
             if not profile:
                 return Response({"detail": "Driver profile not found."}, status=status.HTTP_404_NOT_FOUND)
             serializer = DriverProfileSerializer(profile)
-
-        elif user.role == "restaurant": # these is not neccessary use atomic to prvent this if its not then the person didn't us our app
-            profile = getattr(user, "restaurant_profile", None)
-            if not profile:
-                return Response({"detail": "Restaurant profile not found."}, status=status.HTTP_404_NOT_FOUND)
-            serializer = RestaurantProfileSerializer(profile)
-
+            # might add the resturant owners
         else:
             return Response({"detail": "Invalid role."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -90,7 +84,7 @@ class RegisterResturant(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-
+# register resturant
 # finished
 class LinkRequestCreate(APIView):
     permission_classes = [IsAuthenticated]#IsAuthenticated, IsResturantManager]

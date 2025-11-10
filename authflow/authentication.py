@@ -1,6 +1,6 @@
 import jwt
 from django.conf import settings
-from rest_framework.authentication import BaseAuthentication
+from rest_framework.authentication import BaseAuthentication, TokenAuthentication, exceptions
 from rest_framework_simplejwt.authentication import JWTAuthentication as SimpleJWTAuth
 from rest_framework_simplejwt.exceptions import AuthenticationFailed, InvalidToken
 from django.utils.translation import gettext_lazy as _
@@ -24,7 +24,7 @@ class CustomJWTAuthentication(BaseAuthentication): # any way to speed this up
 
         if auth_header.startswith("Bearer "):
             # Delegate to SimpleJWT for normal tokens
-            simple_jwt = CustomJWTAuth()
+            simple_jwt = CustomprimJWTAuth()
             return simple_jwt.authenticate(request)
 
         elif auth_header.startswith("SubBearer "):
@@ -64,7 +64,12 @@ class CustomJWTAuthentication(BaseAuthentication): # any way to speed this up
 
         return None
 
-class CustomJWTAuth(SimpleJWTAuth):
+class CustomJWtAuth(SimpleJWTAuth):
+    def custom_get_user(self, user_id):
+        return self.user_model.objects.get(
+                **{api_settings.USER_ID_FIELD: user_id}
+            )
+
     def get_user(self, validated_token):
         """
         Return user with primaryagent preloaded for efficiency.
@@ -75,9 +80,7 @@ class CustomJWTAuth(SimpleJWTAuth):
             raise InvalidToken(_("Token contained no recognizable user identification"))
 
         try:
-            user = self.user_model.objects.select_related("primaryagent", "primaryagent__branch").get(
-                **{api_settings.USER_ID_FIELD: user_id}
-            )
+            user = self.custom_get_user(user_id)
         except self.user_model.DoesNotExist:
             raise AuthenticationFailed(_("User not found"), code="user_not_found")
 
@@ -93,6 +96,12 @@ class CustomJWTAuth(SimpleJWTAuth):
                 )
 
         return user
+
+class CustomprimJWTAuth(CustomJWtAuth):
+    def custom_get_user(self, user_id):
+        return self.user_model.objects.select_related("primaryagent", "primaryagent__branch").get(
+                **{api_settings.USER_ID_FIELD: user_id}
+            )
     
     def authenticate(self, request):
         user, token =  super().authenticate(request)
@@ -105,3 +114,15 @@ class CustomJWTAuth(SimpleJWTAuth):
             ):
             token["scopes"] = {"*"}
         return (user, token)
+
+class CustomDriverAuth(CustomJWtAuth):
+    def custom_get_user(self, user_id):
+        return self.user_model.objects.select_related("driver_profile").get(
+            **{api_settings.USER_ID_FIELD: user_id}
+        )
+
+class CustomCustomerAuth(CustomJWtAuth):
+    def custom_get_user(self, user_id):
+        return self.user_model.objects.select_related("customer_profile").get(
+            **{api_settings.USER_ID_FIELD: user_id}
+        )

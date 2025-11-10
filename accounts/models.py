@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 from django.db import models
 import uuid
 from addresses.models import Address
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 class Restaurant(models.Model): # does the referral system work with resturants
     company_name = models.CharField(max_length=255)
@@ -135,26 +136,111 @@ class LinkedStaff(models.Model):
     def __str__(self):
         return f"{self.device_name or 'Unnamed Device'} - staff for {self.created_by.user.name}"
 
-# two rating systems that inhereting from a base ratng system
 class Rating(models.Model):
+    """
+    Customers can rate either a driver or a branch.
+    Complaint types are selected from a predefined set of categories.
+    """
+
+    class ComplaintType(models.TextChoices):
+        # 🚗 Driver-focused complaints
+        LATE_DELIVERY = "LATE_DELIVERY", "Late delivery"
+        RUDE_DRIVER = "RUDE_DRIVER", "Rude driver"
+        UNSAFE_DRIVING = "UNSAFE_DRIVING", "Unsafe driving"
+        WRONG_ADDRESS = "WRONG_ADDRESS", "Went to wrong address"
+
+        # 🍽️ Branch-focused complaints
+        COLD_FOOD = "COLD_FOOD", "Cold food"
+        DIRTY_ENVIRONMENT = "DIRTY_ENVIRONMENT", "Unhygienic/dirty environment"
+        WRONG_ORDER = "WRONG_ORDER", "Wrong order"
+        DELAYED_PREPARATION = "DELAYED_PREPARATION", "Slow service / delayed preparation"
+        RUDE_STAFF = "RUDE_STAFF", "Rude staff"
+
+        # 🧩 Shared complaints (both driver and branch)
+        OTHER = "OTHER", "Other"
+
     rater = models.ForeignKey(
-        User,
+        "CustomerProfile",
         on_delete=models.CASCADE,
-        related_name="ratings_given"  # unique related_name
+        related_name="ratings_given"
     )
-    rated = models.ForeignKey(
-        User,
+
+    rated_driver = models.ForeignKey(
+        "DriverProfile",
         on_delete=models.CASCADE,
-        related_name="ratings_received"  # unique related_name
+        related_name="driver_ratings_received",
+        null=True,
+        blank=True
     )
+    rated_branch = models.ForeignKey(
+        "Branch",
+        on_delete=models.CASCADE,
+        related_name="branch_ratings_received",
+        null=True,
+        blank=True
+    )
+
+    complaint_type = models.CharField(
+        max_length=40,
+        choices=ComplaintType.choices,
+        blank=True,
+        null=True,
+        help_text="Select a complaint reason if applicable."
+    )
+
     review = models.TextField(blank=True)
-    stars = models.PositiveSmallIntegerField()  # 1-5 stars
+    stars = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("rater", "rated")  # optional: prevent multiple ratings per rater/rated
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                    models.Q(rated_driver__isnull=False, rated_branch__isnull=True)
+                    | models.Q(rated_driver__isnull=True, rated_branch__isnull=False)
+                ),
+                name="only_one_rating_target",
+            ),
+            models.UniqueConstraint(
+                fields=["rater", "rated_driver"],
+                name="unique_driver_rating",
+            ),
+            models.UniqueConstraint(
+                fields=["rater", "rated_branch"],
+                name="unique_branch_rating",
+            ),
+        ]
+        indexes = [models.Index(fields=["created_at"])]
 
     def __str__(self):
-        return f"{self.rater} → {self.rated}: {self.stars}⭐"
+        target = self.rated_driver or self.rated_branch
+        return f"{self.rater} → {target}: {self.stars}⭐"
+
+    def target_type(self):
+        if self.rated_driver:
+            return "driver"
+        elif self.rated_branch:
+            return "branch"
+        return None
+
+    def get_complaint_choices(target_type):
+        if target_type == "driver":
+            return [
+                Rating.ComplaintType.LATE_DELIVERY,
+                Rating.ComplaintType.RUDE_DRIVER,
+                Rating.ComplaintType.UNSAFE_DRIVING,
+                Rating.ComplaintType.WRONG_ADDRESS,
+                Rating.ComplaintType.OTHER,
+            ]
+        elif target_type == "branch":
+            return [
+                Rating.ComplaintType.COLD_FOOD,
+                Rating.ComplaintType.DIRTY_ENVIRONMENT,
+                Rating.ComplaintType.WRONG_ORDER,
+                Rating.ComplaintType.DELAYED_PREPARATION,
+                Rating.ComplaintType.RUDE_STAFF,
+                Rating.ComplaintType.OTHER,
+            ]

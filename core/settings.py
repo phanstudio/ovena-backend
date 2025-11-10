@@ -90,6 +90,9 @@ MAX_OTP_SENDS = 3
 RATE_LIMIT_WINDOW = 600
 OTP_EXPIRY = 300
 
+# paystack
+PAYSTACK_SECRET_KEY = env("PAYSTACK_SERECT_KEY")
+
 # OAuth provider config placeholders
 OAUTH_PROVIDERS = {
     "google": {

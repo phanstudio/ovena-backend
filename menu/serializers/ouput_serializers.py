@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from ..models import (
     Restaurant, Menu, MenuCategory, MenuItem, VariantGroup, 
-    VariantOption, MenuItemAddonGroup, MenuItemAddon
+    VariantOption, MenuItemAddonGroup, MenuItemAddon, Branch
 )
 
 class VariantOptionSerializer(serializers.ModelSerializer):
@@ -60,3 +60,14 @@ class RestaurantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Restaurant
         fields = ["id", "company_name", "menus"]
+
+# extras
+class TopBranchSerilazer(serializers.ModelSerializer):
+    avg_rating = serializers.FloatField()
+    rating_count = serializers.IntegerField()
+    restaurant_name = serializers.CharField(source='restaurant.company_name', read_only=True)
+    # menus = MenuSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Branch
+        fields = ['id', 'restaurant_name', 'name', 'location', 'avg_rating', 'rating_count',]# 'menus']
