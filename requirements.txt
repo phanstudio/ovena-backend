@@ -17,3 +17,4 @@ django-environ
 pytest-factoryboy 
 factory_boy
 paystackapi
+whitenoise
