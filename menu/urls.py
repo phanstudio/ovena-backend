@@ -1,8 +1,9 @@
 from django.urls import path, include
 import menu.views as views
+import menu.payment_views as payviews
 
 payment_urls =[
-    path("paystack/webhook/", views.paystack_webhook, name="paystack-webhook"),
+    path("paystack/webhook/", payviews.paystack_webhook, name="paystack-webhook"),
 ]
 
 urlpatterns = [
