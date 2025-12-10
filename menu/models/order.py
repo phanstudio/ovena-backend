@@ -90,7 +90,7 @@ class Order(models.Model):
 
     # new for verification
     # payment_reference = models.CharField(max_length= 200) # for saving the payment refrence to get find the order
-    delivery_secret_hash = models.CharField(max_length= 200)
+    delivery_secret_hash = models.CharField(max_length= 200, default="khjgfdsfgjhkjuiyhffs")
     delivery_verified = models.BooleanField(default= False)
     delivery_verified_at = models.DateTimeField(blank=True, null=True)
     
