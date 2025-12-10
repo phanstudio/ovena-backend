@@ -64,7 +64,7 @@ def paystack_webhook(request):
 
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
-    serializer_class = PaymentSerializer
+    # serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
@@ -82,70 +82,70 @@ class PaymentViewSet(viewsets.ModelViewSet):
             "metadata": {"order_id": "123"}  # optional
         }
         """
-        serializer = PaymentInitializeSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        # serializer = PaymentInitializeSerializer(data=request.data)
+        # serializer.is_valid(raise_exception=True)
         
-        amount = serializer.validated_data['amount']
-        email = serializer.validated_data.get('email', request.user.email)
-        metadata = serializer.validated_data.get('metadata', {})
+        # amount = serializer.validated_data['amount']
+        # email = serializer.validated_data.get('email', request.user.email)
+        # metadata = serializer.validated_data.get('metadata', {})
         
-        # Generate unique reference
-        reference = f"PAY-{uuid.uuid4().hex[:12].upper()}"
+        # # Generate unique reference
+        # reference = f"PAY-{uuid.uuid4().hex[:12].upper()}"
         
-        # Convert amount to kobo
-        amount_in_kobo = int(float(amount) * 100)
+        # # Convert amount to kobo
+        # amount_in_kobo = int(float(amount) * 100)
         
-        try:
-            # Initialize transaction with Paystack
-            response = Transaction.initialize(
-                email=email,
-                amount=amount_in_kobo,
-                reference=reference,
-                metadata=metadata,
-                # Don't set callback_url for mobile apps
-            )
+        # try:
+        #     # Initialize transaction with Paystack
+        #     response = Transaction.initialize(
+        #         email=email,
+        #         amount=amount_in_kobo,
+        #         reference=reference,
+        #         metadata=metadata,
+        #         # Don't set callback_url for mobile apps
+        #     )
             
-            if response['status']:
-                # Save payment record
-                payment = Payment.objects.create( # do we add propose like to point at the order
-                    user=request.user,
-                    amount=amount,
-                    reference=reference,
-                    email=email,
-                    status='pending',
-                    access_code=response['data']['access_code'],
-                    authorization_url=response['data']['authorization_url'],
-                    paystack_response=response['data'],
-                    metadata=metadata
-                )
+        #     if response['status']:
+        #         # Save payment record
+        #         payment = Payment.objects.create( # do we add propose like to point at the order
+        #             user=request.user,
+        #             amount=amount,
+        #             reference=reference,
+        #             email=email,
+        #             status='pending',
+        #             access_code=response['data']['access_code'],
+        #             authorization_url=response['data']['authorization_url'],
+        #             paystack_response=response['data'],
+        #             metadata=metadata
+        #         )
 
-                # Order.objects.filter(id=)
+        #         # Order.objects.filter(id=)
                 
-                return Response({
-                    'status': 'success',
-                    'message': 'Payment initialized',
-                    'data': {
-                        'reference': reference,
-                        'access_code': response['data']['access_code'],
-                        'authorization_url': response['data']['authorization_url'],
-                        'amount': amount,
-                        'email': email
-                    }
-                }, status=status.HTTP_200_OK)
-            else:
-                return Response({
-                    'status': 'error',
-                    'message': 'Payment initialization failed',
-                    'error': response.get('message', 'Unknown error')
-                }, status=status.HTTP_400_BAD_REQUEST)
+        #         return Response({
+        #             'status': 'success',
+        #             'message': 'Payment initialized',
+        #             'data': {
+        #                 'reference': reference,
+        #                 'access_code': response['data']['access_code'],
+        #                 'authorization_url': response['data']['authorization_url'],
+        #                 'amount': amount,
+        #                 'email': email
+        #             }
+        #         }, status=status.HTTP_200_OK)
+        #     else:
+        #         return Response({
+        #             'status': 'error',
+        #             'message': 'Payment initialization failed',
+        #             'error': response.get('message', 'Unknown error')
+        #         }, status=status.HTTP_400_BAD_REQUEST)
                 
-        except Exception as e:
-            logger.error(f"Payment initialization error: {str(e)}")
-            return Response({
-                'status': 'error',
-                'message': 'An error occurred',
-                'error': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # except Exception as e:
+        #     logger.error(f"Payment initialization error: {str(e)}")
+        #     return Response({
+        #         'status': 'error',
+        #         'message': 'An error occurred',
+        #         'error': str(e)
+        #     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['post'])
     def verify(self, request):
@@ -154,66 +154,66 @@ class PaymentViewSet(viewsets.ModelViewSet):
         POST /api/payments/verify/
         Body: {"reference": "PAY-XXX"}
         """
-        serializer = PaymentVerifySerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        # serializer = PaymentVerifySerializer(data=request.data)
+        # serializer.is_valid(raise_exception=True)
         
-        reference = serializer.validated_data['reference']
+        # reference = serializer.validated_data['reference']
         
-        try:
-            # Get payment record
-            payment = Payment.objects.get(
-                reference=reference,
-                user=request.user
-            )
+        # try:
+        #     # Get payment record
+        #     payment = Payment.objects.get(
+        #         reference=reference,
+        #         user=request.user
+        #     )
             
-            # Verify with Paystack
-            response = Transaction.verify(reference=reference)
+        #     # Verify with Paystack
+        #     response = Transaction.verify(reference=reference)
             
-            if response['status'] and response['data']['status'] == 'success':
-                # Update payment status
-                payment.status = 'success'
-                payment.paystack_response = response['data']
-                payment.save()
+        #     if response['status'] and response['data']['status'] == 'success':
+        #         # Update payment status
+        #         payment.status = 'success'
+        #         payment.paystack_response = response['data']
+        #         payment.save()
                 
-                # Here you can trigger post-payment actions
-                # e.g., activate subscription, send receipt, etc.
+        #         # Here you can trigger post-payment actions
+        #         # e.g., activate subscription, send receipt, etc.
                 
-                return Response({
-                    'status': 'success',
-                    'message': 'Payment verified successfully',
-                    'data': {
-                        'reference': reference,
-                        'amount': payment.amount,
-                        'status': payment.status,
-                        'paid_at': response['data'].get('paid_at')
-                    }
-                }, status=status.HTTP_200_OK)
-            else:
-                payment.status = 'failed'
-                payment.paystack_response = response.get('data', {})
-                payment.save()
+        #         return Response({
+        #             'status': 'success',
+        #             'message': 'Payment verified successfully',
+        #             'data': {
+        #                 'reference': reference,
+        #                 'amount': payment.amount,
+        #                 'status': payment.status,
+        #                 'paid_at': response['data'].get('paid_at')
+        #             }
+        #         }, status=status.HTTP_200_OK)
+        #     else:
+        #         payment.status = 'failed'
+        #         payment.paystack_response = response.get('data', {})
+        #         payment.save()
                 
-                return Response({
-                    'status': 'error',
-                    'message': 'Payment verification failed',
-                    'data': {
-                        'reference': reference,
-                        'status': payment.status
-                    }
-                }, status=status.HTTP_400_BAD_REQUEST)
+        #         return Response({
+        #             'status': 'error',
+        #             'message': 'Payment verification failed',
+        #             'data': {
+        #                 'reference': reference,
+        #                 'status': payment.status
+        #             }
+        #         }, status=status.HTTP_400_BAD_REQUEST)
                 
-        except Payment.DoesNotExist:
-            return Response({
-                'status': 'error',
-                'message': 'Payment not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            logger.error(f"Payment verification error: {str(e)}")
-            return Response({
-                'status': 'error',
-                'message': 'An error occurred',
-                'error': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # except Payment.DoesNotExist:
+        #     return Response({
+        #         'status': 'error',
+        #         'message': 'Payment not found'
+        #     }, status=status.HTTP_404_NOT_FOUND)
+        # except Exception as e:
+        #     logger.error(f"Payment verification error: {str(e)}")
+        #     return Response({
+        #         'status': 'error',
+        #         'message': 'An error occurred',
+        #         'error': str(e)
+        #     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'])
     def history(self, request):
