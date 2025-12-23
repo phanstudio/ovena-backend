@@ -9,6 +9,10 @@ services:
       - redis
     volumes:
       - .:/app   # mount your local project into /app in the container
+    environment:
+      DJANGO_SETTINGS_MODULE: core.settings
+      DJANGO_AUTORELOAD_ENV: watchdog
+      PYTHONUNBUFFERED: "1"
 
   redis:
     image: redis:7-alpine

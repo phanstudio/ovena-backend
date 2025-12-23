@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from ..utils.otp import send_otp, verify_otp
 from authflow.services import _issue_jwt_for_user
 from django.contrib.auth import get_user_model
+# from .account_views import RegisterCustomerSerializer
 
 User = get_user_model()
 class SendOTPView(APIView):
@@ -14,7 +15,7 @@ class SendOTPView(APIView):
         result = send_otp(phone_number)
         return Response(result, status=200)
 
-class VerifyOTPView(APIView):
+class VerifyOTPView(APIView): # we need to revoke the jwt also use the refresh to get the new access, also the getting new refresh token
     """
     Verifies OTP, creates user if not exists, and returns JWT tokens
     """

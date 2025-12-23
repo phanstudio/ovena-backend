@@ -22,3 +22,4 @@ def create_branch_availability_for_new_item(sender, instance, created, **kwargs)
             for branch in branches
         ]
         BaseItemAvailability.objects.bulk_create(availabilities, ignore_conflicts=True)
+# This is wrong we can do it in the actual view when creating the branch or item

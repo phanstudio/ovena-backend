@@ -3,6 +3,8 @@ from django.db import models
 import uuid
 from addresses.models import Address
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.contrib.gis.db import models as gis_models
+from django.utils import timezone
 
 class Restaurant(models.Model): # does the referral system work with resturants
     company_name = models.CharField(max_length=255)
@@ -12,14 +14,54 @@ class Restaurant(models.Model): # does the referral system work with resturants
     def __str__(self):
         return self.company_name
 
-class Branch(models.Model):
-    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="branches")
-    name = models.CharField(max_length=255)  # e.g. "Ikeja Branch"
-    phone_number = models.CharField(max_length=20, blank=True)
-    location = models.ForeignKey(Address, on_delete=models.CASCADE, related_name="branches")
+# recheck if indexing is possible on foreign keys and checking can work?
+# class Branch(models.Model):
+#     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="branches", default=1)
+#     name = models.CharField(max_length=255)  # e.g. "Ikeja Branch"
+#     phone_number = models.CharField(max_length=20, blank=True)
+#     location = models.ForeignKey(Address, on_delete=models.CASCADE, related_name="branches")
 
+#     # new fields
+#     # Operational status
+#     is_active = models.BooleanField(default=True)
+#     is_accepting_orders = models.BooleanField(default=True)
+    
+#     # Kitchen timing
+#     average_prep_time = models.IntegerField(default=30, help_text="Minutes")
+    
+#     created_at = models.DateTimeField(auto_now_add=True)
+
+#     def __str__(self):
+#         return f"{self.restaurant.company_name} - {self.name}"
+    
+#     class Meta:
+#         indexes = [
+#             gis_models.Index(fields=['location']),
+#         ]
+
+class Branch(gis_models.Model):
+    name = models.CharField(max_length=200)
+    
+    # Location (GIS)
+    address = models.CharField(max_length=500, default="")
+    location = gis_models.PointField(geography=True, srid=4326, null=True, blank=True)
+    
+    # Operational status
+    is_active = models.BooleanField(default=True)
+    is_accepting_orders = models.BooleanField(default=True)
+    
+    # Kitchen timing
+    average_prep_time = models.IntegerField(default=30, help_text="Minutes")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # class Meta:
+    #     indexes = [
+    #         gis_models.Index(fields=['location']),
+    #     ]
+    
     def __str__(self):
-        return f"{self.restaurant.company_name} - {self.name}"
+        return self.name
 
 class UserManager(BaseUserManager):
     def create_user(self, email=None, phone_number=None, password=None, **extra_fields):
@@ -103,8 +145,45 @@ class CustomerProfile(models.Model): # create a simple view to change the defual
             (today.month, today.day) < (self.birth_date.month, self.birth_date.day)
         )
 
-class DriverProfile(models.Model): # does the referral system work with drivers
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="driver_profile")
+
+
+# driver related
+# class DriverProfile(models.Model):
+#     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="driver_profile")
+#     nin = models.CharField(max_length=50, default="")
+#     driver_license = models.CharField(max_length=50, default="")
+#     plate_number = models.CharField(max_length=20, default="")
+#     vehicle_type = models.CharField(max_length=50, default="")
+#     photo = models.ImageField(upload_to="drivers/photos/", default=None)
+
+# driver related
+class DriverProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='driver_profile')
+    
+    # Availability
+    is_online = models.BooleanField(default=False)
+    is_available = models.BooleanField(default=False)  # Online but not on delivery
+    current_order = models.ForeignKey('menu.Order', on_delete=models.SET_NULL, null=True, blank=True, related_name='current_driver')
+    
+    # Stats
+    total_deliveries = models.IntegerField(default=0)
+    rating = models.DecimalField(max_digits=3, decimal_places=2, default=5.0)
+    
+    # Tracking
+    last_location_update = models.DateTimeField(blank=True, null=True)
+    
+    # Vehicle info
+    vehicle_type = models.CharField(max_length=50, blank=True, null=True)  # bike, car, etc.
+    vehicle_number = models.CharField(max_length=50, blank=True, null=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Driver: {self.user.username}"
+    
+# for verification, every driver must have cred
+class DriverCred(models.Model): # does the referral system work with drivers
+    user = models.OneToOneField(DriverProfile, on_delete=models.CASCADE, related_name="driver_profile")
     nin = models.CharField(max_length=50)
     driver_license = models.CharField(max_length=50)
     plate_number = models.CharField(max_length=20)

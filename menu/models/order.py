@@ -4,9 +4,98 @@ from .main import (
     CustomerProfile, MenuItemAddon, VariantOption, Branch
 )
 from accounts.models import (
-    DriverProfile
+    DriverProfile, User
 )
 from .payment import Payment
+
+
+"""
+Updated models with GIS support and WebSocket fields
+Add these to your existing models.py
+"""
+from django.contrib.gis.db import models as gis_models
+from django.contrib.gis.geos import Point
+from django.contrib.gis.db.models.functions import Distance
+from django.contrib.gis.measure import D
+from django.db import models
+from django.utils import timezone
+
+
+# ===== UPDATE EXISTING MODELS =====
+
+class Order(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),  # waiting for branch confirmation
+        ("confirmed", "Confirmed"),  # branch accepted, waiting payment
+        ("payment_pending", "Payment Pending"),  # payment URL generated
+        ("preparing", "Preparing"),  # payment confirmed, cooking
+        ("ready", "Ready for Pickup"),  # food ready, finding driver
+        ("driver_assigned", "Driver Assigned"),  # driver notified
+        ("picked_up", "Picked Up"),  # driver has food
+        ("on_the_way", "On the Way"),  # heading to customer
+        ("delivered", "Delivered"),  # completed
+        ("cancelled", "Cancelled"),
+    ]
+
+    orderer = models.ForeignKey(CustomerProfile, on_delete=models.CASCADE, related_name="orders")
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="orders")
+    driver = models.ForeignKey(DriverProfile, on_delete=models.CASCADE, related_name="orders", blank=True, null=True)
+    
+    # Pricing
+    delivery_price = models.DecimalField(decimal_places=2, max_digits=10, default=0)
+    ovena_commission = models.DecimalField(max_digits=5, decimal_places=2, default=10)
+    coupons = models.ForeignKey('Coupons', on_delete=models.CASCADE, related_name="coupons", blank=True, null=True)
+    
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    
+    # Payment
+    payment = models.OneToOneField('Payment', on_delete=models.CASCADE, related_name="order", null=True, blank=True)
+    payment_reference = models.CharField(max_length=200, blank=True, null=True)
+    payment_initialized_at = models.DateTimeField(blank=True, null=True)
+    payment_completed_at = models.DateTimeField(blank=True, null=True)
+    
+    # Delivery verification
+    delivery_secret_hash = models.CharField(max_length=200)
+    delivery_verified = models.BooleanField(default=False)
+    delivery_verified_at = models.DateTimeField(blank=True, null=True)
+    
+    # Order tracking
+    order_number = models.IntegerField(default=0)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="pending")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    confirmed_at = models.DateTimeField(blank=True, null=True)
+    assigned_at = models.DateTimeField(blank=True, null=True)
+    picked_up_at = models.DateTimeField(blank=True, null=True)
+    delivered_at = models.DateTimeField(blank=True, null=True)
+    last_modified_at = models.DateTimeField(auto_now=True)
+    
+    # WebSocket group management
+    websocket_group_name = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Estimated times
+    estimated_prep_time = models.IntegerField(default=0, help_text="Minutes")
+    estimated_delivery_time = models.DateTimeField(blank=True, null=True)
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['driver', 'status']),
+            models.Index(fields=['branch', 'status']),
+        ]
+    
+    def __str__(self):
+        return f"Order #{self.order_number} - {self.status}"
+    
+    def save(self, *args, **kwargs):
+        if not self.websocket_group_name:
+            self.websocket_group_name = f"order_{self.id}" if self.id else None
+        super().save(*args, **kwargs)
+
+
 
 # appliing checking and attaching said coupons
 class Coupons(models.Model): # are coupons for the entire order or a single order item 
@@ -51,49 +140,49 @@ class Coupons(models.Model): # are coupons for the entire order or a single orde
     valid_until = models.DateTimeField(blank=True, null= True)
     is_active = models.BooleanField(default=True)
 
-# calculate the distance to get the drivers amount
-# create a way to pick from the closest branch
-# order -> accepted -> pay -> accepted by driver -> ontheway -> delived -> cancelled
-class Order(models.Model):
-    STATUS_CHOICES = [
-        ("pending", "Pending"), # order
-        ("confirmed", "Confirmed"), # accepted by rest,  can cancle
-        ("pay", "Pay"), # if pay not made cancle the order
-        ("preparing", "Preparing"), # 
-        ("ready", "Ready for Pickup"), # accept for driver
-        ("on_the_way", "On the Way"), # 
-        ("delivered", "Delivered"), # ("Completed", "completed"),
-        ("cancelled", "Cancelled"),
-    ]
+# # calculate the distance to get the drivers amount
+# # create a way to pick from the closest branch
+# # order -> accepted -> pay -> accepted by driver -> ontheway -> delived -> cancelled
+# class Order(models.Model):
+#     STATUS_CHOICES = [
+#         ("pending", "Pending"), # order
+#         ("confirmed", "Confirmed"), # accepted by rest,  can cancle
+#         ("pay", "Pay"), # if pay not made cancle the order
+#         ("preparing", "Preparing"), # 
+#         ("ready", "Ready for Pickup"), # accept for driver
+#         ("on_the_way", "On the Way"), # 
+#         ("delivered", "Delivered"), # ("Completed", "completed"),
+#         ("cancelled", "Cancelled"),
+#     ]
 
-    orderer = models.ForeignKey(CustomerProfile, on_delete= models.CASCADE, related_name="orders")
-    branch = models.ForeignKey(Branch, on_delete= models.CASCADE, related_name= "orders")
+#     orderer = models.ForeignKey(CustomerProfile, on_delete= models.CASCADE, related_name="orders")
+#     branch = models.ForeignKey(Branch, on_delete= models.CASCADE, related_name= "orders")
     
-    driver = models.ForeignKey(DriverProfile, on_delete= models.CASCADE, related_name= "orders", blank=True, null= True)
-    delivery_price = models.DecimalField(decimal_places= 5, max_digits= 10, default= 0)
-    ovena_commision = models.DecimalField(max_digits=5, decimal_places=2, default= 10)
-    coupons = models.ForeignKey(Coupons, on_delete= models.CASCADE, related_name= "coupons", blank=True, null= True)
-    payment = models.OneToOneField(Payment, on_delete= models.CASCADE, related_name="order", null= True, blank= True)
+#     driver = models.ForeignKey(DriverProfile, on_delete= models.CASCADE, related_name= "orders", blank=True, null= True)
+#     delivery_price = models.DecimalField(decimal_places= 5, max_digits= 10, default= 0)
+#     ovena_commision = models.DecimalField(max_digits=5, decimal_places=2, default= 10)
+#     coupons = models.ForeignKey(Coupons, on_delete= models.CASCADE, related_name= "coupons", blank=True, null= True)
+#     payment = models.OneToOneField(Payment, on_delete= models.CASCADE, related_name="order", null= True, blank= True)
 
-    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)        # sum(line_total)
-    discount_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # sum(discount_amount)
-    grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)     # subtotal - discount_total + delivery
+#     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)        # sum(line_total)
+#     discount_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # sum(discount_amount)
+#     grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)     # subtotal - discount_total + delivery
 
-    # if it is zero then delivery fee is should show free delivery
-    # coupons = models.ForeignKey(Coupons, on_delete= models.CASCADE, related_name= "coupons") # feels wrong
-    # we can use a signal to set the coupons used parameter
-    # or we can apply it in the view
-    order_number = models.IntegerField(default= 0) # randomily generate the code
-    status = models.CharField(max_length= 30, choices= STATUS_CHOICES, default= "pending")
-    created_at = models.DateTimeField(auto_now_add=True)
-    last_modified_at = models.DateTimeField(auto_now=True)
+#     # if it is zero then delivery fee is should show free delivery
+#     # coupons = models.ForeignKey(Coupons, on_delete= models.CASCADE, related_name= "coupons") # feels wrong
+#     # we can use a signal to set the coupons used parameter
+#     # or we can apply it in the view
+#     order_number = models.IntegerField(default= 0) # randomily generate the code
+#     status = models.CharField(max_length= 30, choices= STATUS_CHOICES, default= "pending")
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     last_modified_at = models.DateTimeField(auto_now=True)
 
-    # new for verification
-    # payment_reference = models.CharField(max_length= 200) # for saving the payment refrence to get find the order
-    delivery_secret_hash = models.CharField(max_length= 200, default="khjgfdsfgjhkjuiyhffs")
-    delivery_verified = models.BooleanField(default= False)
-    delivery_verified_at = models.DateTimeField(blank=True, null=True)
-    
+#     # new for verification
+#     # payment_reference = models.CharField(max_length= 200) # for saving the payment refrence to get find the order
+#     delivery_secret_hash = models.CharField(max_length= 200, default="khjgfdsfgjhkjuiyhffs")
+#     delivery_verified = models.BooleanField(default= False)
+#     delivery_verified_at = models.DateTimeField(blank=True, null=True)
+
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete= models.CASCADE, related_name= "items")
     menu_item = models.ForeignKey(MenuItem, on_delete= models.CASCADE, related_name= "orders")
@@ -132,3 +221,124 @@ class OrderItem(models.Model):
             # self.line_total = (self.price + self.added_total)* self.quantity
             ...
         super().save(*args, **kwargs)
+
+
+"""
+Updated models with GIS support and WebSocket fields
+Add these to your existing models.py
+"""
+from django.contrib.gis.db import models as gis_models
+# from django.contrib.gis.geos import Point
+# from django.contrib.gis.db.models.functions import Distance
+# from django.contrib.gis.measure import D
+# from django.db import models
+# from django.utils import timezone
+
+
+# ===== UPDATE EXISTING MODELS =====
+
+# ===== NEW MODELS =====
+
+class OrderEvent(models.Model):
+    """Audit log for order state changes"""
+    EVENT_TYPES = [
+        ('created', 'Order Created'),
+        ('confirmed', 'Branch Confirmed'),
+        ('rejected', 'Branch Rejected'),
+        ('payment_pending', 'Payment Pending'),
+        ('payment_completed', 'Payment Completed'),
+        ('payment_failed', 'Payment Failed'),
+        ('preparing', 'Preparing Food'),
+        ('ready', 'Ready for Pickup'),
+        ('driver_searching', 'Searching for Driver'),
+        ('driver_assigned', 'Driver Assigned'),
+        ('driver_rejected', 'Driver Rejected'),
+        ('picked_up', 'Order Picked Up'),
+        ('in_transit', 'In Transit'),
+        ('delivered', 'Delivered'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    ACTOR_TYPES = [
+        ('customer', 'Customer'),
+        ('driver', 'Driver'),
+        ('branch', 'Branch'),
+        ('system', 'System'),
+    ]
+    
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='events')
+    event_type = models.CharField(max_length=50, choices=EVENT_TYPES)
+    
+    # Who triggered this event
+    actor_type = models.CharField(max_length=20, choices=ACTOR_TYPES)
+    actor_id = models.IntegerField(null=True, blank=True)
+    
+    # State transition
+    old_status = models.CharField(max_length=30, blank=True, null=True)
+    new_status = models.CharField(max_length=30, blank=True, null=True)
+    
+    # Additional context
+    metadata = models.JSONField(default=dict, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['order', '-timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"{self.order.order_number} - {self.event_type} @ {self.timestamp}"
+
+
+class ChatMessage(models.Model):
+    """Private messaging between order participants"""
+    SENDER_TYPES = [
+        ('customer', 'Customer'),
+        ('driver', 'Driver'),
+        ('branch', 'Branch'),
+    ]
+    
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='messages')
+    
+    # Sender
+    sender_type = models.CharField(max_length=20, choices=SENDER_TYPES)
+    sender_id = models.IntegerField()
+    
+    # Recipient
+    recipient_type = models.CharField(max_length=20, choices=SENDER_TYPES)
+    recipient_id = models.IntegerField()
+    
+    # Message
+    message = models.TextField()
+    
+    # Status
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['order', 'created_at']),
+            models.Index(fields=['sender_type', 'sender_id']),
+        ]
+    
+    def __str__(self):
+        return f"{self.sender_type} to {self.recipient_type}: {self.message[:50]}"
+
+
+class Address(gis_models.Model): # change to use address
+    """Customer delivery addresses (your existing model - keep it)"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='addresses', null=True)
+    address = models.CharField(max_length=255, blank=True, null=True)
+    location = gis_models.PointField(geography=True, srid=4326, default=Point(0.0, 0.0, srid=4326))
+    label = models.CharField(max_length=50, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            gis_models.Index(fields=['location']),
+        ]
+
+    def __str__(self):
+        return f"{self.label or ''} - {self.address or 'Unknown'}"

@@ -7,13 +7,18 @@ from .models import (
     Address
 )
 from django.db import transaction
+from django.contrib.gis.geos import Point
 
 class CustomerProfileSerializer(serializers.ModelSerializer):
     age = serializers.ReadOnlyField()  # uses the @property
     
     class Meta:
         model = CustomerProfile
-        fields = ["id", "location", "birth_date", "age"]
+        fields = [
+            "id", 
+            "default_address", "addresses",
+            "birth_date", "age"
+        ]
 
 class DriverProfileSerializer(serializers.ModelSerializer):
     class Meta:
@@ -56,6 +61,9 @@ class RegisterCustomerSerializer(serializers.Serializer):
             user = User.objects.filter(phone_number=phone).first()
         else:
             raise serializers.ValidationError("User not found. Complete OTP verification first.")
+        
+        if CustomerProfile.objects.filter(user=user).exists():
+            raise serializers.ValidationError("Customer profile already exists for this user.")
 
         data["user"] = user
         referre_code = data.get("referre_code")
@@ -77,8 +85,9 @@ class RegisterCustomerSerializer(serializers.Serializer):
             user.save(update_fields=["name"])
         location = Address.objects.create(
             address="unknown",
-            latitude=lat,
-            longitude=long,
+            # latitude=lat,
+            # longitude=long,
+            location = Point(long, lat, srid=4326)
         )
         profile, created = CustomerProfile.objects.get_or_create(
             user=user,

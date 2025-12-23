@@ -12,5 +12,8 @@ urlpatterns = [
     path("menuitem-search/", views.SearchMenuItems.as_view(), name="menuitem-search"),
     path("register-menu/", views.MenuRegistrationView.as_view(), name="register-menu"),
     path("restaurant-order/", views.ResturantOrderView.as_view(), name="restaurant-order"),
+
+    path("order/", views.OrderView.as_view(), name="order"),
+
     path("", include(payment_urls)),
 ]

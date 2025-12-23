@@ -46,6 +46,12 @@ class UserProfileView(APIView):
             "profile": serializer.data,
         })
 
+class DeleteAccountView(APIView):
+    def delete(self, request):
+        user_id = request.data.get("user_id")
+        User.objects.filter(id=user_id).delete()
+        return Response({"detail": "User account deleted."}, status=status.HTTP_200_OK)
+
 class RegisterResturant(APIView):
     def post(self, request):
         phone_number = request.data.get("phone_number")

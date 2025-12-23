@@ -34,4 +34,7 @@ RUN chmod +x /app/entrypoint.sh
 ENTRYPOINT ["/app/entrypoint.sh"]
 
 # ---- Default CMD: run Gunicorn ----
-CMD ["gunicorn", "-b", "0.0.0.0:8000", "core.wsgi:application", "--workers=4", "--threads=2", "--timeout=120"]
+# CMD ["gunicorn", "-b", "0.0.0.0:8000", "core.wsgi:application", "--workers=4", "--threads=2", "--timeout=120"]
+# ---- Start ASGI server ----
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
+# CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

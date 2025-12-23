@@ -33,6 +33,8 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 
 # Application definition
 INSTALLED_APPS = [
+    "daphne",          # 🔥 REQUIRED
+    "channels",
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -43,6 +45,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_gis',
+    'corsheaders',
     'addresses',
     'accounts',
     'menu',
@@ -50,10 +53,13 @@ INSTALLED_APPS = [
     # 'anymail',
 ]
 
+
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     "whitenoise.middleware.WhiteNoiseMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -74,9 +80,14 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(days=7),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
     "AUTH_HEADER_TYPES": ("Bearer",),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
 
 CUSTOM_TOKEN_LIFETIME = 60*60*24*30 # 30 days like the refreshtoken
+
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
 
 # CACHES
 CACHES = {
@@ -112,6 +123,45 @@ OAUTH_PROVIDERS = {
     # }
 }
 
+# CHANNEL_LAYERS = {
+#     "default": {
+#         "BACKEND": "channels_redis.core.RedisChannelLayer",
+#         "CONFIG": {
+#             "hosts": [("redis", 6379)],  # or your Docker Redis host
+#         },
+#     },
+# }
+
+# settings.py
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#         'CONFIG': {
+#             "hosts": [('redis', 6379)],  # Use your Redis URL
+#             "capacity": 1500,  # Increase if needed
+#             "expiry": 10,
+#         },
+#     },
+# }
+
+# settings.py
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [(os.getenv('REDIS_HOST', 'redis'), 6379)],
+            "capacity": 1500,  # Default is 100
+            "expiry": 10,
+            "prefix": "ws",
+            "group_expiry": 60,
+        },
+    },
+}
+
+# Session engine for WebSocket auth
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -128,6 +178,8 @@ TEMPLATES = [
     },
 ]
 
+ASGI_APPLICATION = "core.asgi.application"
+
 ROOT_URLCONF = 'core.urls'
 WSGI_APPLICATION = 'core.wsgi.application'
 AUTH_USER_MODEL = "accounts.User"
@@ -135,10 +187,35 @@ AUTH_USER_MODEL = "accounts.User"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+# DATABASES = {
+#     "default": env.db()  # parses DATABASE_URL
+# }
+# DATABASES["default"]["ENGINE"] = "django.contrib.gis.db.backends.postgis"
+
+# Parse the DATABASE_URL first
+db_config = env.db()  # returns a dict with ENGINE, NAME, USER, PASSWORD, HOST, PORT
+
+# Override ENGINE for PostGIS
+db_config["ENGINE"] = "django.contrib.gis.db.backends.postgis"
+
+# Add additional settings
+db_config.update({
+    "CONN_MAX_AGE": 60,
+    "CONN_HEALTH_CHECKS": True,
+    "OPTIONS": {
+        "connect_timeout": 3,
+        "client_encoding": "UTF8",
+    },
+    "POOL": {
+        "POOL_SIZE": 20,
+        "MAX_OVERFLOW": 10,
+        "RECYCLE": 300,
+    }
+})
+
 DATABASES = {
-    "default": env.db()  # parses DATABASE_URL
+    "default": db_config
 }
-DATABASES["default"]["ENGINE"] = "django.contrib.gis.db.backends.postgis"
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
