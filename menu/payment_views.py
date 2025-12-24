@@ -255,6 +255,7 @@ def paystack_webhook(request):
     # 1️⃣ Get raw body and signature
     payload = request.body
     paystack_signature = request.headers.get('x-paystack-signature')
+    print('payment webhook received')
 
     # 2️⃣ Verify signature
     secret = settings.PAYSTACK_SECRET_KEY.encode()

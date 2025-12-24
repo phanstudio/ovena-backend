@@ -14,6 +14,7 @@ urlpatterns = [
     path("restaurant-order/", views.ResturantOrderView.as_view(), name="restaurant-order"),
 
     path("order/", views.OrderView.as_view(), name="order"),
+    path("order/<int:order_id>/cancel/", views.OrderCancelView.as_view(), name="order-cancel"),
 
     path("", include(payment_urls)),
 ]

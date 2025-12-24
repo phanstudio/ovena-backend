@@ -102,6 +102,11 @@ MAX_OTP_SENDS = 3
 RATE_LIMIT_WINDOW = 600
 OTP_EXPIRY = 300
 
+DEFAULT_PAYMENT_EMAIL= env("DEFAULT_EMAIL")
+
+BRANCH_CONFIRMATION_TIMEOUT = 300  # minutes
+PAYMENT_TIMEOUT = 300  # minutes
+
 # paystack
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SERECT_KEY")
 
@@ -122,29 +127,7 @@ OAUTH_PROVIDERS = {
     #     "REDIRECT_URI": "com.yourapp:/oauth2redirect/apple",
     # }
 }
-
-# CHANNEL_LAYERS = {
-#     "default": {
-#         "BACKEND": "channels_redis.core.RedisChannelLayer",
-#         "CONFIG": {
-#             "hosts": [("redis", 6379)],  # or your Docker Redis host
-#         },
-#     },
-# }
-
-# settings.py
-# CHANNEL_LAYERS = {
-#     'default': {
-#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
-#         'CONFIG': {
-#             "hosts": [('redis', 6379)],  # Use your Redis URL
-#             "capacity": 1500,  # Increase if needed
-#             "expiry": 10,
-#         },
-#     },
-# }
-
-# settings.py
+# Channels configuration
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
@@ -183,6 +166,15 @@ ASGI_APPLICATION = "core.asgi.application"
 ROOT_URLCONF = 'core.urls'
 WSGI_APPLICATION = 'core.wsgi.application'
 AUTH_USER_MODEL = "accounts.User"
+
+
+CELERY_BROKER_URL = "redis://redis:6379/2"
+CELERY_RESULT_BACKEND = "redis://redis:6379/3"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = "UTC"
+
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases

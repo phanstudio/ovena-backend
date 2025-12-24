@@ -11,6 +11,7 @@ from accounts.models import(
 )
 from django.db import transaction, IntegrityError
 from authflow.services import create_token, send_otp, verify_otp
+from django.contrib.gis.geos import Point
 # from auth.permissions import IsResturantManager
 # from auth.decorators import subuser_authentication
 
@@ -46,10 +47,17 @@ class UserProfileView(APIView):
             "profile": serializer.data,
         })
 
-class DeleteAccountView(APIView):
+class Delete2AccountView(APIView):
     def delete(self, request):
         user_id = request.data.get("user_id")
         User.objects.filter(id=user_id).delete()
+        return Response({"detail": "User account deleted."}, status=status.HTTP_200_OK)
+
+class DeleteAccountView(APIView):
+    permission_classes = [IsAuthenticated]
+    def delete(self, request):
+        user = request.user
+        user.delete()
         return Response({"detail": "User account deleted."}, status=status.HTTP_200_OK)
 
 class RegisterResturant(APIView):
@@ -89,6 +97,52 @@ class RegisterResturant(APIView):
                 {"detail": f"registration failed: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+from django.contrib.gis.geos import Point
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+
+class UpdateBranch(APIView):
+    def patch(self, request, branch_id):
+        lat = request.data.get("lat")
+        long = request.data.get("long")
+        phone_number = request.data.get("phone_number")
+        branch_name = request.data.get("branch_name")
+
+        update_data = {}
+
+        # ✅ Update location ONLY if both lat & long are provided
+        if lat is not None and long is not None:
+            update_data["location"] = Point(float(long), float(lat), srid=4326)
+
+        # ✅ Update phone number only if provided
+        if phone_number is not None:
+            update_data["phone_number"] = phone_number
+
+        # ✅ Update branch name only if provided
+        if branch_name is not None:
+            update_data["name"] = branch_name
+
+        if not update_data:
+            return Response(
+                {"detail": "No fields provided to update"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        updated = Branch.objects.filter(id=branch_id).update(**update_data)
+
+        if not updated:
+            return Response(
+                {"detail": "Branch not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            {"detail": "Branch updated successfully"},
+            status=status.HTTP_200_OK,
+        )
+
 
 # register resturant
 # finished

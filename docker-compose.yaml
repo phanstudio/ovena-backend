@@ -14,6 +14,18 @@ services:
       DJANGO_AUTORELOAD_ENV: watchdog
       PYTHONUNBUFFERED: "1"
 
+  celery:
+    build: .
+    env_file: .env
+    command: celery -A core worker -l info
+    depends_on:
+      - redis
+    volumes:
+      - .:/app
+    environment:
+      DJANGO_SETTINGS_MODULE: core.settings
+      PYTHONUNBUFFERED: "1"
+
   redis:
     image: redis:7-alpine
     ports:

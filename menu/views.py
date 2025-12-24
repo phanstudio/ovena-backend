@@ -656,6 +656,7 @@ from .models import Order, Branch, OrderEvent
 from .websocket_utils import *
 from .tasks import *
 import logging
+from .payment_services import initialize_paystack_transaction
 
 logger = logging.getLogger(__name__)
 
@@ -992,15 +993,15 @@ class ResturantOrderView(GenericAPIView):
 
     def accept_order(self, order: Order):
         """Branch accepts order and initiates payment"""
-        if order.status != "pending":
-            return Response(
-                {"error": "Order already processed"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # if order.status != "pending":
+        #     return Response(
+        #         {"error": "Order already processed"},
+        #         status=status.HTTP_400_BAD_REQUEST,
+        #     )
         
-        order.status = "confirmed"
-        order.confirmed_at = timezone.now()
-        order.save(update_fields=["status", "confirmed_at", "last_modified_at"])
+        # order.status = "confirmed"
+        # order.confirmed_at = timezone.now()
+        # order.save(update_fields=["status", "confirmed_at", "last_modified_at"])
 
         # Log event
         OrderEvent.objects.create(
@@ -1012,12 +1013,17 @@ class ResturantOrderView(GenericAPIView):
             new_status='confirmed'
         )
 
+        
+
         # Initialize payment
-        total = order.grand_total  # Use actual total
-        transaction_data = Transaction.initialize(
-            amount=round(total * 100),  # Convert to kobo
-            email=order.orderer.user.email,
-        )
+        total = 100#order.grand_total  # Use actual total
+        # transaction_data = Transaction.initialize(
+        #     amount=round(total * 100),  # Convert to kobo
+        #     email=self.check_email_with_default(order.orderer.user.email),
+        # )
+        transaction_data = initialize_paystack_transaction(total, order.orderer.user.email)
+
+        
 
         if not transaction_data['status']:
             return Response(
@@ -1041,6 +1047,8 @@ class ResturantOrderView(GenericAPIView):
             args=[order.id],
             countdown=settings.PAYMENT_TIMEOUT
         )
+
+        print(total, transaction_data)
 
         logger.info(f"Order {order.id} confirmed by branch, payment initiated")
 
