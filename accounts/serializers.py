@@ -49,26 +49,60 @@ class RegisterCustomerSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True)
     referre_code = serializers.CharField(required=False, allow_blank=True)
 
+    # def validate(self, data):
+    #     email = data.get("email")
+    #     phone = data.get("phone_number")
+    #     if not email and not phone:
+    #         raise serializers.ValidationError("Either email or phone number is required.")
+
+    #     if email:
+    #         user = User.objects.filter(email=email).first()
+    #     elif phone:
+    #         user = User.objects.filter(phone_number=phone).first()
+    #     else:
+    #         raise serializers.ValidationError("User not found. Complete OTP verification first.")
+        
+    #     if CustomerProfile.objects.filter(user=user).exists():
+    #         raise serializers.ValidationError("Customer profile already exists for this user.")
+
+    #     data["user"] = user
+    #     referre_code = data.get("referre_code")
+    #     if referre_code:
+    #         data["referred_by"] = CustomerProfile.objects.filter(referre_code=referre_code).first()
+    #     return data
+
     def validate(self, data):
         email = data.get("email")
         phone = data.get("phone_number")
+
         if not email and not phone:
-            raise serializers.ValidationError("Either email or phone number is required.")
+            raise serializers.ValidationError(
+                "Either email or phone number is required."
+            )
 
         if email:
             user = User.objects.filter(email=email).first()
-        elif phone:
-            user = User.objects.filter(phone_number=phone).first()
         else:
-            raise serializers.ValidationError("User not found. Complete OTP verification first.")
-        
-        if CustomerProfile.objects.filter(user=user).exists():
-            raise serializers.ValidationError("Customer profile already exists for this user.")
+            user = User.objects.filter(phone_number=phone).first()
+
+        if not user:
+            raise serializers.ValidationError(
+                "User not found. Complete OTP verification first."
+            )
+
+        # if CustomerProfile.objects.filter(user=user).exists(): # might be unnessary
+        #     raise serializers.ValidationError(
+        #         "Customer profile already exists for this user."
+        #     )
 
         data["user"] = user
+
         referre_code = data.get("referre_code")
         if referre_code:
-            data["referred_by"] = CustomerProfile.objects.filter(referre_code=referre_code).first()
+            data["referred_by"] = CustomerProfile.objects.filter(
+                referral_code=referre_code
+            ).first()
+
         return data
 
     @transaction.atomic
@@ -83,12 +117,14 @@ class RegisterCustomerSerializer(serializers.Serializer):
         if name:
             user.name = name
             user.save(update_fields=["name"])
-        location = Address.objects.create(
-            address="unknown",
-            # latitude=lat,
-            # longitude=long,
-            location = Point(long, lat, srid=4326)
-        )
+
+        location = None
+        if lat is not None and long is not None:
+            location = Address.objects.create(
+                address="unknown",
+                location=Point(long, lat, srid=4326)
+            )
+
         profile, created = CustomerProfile.objects.get_or_create(
             user=user,
             defaults={

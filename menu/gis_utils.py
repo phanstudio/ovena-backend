@@ -71,6 +71,13 @@ def find_nearest_available_drivers(branch_location, max_drivers=3):
                 for d in drivers
             ]
     
+    print(DriverLocation.objects.filter(
+        is_online=True,
+        last_updated__gte=stale_threshold,
+        driver__is_available=True,
+        driver__current_order__isnull=True,
+    ).select_related('driver', 'driver__user').all())
+    
     # If no drivers found in radiuses, get nearest overall
     drivers = DriverLocation.objects.filter(
         is_online=True,
@@ -80,6 +87,8 @@ def find_nearest_available_drivers(branch_location, max_drivers=3):
     ).select_related('driver', 'driver__user').annotate(
         distance=Distance('location', branch_location)
     ).order_by('distance')[:max_drivers]
+
+    print(drivers)
     
     if drivers.exists():
         return [

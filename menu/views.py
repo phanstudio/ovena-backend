@@ -993,15 +993,15 @@ class ResturantOrderView(GenericAPIView):
 
     def accept_order(self, order: Order):
         """Branch accepts order and initiates payment"""
-        # if order.status != "pending":
-        #     return Response(
-        #         {"error": "Order already processed"},
-        #         status=status.HTTP_400_BAD_REQUEST,
-        #     )
+        if order.status != "pending":
+            return Response(
+                {"error": "Order already processed"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         
-        # order.status = "confirmed"
-        # order.confirmed_at = timezone.now()
-        # order.save(update_fields=["status", "confirmed_at", "last_modified_at"])
+        order.status = "confirmed"
+        order.confirmed_at = timezone.now()
+        order.save(update_fields=["status", "confirmed_at", "last_modified_at"])
 
         # Log event
         OrderEvent.objects.create(
@@ -1069,8 +1069,8 @@ class ResturantOrderView(GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
-        order.status = "ready"
-        order.save(update_fields=["status", "last_modified_at"])
+        # order.status = "ready"
+        # order.save(update_fields=["status", "last_modified_at"])
 
         # Log event
         OrderEvent.objects.create(

@@ -989,7 +989,7 @@ class OrderConsumer(BaseConsumer):
                 },
                 'driver': {
                     'id': order.driver.id,
-                    'name': order.driver.user.get_full_name(),
+                    'name': order.driver.user.name,
                     'location': driver_location
                 } if order.driver else None,
                 'created_at': order.created_at.isoformat(),
