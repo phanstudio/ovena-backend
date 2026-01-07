@@ -93,6 +93,7 @@ CORS_ALLOW_CREDENTIALS = True
 CACHES = {
     "default": env.cache("CACHE_URL", default="locmemcache://")
 }
+REDIS_URL = env("REDIS_URL")
 
 # opt (sms)
 TERMII_API_KEY = env("TERMII_API_KEY")
@@ -176,8 +177,8 @@ WSGI_APPLICATION = 'core.wsgi.application'
 AUTH_USER_MODEL = "accounts.User"
 
 
-CELERY_BROKER_URL = "redis://redis:6379/2"
-CELERY_RESULT_BACKEND = "redis://redis:6379/3"
+CELERY_BROKER_URL = f"{REDIS_URL}/2"
+CELERY_RESULT_BACKEND = f"{REDIS_URL}/3"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
