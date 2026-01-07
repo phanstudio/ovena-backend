@@ -194,7 +194,7 @@ def notify_driver_assigned(order):
         order,
         driver_id=order.driver_id,
         driver_name=order.driver.user.name if order.driver else "Driver",
-        message=f"Driver assigned! {order.driver.user.get_full_name() if order.driver else 'Driver'} is on the way to pick up your order."
+        message=f"Driver assigned! {order.driver.user.name if order.driver else 'Driver'} is on the way to pick up your order."
     )
     broadcast_to_order_group(order.id, event_data)
 

@@ -4,16 +4,22 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from accounts.serializers import (
     CustomerProfileSerializer, DriverProfileSerializer,
-    RestaurantProfileSerializer, RegisterCustomerSerializer,
+    RestaurantProfileSerializer, #RegisterCustomerSerializer,
+    CreateCustomerSerializer, UpdateCustomerSerializer,
 )
 from accounts.models import(
-    User, Restaurant, Address, Branch, DriverProfile, PrimaryAgent, LinkedStaff
+    User, Restaurant, Address, Branch, DriverProfile, PrimaryAgent, LinkedStaff, CustomerProfile
 )
 from django.db import transaction, IntegrityError
 from authflow.services import create_token, send_otp, verify_otp
 from django.contrib.gis.geos import Point
 # from auth.permissions import IsResturantManager
 # from auth.decorators import subuser_authentication
+from django.contrib.gis.geos import Point
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from authflow.authentication import CustomCustomerAuth
 
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -98,10 +104,6 @@ class RegisterResturant(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-from django.contrib.gis.geos import Point
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
 
 class UpdateBranch(APIView):
     def patch(self, request, branch_id):
@@ -301,11 +303,65 @@ class RegisterDrivers(APIView): # what is the flow for drivers
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-class RegisterCustomer(APIView): # expecting a jwt token before registering the user
-    # if we add this and truly thers a case where that is optional then we fix it
+# class RegisterCustomer(APIView): # expecting a jwt token before registering the user
+#     # if we add this and truly thers a case where that is optional then we fix it
+#     permission_classes = [IsAuthenticated]
+#     def post(self, request):
+#         print(request.data)
+#         serializer = RegisterCustomerSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         serializer.save()
+#         return Response({"detail": "successful"}, status=status.HTTP_201_CREATED)
+
+# class RegisterCustomer(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         serializer = CreateCustomerSerializer(
+#             data=request.data,
+#             context={"user": request.user}
+#         )
+#         serializer.is_valid(raise_exception=True)
+#         serializer.save()
+#         return Response(
+#             {"detail": "Customer registered successfully"},
+#             status=status.HTTP_201_CREATED
+#         )
+
+class RegisterCustomer(APIView):
+    authentication_classes = [CustomCustomerAuth]
     permission_classes = [IsAuthenticated]
+
     def post(self, request):
-        serializer = RegisterCustomerSerializer(data=request.data)
+        serializer = CreateCustomerSerializer(
+            data=request.data,
+            context={"user": request.user}
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({"detail": "successful"}, status=status.HTTP_201_CREATED)
+
+        return Response(
+            {"detail": "Customer registered successfully"},
+            status=status.HTTP_201_CREATED
+        )
+
+class UpdateCustomer(APIView):
+    authentication_classes = [CustomCustomerAuth]
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request):
+        serializer = UpdateCustomerSerializer(
+            instance=request.user.customer_profile,
+            data=request.data,
+            context={"user": request.user},
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {"detail": "Profile updated successfully"},
+            status=status.HTTP_200_OK,
+        )
+
+

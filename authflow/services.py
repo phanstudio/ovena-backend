@@ -3,10 +3,11 @@ import datetime
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.models import User
-import random, time
+import time
 from django.core.cache import cache
 from accounts.utils.otp import generate_otp
 from django.utils import timezone
+import secrets, hashlib
 
 def create_token(user, role="main", scopes=None, expires_in=3600):
     """
@@ -88,7 +89,6 @@ def calculate_time(start):
     duration = time.perf_counter() - start
     print(f"View took {duration:.4f} seconds")
 
-import secrets, hashlib
 
 def generate_passphrase():
     words = ["mango", "horse", "bright", "storm", "leaf", "river", "cloud", "stone"]

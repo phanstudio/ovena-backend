@@ -12,6 +12,7 @@ urlpatterns = [
     path("menuitem-search/", views.SearchMenuItems.as_view(), name="menuitem-search"),
     path("register-menu/", views.MenuRegistrationView.as_view(), name="register-menu"),
     path("restaurant-order/", views.ResturantOrderView.as_view(), name="restaurant-order"),
+    path("driver-order/", views.DriverOrderView.as_view(), name="driver-order"),
 
     path("order/", views.OrderView.as_view(), name="order"),
     path("order/<int:order_id>/cancel/", views.OrderCancelView.as_view(), name="order-cancel"),

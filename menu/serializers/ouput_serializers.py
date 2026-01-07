@@ -71,3 +71,6 @@ class TopBranchSerilazer(serializers.ModelSerializer):
     class Meta:
         model = Branch
         fields = ['id', 'restaurant_name', 'name', 'location', 'avg_rating', 'rating_count',]# 'menus']
+
+
+

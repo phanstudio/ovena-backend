@@ -10,19 +10,29 @@ from .models import (
     Menu, MenuCategory, MenuItem, VariantGroup, VariantOption, 
     MenuItemAddonGroup, MenuItemAddon, BaseItem, 
     Restaurant, Branch, BaseItemAvailability, 
-    Order, Coupons
+    Order, Coupons, OrderEvent
 )
+from .pagifications import StandardResultsSetPagination
+
 from accounts.models import LinkedStaff, User, Rating
-from django.db.models import Q
 from authflow.decorators import subuser_authentication
 from authflow.authentication import CustomCustomerAuth, CustomDriverAuth
 from authflow.permissions import ScopePermission, ReadScopePermission
-from .pagifications import StandardResultsSetPagination
 from authflow.services import generate_passphrase, hash_phrase, verify_delivery_phrase
-from django.shortcuts import get_object_or_404
 
-from paystackapi.transaction import Transaction
-from django.db.models import Avg, Count
+from django.shortcuts import get_object_or_404
+from django.db.models import Avg, Count, Q
+from django.conf import settings
+from django.utils import timezone
+
+
+
+from .websocket_utils import *
+from .tasks import *
+import logging
+from .payment_services import initialize_paystack_transaction
+
+logger = logging.getLogger(__name__)
 
 class RestaurantView(APIView):
     def get(self, request):
@@ -143,314 +153,10 @@ class SearchMenuItems(APIView):# the search should show the restorunt the menu i
 
     # # status = models.CharField(max_length= 30, choices= STATUS_CHOICES, default= "pending")
 
-
-# urlpatterns = [
-#     path("orders/", OrderView.as_view()),
-#     path("orders/<int:order_id>/", OrderView.as_view()),
-# ]
-
-# /orders/<int:order_id>/
-# /orders/
-class OrderView(APIView):
-    authentication_classes = [CustomCustomerAuth]
-
-    def get_queryset(self, request):
-        """Return only the logged-in user's orders."""
-        user = request.user
-        if not hasattr(user, "customer_profile"):
-            return Order.objects.none()
-        return Order.objects.filter(orderer=user.customer_profile).select_related("branch", "coupons")
-
-    # ✅ 1. LIST all orders or GET a specific one
-    def get(self, request, order_id=None, *args, **kwargs): # paginification
-        qs = self.get_queryset(request)
-
-        # If order_id is passed -> get single order
-        if order_id:
-            order = get_object_or_404(qs, id=order_id)
-            data = {
-                "id": order.id,
-                "status": order.status,
-                "created_at": order.created_at,
-                "branch": order.branch.name if order.branch else None,
-                "coupon": order.coupons.code if order.coupons else None,
-                "items": list(order.items.values("menu_item__name", "quantity", "price")),
-            }
-            return Response(data)
-
-        # Otherwise -> list all
-        orders = qs.order_by("-created_at").values(
-            "id", "status", "created_at", "branch__name", "coupons__code"
-        )
-        return Response(list(orders))
-
-    # ✅ 2. CREATE a new order
-    def post(self, request, *args, **kwargs):
-        data = request.data
-        user = request.user
-
-        # Ensure customer_profile exists
-        if not hasattr(user, "customer_profile"):
-            return Response({"error": "Invalid customer account"}, status=status.HTTP_403_FORBIDDEN)
-
-        branch_id = data.get("branch_id")
-        coupon_code = data.get("coupon_code")
-
-        if not branch_id:
-            return Response({"error": "branch_id required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Validate branch
-        branch = Branch.objects.filter(id=branch_id, is_active=True).first()
-        if not branch:
-            return Response({"error": "Invalid branch"}, status=status.HTTP_404_NOT_FOUND)
-
-        # Optional coupon
-        coupon = None
-        if coupon_code:
-            coupon = Coupons.objects.filter(code=coupon_code).first()
-            if not coupon:
-                return Response({"error": "Coupon not found"}, status=status.HTTP_400_BAD_REQUEST)
-        # skip coupons and discounts for now sha
-
-        # Generate secure delivery phrase
-        phrase = generate_passphrase()
-
-        order = Order.objects.create(
-            orderer=user.customer_profile,
-            branch=branch,
-            coupons=coupon,
-            delivery_secret_hash=hash_phrase(phrase)
-        )
-
-        # TODO: broadcast signal to restaurant sockets
-        return Response(
-            {
-                "order_id": order.id,
-                "delivery_passphrase": phrase,
-                "message": "Order created successfully"
-            },
-            status=status.HTTP_201_CREATED
-        )
-
-# /orders/<int:order_id>/cancel/
 # who is this for the user before payment is made, the payment gatway has been made no pyment is made yet so we need to kill that transaction
-class OrderCancelView(APIView):
-    authentication_classes = [CustomCustomerAuth]
-
-    def patch(self, request, order_id=None, *args, **kwargs):
-        """Customer cancels their own order."""
-        if not order_id:
-            return Response({"error": "order_id required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        order = Order.objects.filter(id=order_id).first()
-        if not order:
-            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        if order.status not in ["pending", "confirmed"]:
-            return Response(
-                {"error": "You can only cancel pending or confirmed orders"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        order.status = "cancelled"
-        order.save(update_fields=["status"])
-        # TODO: broadcast to restaurant + driver websockets
-
-        return Response({"message": "Order cancelled successfully"}, status=status.HTTP_200_OK)
-
 # custom authentication with select related for this, we need paginification here
-# /order/currentactive/
-class CurrentActiveOrderView(APIView):
-    permission_classes=[IsAuthenticated]
-    def get(self, request):
-        user = request.user
-        if not getattr(user, "customer_profile_id", None):
-            return Response({"error": "Invalid customer account"}, status=status.HTTP_403_FORBIDDEN)
-
-        orders = Order.objects.filter(orderer_id=user.customer_profile_id).exclude(status__in=["cancelled", "delivered"])
-        # we can add select related here and get all the info we need
-        # .values("id", "status", "total_price", "created_at")  # choose useful fields
-        # remove some this from it using either selilizers or the values
-        return Response({"orders": list(orders.values())})
-
 # finished
-@subuser_authentication
-class ResturantOrderView(GenericAPIView):
-    permission_classes=[ScopePermission, ReadScopePermission]
-    pagination_class=StandardResultsSetPagination
-    required_scopes = ["order:accept", "order:cancle"]
-    # and move them to seperate functions but this way is lighter i think?
 
-    def get_queryset(self):
-        user = self.request.user
-        # LinkedStaff (sub token)
-        if isinstance(user, LinkedStaff):
-            return Order.objects.filter(branch=user.created_by.branch)
-
-        # LinkedStaff (sub token)
-        if isinstance(user, User):
-            return Order.objects.filter(branch=user.primaryagent.branch)
-
-        return Order.objects.none()
-
-    def get(self, request, *args, **kwargs):
-        qs = self.get_queryset().values(
-            "id", "status", "created_at",
-            "items__id", "items__menu_item_id", "items__quantity", "items__price"
-        )
-        page = self.paginate_queryset(qs)
-        self.pagination_class()
-        return self.get_paginated_response(list(page))
-
-    def post(self, request):
-        action = request.data.get("action")
-        order_id = request.data.get("order_id")
-
-        if not action or action not in ["accept", "cancel", "made"]:
-            return Response({"error": "Action required"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        order = self.get_queryset().filter(id=order_id).first()
-        if not order:
-            return Response(
-                {"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND
-            )
-        
-        if action == "accept":
-            return self.accept_order(order)
-        elif action == "made":
-            return self.order_made(order)
-        else:
-            return self.cancel_order(order)
-
-    def accept_order(self, order: Order): # updates the user and the driver # with consumers or something simular
-        if order.status != "pending":
-            return Response(
-                {"error": "Order already accepted"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        order.status = "confirmed"
-        order.save(update_fields=["status"])
-        total = 1000#order.grand_total
-        transaction_data = Transaction.initialize(
-            amount=round(total*100),  # amount in kobo (5000 = ₦50.00)
-            email='testuser@example.com',
-        )
-        if not transaction_data['status']: # if false raise error
-            return Response(
-                {"error": transaction_data['message']},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        # TODO: trigger driver notification here
-        return Response(
-            {"message": "Order accepted successfully", "authorization_url": transaction_data['data']['authorization_url']},
-            status=status.HTTP_202_ACCEPTED,
-        )
-
-    def order_made(self, order: Order): # change this or move to the driver
-        if order.status != "preparing":
-            return Response(
-                {"error": "Order must be confirmed first"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        order.status = "ready"
-        order.save(update_fields=["status"])
-        return Response(
-            {"message": "Order marked as ready"},
-            status=status.HTTP_200_OK,
-        )
-
-    def cancel_order(self, order: Order): # send request to the drivers and user
-        if order.status in ["delivered", "ready"]: # use not in confirmed and pending after thta not the resturants buisnes again
-            return Response(
-                {"error": "Cannot cancel after order is ready/delivered"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        order.status = "cancelled"
-        order.save(update_fields=["status"])
-        return Response(
-            {"message": "Order cancelled successfully"},
-            status=status.HTTP_200_OK,
-        )
-
-# /order/driverorder/
-class DriverOrderView(GenericAPIView): # selcet related driver_profile, or customer profile
-    authentication_classes = [CustomDriverAuth]
-    def get_queryset(self):
-        user = self.request.user 
-        return Order.objects.filter(driver=user.driver_profile)
-
-    def get(self, request, *args, **kwargs):
-        qs = self.get_queryset().values(
-            "id", "status", "created_at",
-            "items__id", "items__menu_item_id", "items__quantity", "items__price"
-        )
-        page = self.paginate_queryset(qs)
-        self.pagination_class()
-        return self.get_paginated_response(list(page))
-
-    def post(self, request):
-        action = request.data.get("action")
-        order_id = request.data.get("order_id")
-        order_code = request.data.get("order_code")
-
-        if not action or action not in ["accept", "deliver", "reject"]:
-            return Response({"error": "Action required"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        order = self.get_queryset().filter(id=order_id).first()
-        if not order:
-            return Response(
-                {"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND
-            )
-        
-        if action == "accept":
-            return self.accept_order(order)
-        elif action == "deliver":
-            return self.complete_order(order, order_code)
-        else:
-            # remove notification group btw user, branch, and the driver
-            # remove from driver pool too, notified
-            return
-
-    def accept_order(self, order: Order): # updates the user and the driver # with consumers or something simular
-        if order.status != "ready":
-            return Response(
-                {"error": "Order not ready for pickup"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        order.status = "on_the_way"
-        order.save(update_fields=["status"])
-        # TODO: trigger user notification here
-        return Response(
-            {"message": "Order accepted successfully"},
-            status=status.HTTP_202_ACCEPTED,
-        )
-    
-    def complete_order(self, order: Order, order_code: str): # updates the user and the driver # with consumers or something simular
-        if not order_code:
-            return Response(
-                {"error": "Order code missing"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if order.status != "on_the_way":
-            return Response(
-                {"error": "Order already accepted"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
-        verifed = verify_delivery_phrase(order, order_code)
-        if not verifed:
-            return Response(
-                {"error": "Order failed not verified"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
-        # TODO: trigger user notification here
-        # trigger recalculation
-        return Response(
-            {"message": "Order accepted successfully"},
-            status=status.HTTP_202_ACCEPTED,
-        )
-    # we need to add a timer to check for laps the order should cancle or pay the rest remove the user penelize the stage at fault
 
 @subuser_authentication
 class AvaliabilityView(GenericAPIView): # not sure if it wil be this direct sha must likely not be
@@ -492,6 +198,8 @@ class AvaliabilityView(GenericAPIView): # not sure if it wil be this direct sha 
             status=status.HTTP_200_OK,
         )
 
+
+# first in order split the json into section all the branches and all the categories and etc one by one bulk create each that way the is faster than a for loop-> 
 class MenuRegistrationView(APIView):
     """
     Register menus for an existing restaurant.
@@ -641,131 +349,6 @@ if False: # comment
                     #     )
     ...
 
-
-"""
-Updated views with WebSocket and Celery integration
-Replace your existing view methods with these
-"""
-from rest_framework.views import APIView
-from rest_framework.generics import GenericAPIView
-from rest_framework.response import Response
-from rest_framework import status
-from django.conf import settings
-from django.utils import timezone
-from .models import Order, Branch, OrderEvent
-from .websocket_utils import *
-from .tasks import *
-import logging
-from .payment_services import initialize_paystack_transaction
-
-logger = logging.getLogger(__name__)
-
-
-# class OrderView(APIView):
-#     authentication_classes = [CustomCustomerAuth]
-
-#     def get_queryset(self, request):
-#         """Return only the logged-in user's orders."""
-#         user = request.user
-#         if not hasattr(user, "customer_profile"):
-#             return Order.objects.none()
-#         return Order.objects.filter(orderer=user.customer_profile).select_related("branch", "coupons")
-
-#     def get(self, request, order_id=None, *args, **kwargs):
-#         qs = self.get_queryset(request)
-
-#         if order_id:
-#             order = get_object_or_404(qs, id=order_id)
-#             data = {
-#                 "id": order.id,
-#                 "status": order.status,
-#                 "created_at": order.created_at,
-#                 "branch": order.branch.name if order.branch else None,
-#                 "coupon": order.coupons.code if order.coupons else None,
-#                 "items": list(order.items.values("menu_item__name", "quantity", "price")),
-#                 "websocket_url": f"ws://localhost:8000/ws/orders/{order.id}/",  # Update domain
-#             }
-#             return Response(data)
-
-#         orders = qs.order_by("-created_at").values(
-#             "id", "status", "created_at", "branch__name", "coupons__code"
-#         )
-#         return Response(list(orders))
-
-#     def post(self, request, *args, **kwargs):
-#         """CREATE a new order with WebSocket broadcast"""
-#         data = request.data
-#         user = request.user
-
-#         if not hasattr(user, "customer_profile"):
-#             return Response({"error": "Invalid customer account"}, status=status.HTTP_403_FORBIDDEN)
-
-#         branch_id = data.get("branch_id")
-#         coupon_code = data.get("coupon_code")
-
-#         if not branch_id:
-#             return Response({"error": "branch_id required"}, status=status.HTTP_400_BAD_REQUEST)
-
-#         branch = Branch.objects.filter(id=branch_id, is_active=True).first()
-#         if not branch:
-#             return Response({"error": "Invalid branch"}, status=status.HTTP_404_NOT_FOUND)
-
-#         # Check if branch is accepting orders
-#         if not branch.is_accepting_orders:
-#             return Response(
-#                 {"error": "This restaurant is not accepting orders right now"},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-
-#         coupon = None
-#         if coupon_code:
-#             coupon = Coupons.objects.filter(code=coupon_code).first()
-#             if not coupon:
-#                 return Response({"error": "Coupon not found"}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Generate secure delivery phrase
-#         phrase = generate_passphrase()
-
-#         # Create order
-#         order = Order.objects.create(
-#             orderer=user.customer_profile,
-#             branch=branch,
-#             coupons=coupon,
-#             delivery_secret_hash=hash_phrase(phrase),
-#             status='pending'
-#         )
-
-#         # Log event
-#         # OrderEvent.objects.create(
-#         #     order=order,
-#         #     event_type='created',
-#         #     actor_type='customer',
-#         #     actor_id=user.customer_profile.id,
-#         #     new_status='pending',
-#         #     metadata={'items_count': data.get('items_count', 0)}
-#         # )
-
-#         # # 🔥 Broadcast to branch via WebSocket
-#         # notify_order_created(order)
-
-#         # # 🔥 Start branch confirmation timeout
-#         # check_branch_confirmation_timeout.apply_async(
-#         #     args=[order.id],
-#         #     countdown=settings.BRANCH_CONFIRMATION_TIMEOUT
-#         # )
-
-#         logger.info(f"Order {order.id} created and broadcasted to branch {branch_id}")
-
-#         return Response(
-#             {
-#                 "order_id": order.id,
-#                 # "order_number": order.order_number,
-#                 # "delivery_passphrase": phrase,
-#                 # "websocket_url": f"ws://localhost:8000/ws/orders/{order.id}/",
-#                 "message": "Order created successfully. Waiting for restaurant confirmation."
-#             },
-#             status=status.HTTP_201_CREATED
-#         )
 
 class OrderView(APIView):
     authentication_classes = [CustomCustomerAuth]
@@ -1069,8 +652,8 @@ class ResturantOrderView(GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
-        # order.status = "ready"
-        # order.save(update_fields=["status", "last_modified_at"])
+        order.status = "ready"
+        order.save(update_fields=["status", "last_modified_at"])
 
         # Log event
         OrderEvent.objects.create(
@@ -1131,7 +714,6 @@ class ResturantOrderView(GenericAPIView):
             {"message": "Order cancelled successfully"},
             status=status.HTTP_200_OK,
         )
-
 
 class DriverOrderView(GenericAPIView):
     authentication_classes = [CustomDriverAuth]

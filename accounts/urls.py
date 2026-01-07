@@ -1,7 +1,7 @@
 from django.urls import path, include
 from .views import (
     SendOTPView, VerifyOTPView, UserProfileView, DeleteAccountView, UpdateBranch, Delete2AccountView,
-    OAuthExchangeView, LinkRequestCreate, LinkApprove, RegisterRManager, RegisterCustomer, 
+    OAuthExchangeView, LinkRequestCreate, LinkApprove, RegisterRManager, RegisterCustomer, UpdateCustomer,
     jwt_views
 )
 
@@ -21,6 +21,7 @@ urlpatterns = [
     path("register-user/", RegisterCustomer.as_view(), name="register-user"),
     path("oauth/exchange/", OAuthExchangeView.as_view(), name="oauth-exchange"),
     path("profile/", UserProfileView.as_view(), name="user-profile"),
+    path("customer/update/", UpdateCustomer.as_view(), name="user-update"),
     path("profile/delete/", DeleteAccountView.as_view(), name="user-delete"),
     path("profile/delete2/", Delete2AccountView.as_view(), name="user-delete"),
 
