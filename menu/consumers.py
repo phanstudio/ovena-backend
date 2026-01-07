@@ -30,9 +30,8 @@ class BaseConsumer(AsyncWebsocketConsumer):
         """Authenticate user from JWT token"""
         try:
             # Decode JWT
-            print(9)
             decoded = AccessToken(token)
-            print(decoded)
+            # print(decoded)
             user_id = decoded['user_id']
             
             # Get user from database

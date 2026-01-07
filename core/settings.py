@@ -138,11 +138,11 @@ OAUTH_PROVIDERS = {
 }
 # Channels configuration
 CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [(os.getenv('REDIS_HOST', 'redis'), 6379)],
-            "capacity": 1500,  # Default is 100
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [os.environ["REDIS_URL"]],  # <-- Use full URL
+            "capacity": 1500,
             "expiry": 10,
             "prefix": "ws",
             "group_expiry": 60,
