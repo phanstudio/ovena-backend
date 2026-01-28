@@ -60,6 +60,8 @@ pytest-factoryboy
 factory_boy
 paystackapi
 whitenoise
+google-auth
+
 
 # new
 watchdog>=4.0
