@@ -183,6 +183,7 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
 
+WEBSOCKET_URL = env("WEBSOCKET_URL", default="ws://localhost:8000")
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases

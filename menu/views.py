@@ -372,7 +372,7 @@ class OrderView(APIView):
                 "branch": order.branch.name if order.branch else None,
                 "coupon": order.coupons.code if order.coupons else None,
                 "items": list(order.items.values("menu_item__name", "quantity", "price")),
-                "websocket_url": f"ws://localhost:8000/ws/orders/{order.id}/",  # Update domain
+                "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",  # Update domain
             }
             return Response(data)
 
@@ -450,7 +450,7 @@ class OrderView(APIView):
                 "order_id": order.id,
                 "order_number": order.order_number,
                 "delivery_passphrase": phrase,
-                "websocket_url": f"ws://localhost:8000/ws/orders/{order.id}/",
+                "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
                 "message": "Order created successfully. Waiting for restaurant confirmation."
             },
             status=status.HTTP_201_CREATED
@@ -527,7 +527,7 @@ class CurrentActiveOrderView(APIView):
                 'created_at': order.created_at.isoformat(),
                 'branch_name': order.branch.name,
                 'driver_name': order.driver.user.get_full_name() if order.driver else None,
-                'websocket_url': f"ws://localhost:8000/ws/orders/{order.id}/",
+                'websocket_url': f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
             })
 
         return Response({"orders": order_data})
