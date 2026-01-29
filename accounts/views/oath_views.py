@@ -3,67 +3,11 @@ from rest_framework.response import Response
 from rest_framework import status, permissions
 from accounts.serializers import UserSerializer, OAuthCodeSerializer
 from accounts.models import User
-import jwt
-from ..utils.oath import exchange_code_for_tokens, fetch_userinfo
+from ..utils.oath import verify_apple_token
 from authflow.services import _issue_jwt_for_user
-from django.conf import settings
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from ..serializers import GoogleAuthSerializer, CreateCustomerSerializer
 User = get_user_model()
-
-
-# class OAuthExchangeView(APIView):
-#     permission_classes = [permissions.AllowAny]
-
-#     def post(self, request):
-#         s = OAuthCodeSerializer(data=request.data)
-#         s.is_valid(raise_exception=True)
-#         provider = s.validated_data["provider"]
-#         code = s.validated_data["code"]
-#         code_verifier = s.validated_data.get("code_verifier")
-
-#         # Exchange code for tokens with provider
-#         try:
-#             token_response = exchange_code_for_tokens(provider, code, code_verifier)
-#         except Exception as e:
-#             return Response({"detail": "Token exchange failed", "error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Extract access_token / id_token
-#         access_token = token_response.get("access_token")
-#         id_token = token_response.get("id_token")
-
-#         # Get user info
-#         try:
-#             userinfo = fetch_userinfo(provider, access_token or id_token)
-#         except Exception as e:
-#             return Response({"detail": "Fetching userinfo failed", "error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-#         print(userinfo)
-#         # Map provider info to local user
-#         email = userinfo.get("email") or None
-#         name = userinfo.get("name") or userinfo.get("given_name") or ""
-#         sub = userinfo.get("sub") or None
-
-#         # For Apple, the email is inside the id_token; ensure you decode id_token if needed
-#         if provider == "apple" and id_token and not email:
-#             try:
-#                 decoded = jwt.decode(id_token, options={"verify_signature": False})
-#                 email = decoded.get("email")
-#                 sub = decoded.get("sub")
-#             except Exception:
-#                 pass
-
-#         if not email:
-#             # If still no email, you can fallback to using provider-sub as unique id and store in a field
-#             external_id = f"{provider}:{sub}"
-#             user, _ = User.objects.get_or_create(email=None, defaults={"name": name})
-#         else:
-#             user, _ = User.objects.get_or_create(email=email, defaults={"name": name})
-
-#         tokens = _issue_jwt_for_user(user)
-#         return Response({"user": UserSerializer(user).data, "tokens": tokens})
-
 
 class AuthLogic():
     @staticmethod
@@ -76,10 +20,34 @@ class AuthLogic():
 
         # what is sub for
         info = serializer.validated_data['info']
+        info["referre_code"] = serializer.validated_data['referre_code']
+        info["lat"] = serializer.validated_data['lat']
+        info["long"] = serializer.validated_data['long']
 
         user, info["created"] = User.objects.get_or_create(
             email=serializer.validated_data['email'],
             defaults={'email': serializer.validated_data['email']}
+        )
+        
+        return {"user": user, "info": info}
+    
+    @staticmethod
+    def apple(request):
+        token = request.data.get("id_token")
+        payload = verify_apple_token(token)
+
+        email = payload.get("email")
+        apple_id = payload["sub"]
+
+        print(payload)
+        info = {apple_id}
+        info["referre_code"] = request.data.get("referre_code")
+        info["lat"] = request.data.get("lat")
+        info["long"] = request.data.get("long")
+
+        user, info["created"] = User.objects.get_or_create(
+            email=email,
+            defaults={'email': email}
         )
         
         return {"user": user, "info": info}
@@ -101,7 +69,9 @@ class OAuthExchangeView(APIView):
                 user = user_data["user"]
                 info = user_data["info"]
             case "apple":
-                ...
+                user_data = AuthLogic.apple(request)
+                user = user_data["user"]
+                info = user_data["info"]
             case _:
                 return Response({
                     "detail": "provider should be google or apple", "error": "provider invalid"},
@@ -110,16 +80,15 @@ class OAuthExchangeView(APIView):
         if user:
             pass # raise error
 
-        # send there location 
-        # "referre_code": "476839039"
+        # send there location
         if info["created"]:
             data = {
                 # "email": info["email"],
-                # "long": 678.9,
-                # "lat": 678.9,
+                "long": info["long"],
+                "lat": info["lat"],
                 # "birth_date": "april 2000 22",
                 "name": f"{info["given_name"]} {info["family_name"]}",
-                # "referre_code": "476839039"
+                "referre_code": info["referre_code"]
             }
             # picture info["picture"]
             serializer = CreateCustomerSerializer(
@@ -129,5 +98,14 @@ class OAuthExchangeView(APIView):
             serializer.is_valid(raise_exception=True)
             serializer.save()
 
-        tokens = _issue_jwt_for_user(user)
-        return Response({"user": UserSerializer(user).data, "tokens": tokens})
+        # this might be a probelm we might ask for the refresh token to destroy or create a  access if that process is not done
+        tokens = _issue_jwt_for_user(user) 
+        
+        return Response({
+            "user": UserSerializer(user).data,
+            "tokens": tokens,
+            "message": "OAUTH User creation successfully",
+            # "refresh": token["refresh"],
+            # "access": token["access"],
+            "is_new_user": info["created"]
+        })

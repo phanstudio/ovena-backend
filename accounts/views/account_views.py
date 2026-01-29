@@ -303,31 +303,6 @@ class RegisterDrivers(APIView): # what is the flow for drivers
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-# class RegisterCustomer(APIView): # expecting a jwt token before registering the user
-#     # if we add this and truly thers a case where that is optional then we fix it
-#     permission_classes = [IsAuthenticated]
-#     def post(self, request):
-#         print(request.data)
-#         serializer = RegisterCustomerSerializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-#         return Response({"detail": "successful"}, status=status.HTTP_201_CREATED)
-
-# class RegisterCustomer(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request):
-#         serializer = CreateCustomerSerializer(
-#             data=request.data,
-#             context={"user": request.user}
-#         )
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-#         return Response(
-#             {"detail": "Customer registered successfully"},
-#             status=status.HTTP_201_CREATED
-#         )
-
 class RegisterCustomer(APIView):
     authentication_classes = [CustomCustomerAuth]
     permission_classes = [IsAuthenticated]

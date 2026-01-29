@@ -1,3 +1,8 @@
+from django.db import transaction
+from django.contrib.gis.geos import Point
+from google.oauth2 import id_token
+from google.auth.transport import requests
+from django.conf import settings
 from rest_framework import serializers
 from .models import (
     CustomerProfile,
@@ -6,8 +11,6 @@ from .models import (
     User,
     Address
 )
-from django.db import transaction
-from django.contrib.gis.geos import Point
 
 class CustomerProfileSerializer(serializers.ModelSerializer):
     age = serializers.ReadOnlyField()  # uses the @property
@@ -24,7 +27,7 @@ class DriverProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverProfile
         fields = ["id", 
-                #   "nin", "driver_license", "plate_number", "vehicle_type", "photo"
+            #   "nin", "driver_license", "plate_number", "vehicle_type", "photo"
         ]
 
 class RestaurantProfileSerializer(serializers.ModelSerializer):
@@ -39,8 +42,10 @@ class UserSerializer(serializers.ModelSerializer):
 
 class OAuthCodeSerializer(serializers.Serializer):
     provider = serializers.ChoiceField(choices=("google", "apple"))
-    code = serializers.CharField()
-    code_verifier = serializers.CharField(required=False, allow_null=True, allow_blank=True) # remove
+    id_token = serializers.CharField()
+    referre_code = serializers.CharField(required=False, allow_blank=True)
+    lat = serializers.FloatField(required=False)
+    long = serializers.FloatField(required=False)
 
 # class RegisterCustomerSerializer(serializers.Serializer):
 #     phone_number = serializers.CharField(required=False, allow_blank=True)
@@ -265,7 +270,7 @@ class CreateCustomerSerializer(serializers.Serializer):
                 )
 
         referre_code = data.get("referre_code")
-        if referre_code:
+        if referre_code and len(referre_code) > 0:
             data["referred_by"] = CustomerProfile.objects.filter(
                 referral_code=referre_code
             ).first()
@@ -462,12 +467,7 @@ class UpdateCustomerSerializer(serializers.Serializer):
 
         return instance
 
-
-from google.oauth2 import id_token
-from google.auth.transport import requests
-from rest_framework import serializers
-from django.conf import settings
-
+# Oath
 class GoogleAuthSerializer(serializers.Serializer):
     id_token = serializers.CharField()
 

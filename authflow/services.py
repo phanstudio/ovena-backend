@@ -90,7 +90,7 @@ def calculate_time(start):
     print(f"View took {duration:.4f} seconds")
 
 
-def generate_passphrase():
+def generate_passphrase(): # i can increase the size of this add rate limiting for this later
     words = ["mango", "horse", "bright", "storm", "leaf", "river", "cloud", "stone"]
     return "-".join(secrets.choice(words) for _ in range(2)) + "-" + str(secrets.randbelow(99))
 
