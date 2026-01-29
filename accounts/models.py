@@ -145,17 +145,6 @@ class CustomerProfile(models.Model): # create a simple view to change the defual
             (today.month, today.day) < (self.birth_date.month, self.birth_date.day)
         )
 
-
-
-# driver related
-# class DriverProfile(models.Model):
-#     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="driver_profile")
-#     nin = models.CharField(max_length=50, default="")
-#     driver_license = models.CharField(max_length=50, default="")
-#     plate_number = models.CharField(max_length=20, default="")
-#     vehicle_type = models.CharField(max_length=50, default="")
-#     photo = models.ImageField(upload_to="drivers/photos/", default=None)
-
 # driver related
 class DriverProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='driver_profile')

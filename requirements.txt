@@ -1,24 +1,3 @@
-# djangorestframework
-# psycopg2-binary 
-# django-cors-headers
-# django_redis
-# requests
-# djangorestframework_simplejwt
-# django-cloudinary-storage 
-# pillow
-# cloudinary
-# pytest
-# pytest-django
-# pyjwt
-# djangorestframework-gis
-# Django==5.1
-# gunicorn
-# django-environ
-# pytest-factoryboy 
-# factory_boy
-# paystackapi
-# whitenoise
-
 # WebSocket Support
 channels>=4.0.0
 channels-redis>=4.1.0
@@ -61,7 +40,6 @@ factory_boy
 paystackapi
 whitenoise
 google-auth
-
 
 # new
 watchdog>=4.0

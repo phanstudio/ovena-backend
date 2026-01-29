@@ -80,8 +80,10 @@ def find_nearest_available_drivers(branch_location, max_drivers=3):
     ).select_related('driver', 'driver__user').annotate(
         distance=Distance('location', branch_location)
     ).order_by('distance')[:max_drivers]
-    
-    if drivers.exists():
+
+    drivers = list(drivers)
+    if drivers:
+    # if drivers.exists():
         return [
             (d.driver, d.distance.km)
             for d in drivers
