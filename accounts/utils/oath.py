@@ -6,7 +6,7 @@ from jwt.algorithms import RSAAlgorithm
 APPLE_KEYS_URL = "https://appleid.apple.com/auth/keys"
 
 def verify_apple_token(token):
-    keys = requests.get(APPLE_KEYS_URL).json()['keys']
+    keys = requests.get(APPLE_KEYS_URL, timeout=120).json()['keys']
     header = jwt.get_unverified_header(token)
 
     key = next(k for k in keys if k['kid'] == header['kid'])

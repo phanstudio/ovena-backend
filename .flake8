@@ -1,0 +1,16 @@
+[flake8]
+exclude = 
+    tests.py
+    tests
+    ovenadocker_experence
+    migrations
+    __pycache__
+    venv
+    env
+    node_modules
+    settings.py
+    */generated/*
+    tests/legacy_test.py
+max-line-length = 150
+ignore = W293, E302
+# ignore = E501

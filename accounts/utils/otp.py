@@ -2,6 +2,8 @@
 from django.conf import settings
 import random, json, requests, time
 from django.core.cache import cache
+import secrets
+import string
 
 # def send_email_otp(email):
 #     otp = generate_otp()
@@ -17,9 +19,9 @@ from django.core.cache import cache
 
 #     return otp
 
-
 def generate_otp(length=6):
-    return "".join(str(random.randint(0, 9)) for _ in range(length))
+    digits = string.digits
+    return "".join(secrets.choice(digits) for _ in range(length))
 
 def send_otp(phone_number):
     key = f"otp_data:{phone_number}"
@@ -55,7 +57,7 @@ def send_otp(phone_number):
         "api_key": settings.TERMII_API_KEY,
     }
     headers = {"Content-Type": "application/json"}
-    response = requests.post(url, headers=headers, json=payload)
+    response = requests.post(url, headers=headers, json=payload, timeout=120)
     print(response)
     return response.json()
 

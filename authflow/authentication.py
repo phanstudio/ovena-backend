@@ -1,6 +1,6 @@
 import jwt
 from django.conf import settings
-from rest_framework.authentication import BaseAuthentication, TokenAuthentication, exceptions
+from rest_framework.authentication import BaseAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication as SimpleJWTAuth
 from rest_framework_simplejwt.exceptions import AuthenticationFailed, InvalidToken
 from django.utils.translation import gettext_lazy as _
@@ -54,7 +54,7 @@ class CustomJWTAuthentication(BaseAuthentication): # any way to speed this up
                 raise AuthenticationFailed("Account revoked")
 
             auth_data = {
-                "token_type": "sub",
+                "token_type": "sub", # nosec B105
                 "scopes": set(payload.get("scopes", [])),
                 "device_id": payload.get("device_id"), # optional extra 
                 # also we need to record the person login in like a side efect that should not affect flow speed

@@ -719,7 +719,7 @@ class DriverOrderView(GenericAPIView):
     authentication_classes = [CustomDriverAuth]
     
     def get_queryset(self):
-        user = self.request.user 
+        user = self.request.user
         return Order.objects.filter(driver=user.driver_profile)
 
     def get(self, request, *args, **kwargs):
