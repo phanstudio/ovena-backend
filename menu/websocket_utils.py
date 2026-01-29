@@ -76,16 +76,30 @@ def broadcast_to_driver_pool(event_data):
     )
 
 
+# def broadcast_to_specific_drivers(driver_ids, event_data):
+#     """Broadcast to specific drivers by ID"""
+#     channel_layer = get_channel_layer()
+    
+#     for driver_id in driver_ids:
+#         group_name = f"driver_{driver_id}"
+#         async_to_sync(channel_layer.group_send)(
+#             group_name,
+#             {
+#                 "type": "driver_notification",
+#                 "data": event_data
+#             }
+#         )
+
 def broadcast_to_specific_drivers(driver_ids, event_data):
     """Broadcast to specific drivers by ID"""
     channel_layer = get_channel_layer()
     
     for driver_id in driver_ids:
-        group_name = f"driver_{driver_id}"
+        group_name = f"driver_{driver_id}"  # Keep this
         async_to_sync(channel_layer.group_send)(
             group_name,
             {
-                "type": "driver_notification",
+                "type": "driver_notification",  # Change this to match handler
                 "data": event_data
             }
         )
@@ -109,7 +123,7 @@ def send_private_message(order_id, sender_type, recipient_type, message_data):
 
 def notify_order_created(order):
     """Notify branch when new order is created"""
-    from addresses.events import ORDER_CREATED, build_order_event
+    from addresses.events import ORDER_CREATED
     
     event_data = build_order_event(ORDER_CREATED, order)
     broadcast_to_branch(order.branch_id, event_data)
@@ -120,7 +134,7 @@ def notify_order_created(order):
 
 def notify_order_confirmed(order, payment_url):
     """Notify customer when branch confirms order"""
-    from addresses.events import ORDER_CONFIRMED, build_order_event
+    from addresses.events import ORDER_CONFIRMED
     
     event_data = build_order_event(
         ORDER_CONFIRMED, 
@@ -133,7 +147,7 @@ def notify_order_confirmed(order, payment_url):
 
 def notify_order_rejected(order, reason=None):
     """Notify customer when branch rejects order"""
-    from addresses.events import ORDER_REJECTED, build_order_event
+    from addresses.events import ORDER_REJECTED
     
     event_data = build_order_event(
         ORDER_REJECTED,
@@ -146,7 +160,7 @@ def notify_order_rejected(order, reason=None):
 
 def notify_payment_completed(order):
     """Notify branch and customer when payment is successful"""
-    from addresses.events import ORDER_PAYMENT_COMPLETED, ORDER_PREPARING, build_order_event
+    from addresses.events import ORDER_PAYMENT_COMPLETED, ORDER_PREPARING
     
     event_data = build_order_event(
         ORDER_PAYMENT_COMPLETED,
@@ -166,7 +180,7 @@ def notify_payment_completed(order):
 
 def notify_order_ready(order):
     """Notify when food is ready and searching for driver"""
-    from addresses.events import ORDER_READY, ORDER_DRIVER_SEARCHING, build_order_event
+    from addresses.events import ORDER_READY, ORDER_DRIVER_SEARCHING
     
     # Notify customer
     event_data = build_order_event(
@@ -187,7 +201,7 @@ def notify_order_ready(order):
 
 def notify_driver_assigned(order):
     """Notify customer and branch when driver is assigned"""
-    from addresses.events import ORDER_DRIVER_ASSIGNED, build_order_event
+    from addresses.events import ORDER_DRIVER_ASSIGNED
     
     event_data = build_order_event(
         ORDER_DRIVER_ASSIGNED,
@@ -201,7 +215,7 @@ def notify_driver_assigned(order):
 
 def notify_order_picked_up(order):
     """Notify customer when driver picks up the order"""
-    from addresses.events import ORDER_PICKED_UP, build_order_event
+    from addresses.events import ORDER_PICKED_UP
     
     event_data = build_order_event(
         ORDER_PICKED_UP,
@@ -213,7 +227,7 @@ def notify_order_picked_up(order):
 
 def notify_order_delivered(order):
     """Notify all parties when order is delivered"""
-    from addresses.events import ORDER_DELIVERED, build_order_event
+    from addresses.events import ORDER_DELIVERED
     
     event_data = build_order_event(
         ORDER_DELIVERED,
@@ -225,7 +239,7 @@ def notify_order_delivered(order):
 
 def notify_order_cancelled(order, reason=None, cancelled_by=None):
     """Notify all parties when order is cancelled"""
-    from addresses.events import ORDER_CANCELLED, build_order_event
+    from addresses.events import ORDER_CANCELLED
     
     event_data = build_order_event(
         ORDER_CANCELLED,

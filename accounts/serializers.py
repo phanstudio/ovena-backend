@@ -40,7 +40,7 @@ class UserSerializer(serializers.ModelSerializer):
 class OAuthCodeSerializer(serializers.Serializer):
     provider = serializers.ChoiceField(choices=("google", "apple"))
     code = serializers.CharField()
-    code_verifier = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    code_verifier = serializers.CharField(required=False, allow_null=True, allow_blank=True) # remove
 
 # class RegisterCustomerSerializer(serializers.Serializer):
 #     phone_number = serializers.CharField(required=False, allow_blank=True)
@@ -461,4 +461,34 @@ class UpdateCustomerSerializer(serializers.Serializer):
             instance.save(update_fields=list(profile_updates.keys()))
 
         return instance
+
+
+from google.oauth2 import id_token
+from google.auth.transport import requests
+from rest_framework import serializers
+from django.conf import settings
+
+class GoogleAuthSerializer(serializers.Serializer):
+    code = serializers.CharField()
+
+    def validate(self, data):
+        try:
+            client_id = "759419359264-l64jb3cv965csakroir36hqska36vrpf.apps.googleusercontent.com"#settings.OAUTH_PROVIDERS.get("google").get("CLIENT_ID")
+            user_id_token = data['code']
+            # print(client_id)
+            info = id_token.verify_oauth2_token(
+                user_id_token,
+                requests.Request(),
+                # settings.GOOGLE_CLIENT_ID
+                client_id
+            )
+            print("AUD:", info["aud"])
+            print("EXPECTED CLIENT ID:", client_id)
+        except Exception as e:
+            raise serializers.ValidationError(f"Invalid Google token: {e}")
+
+        data['email'] = info['email']
+        data['sub'] = info['sub']
+        data['info'] = info
+        return data
 

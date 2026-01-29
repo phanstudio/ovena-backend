@@ -117,7 +117,6 @@ DRIVER_LOCATION_STALE_THRESHOLD = 60*60#60 # seconds
 
 MAX_DRIVERS_TO_NOTIFY = 5
 DRIVER_ACCEPTANCE_TIMEOUT = 60 # seconds
-DRIVER_LOCATION_STALE_THRESHOLD = 60 # seconds
 
 # OAuth provider config placeholders
 OAUTH_PROVIDERS = {
@@ -184,6 +183,7 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
 
+WEBSOCKET_URL = env("WEBSOCKET_URL", default="ws://localhost:8000")
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases

@@ -255,12 +255,20 @@ class DriverOrdersConsumer(BaseConsumer):
         
         self.driver_id = self.user.driver_profile.id
         self.driver_orders_group = f"driver_orders_{self.driver_id}"
+        self.driver_notification_group = f"driver_{self.driver_id}"  # NEW
         
         # Join driver group
         await self.channel_layer.group_add(
             self.driver_orders_group,
             self.channel_name
         )
+
+        # Join driver notification group (for task notifications)
+        await self.channel_layer.group_add(
+            self.driver_notification_group,  # NEW
+            self.channel_name
+        )
+
         
         # Join driver pool (for available orders broadcasts)
         await self.channel_layer.group_add(
@@ -276,19 +284,46 @@ class DriverOrdersConsumer(BaseConsumer):
             'type': 'my_orders',
             'data': my_orders
         }))
-    
+
     async def disconnect(self, close_code):
         if hasattr(self, "driver_orders_group"):
             await self.channel_layer.group_discard(
                 self.driver_orders_group,
                 self.channel_name
             )
-
+        
+        if hasattr(self, "driver_notification_group"):  # NEW
+            await self.channel_layer.group_discard(
+                self.driver_notification_group,
+                self.channel_name
+            )
+        
         if hasattr(self, "driver_id"):
             await self.channel_layer.group_discard(
                 f"orders_{get_driver_pool_group_name()}",
                 self.channel_name
             )
+    
+    # Add handler for driver_notification type
+    async def driver_notification(self, event):  # NEW
+        """Receive driver notifications from tasks"""
+        await self.send(text_data=json.dumps({
+            'type': 'notification',
+            'data': event['data']
+        }))
+    
+    # async def disconnect(self, close_code):
+    #     if hasattr(self, "driver_orders_group"):
+    #         await self.channel_layer.group_discard(
+    #             self.driver_orders_group,
+    #             self.channel_name
+    #         )
+
+    #     if hasattr(self, "driver_id"):
+    #         await self.channel_layer.group_discard(
+    #             f"orders_{get_driver_pool_group_name()}",
+    #             self.channel_name
+    #         )
 
     async def receive(self, text_data):
         """Handle messages from driver"""
@@ -689,7 +724,7 @@ class OrderConsumer(BaseConsumer):
             if order.driver:
                 try:
                     from addresses.models import DriverLocation
-                    loc = order.driver.location
+                    loc:DriverLocation = order.driver.location
                     driver_location = {
                         'lat': loc.location.y,
                         'lng': loc.location.x,
@@ -785,8 +820,6 @@ class DriverLocationConsumer(BaseConsumer):
         data = json.loads(text_data)
         message_type = data.get('type')
 
-        print(data)
-        
         if message_type == 'location_update':
             lat = data.get('lat')
             lng = data.get('lng')
