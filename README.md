@@ -9,3 +9,4 @@
 # first in order split the json into section all the branches and all the categories and etc one by one bulk create each that way the is faster than a for loop-> 
 # we can use batch updates for drivers locations:
 ## that way the location is updated at interval we store on every websocket interval and store periodically
+# nice christmas
