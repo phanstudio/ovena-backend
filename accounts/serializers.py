@@ -469,21 +469,16 @@ from rest_framework import serializers
 from django.conf import settings
 
 class GoogleAuthSerializer(serializers.Serializer):
-    code = serializers.CharField()
+    id_token = serializers.CharField()
 
     def validate(self, data):
         try:
-            client_id = "759419359264-l64jb3cv965csakroir36hqska36vrpf.apps.googleusercontent.com"#settings.OAUTH_PROVIDERS.get("google").get("CLIENT_ID")
-            user_id_token = data['code']
-            # print(client_id)
+            client_id = settings.OAUTH_PROVIDERS.get("google").get("CLIENT_ID")
             info = id_token.verify_oauth2_token(
-                user_id_token,
+                data['id_token'],
                 requests.Request(),
-                # settings.GOOGLE_CLIENT_ID
                 client_id
             )
-            print("AUD:", info["aud"])
-            print("EXPECTED CLIENT ID:", client_id)
         except Exception as e:
             raise serializers.ValidationError(f"Invalid Google token: {e}")
 
