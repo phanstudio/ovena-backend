@@ -1,69 +1,100 @@
 import pytest
 from rest_framework.test import APIClient
 from django.urls import reverse
-import json
+
+def cprint(*objects: any, engine_config="json") -> any:
+    from pprint import pprint
+    import json
+
+    match engine_config:
+        case "json":
+            engine = lambda item: print(json.dumps(item))
+        case "json":
+            engine = lambda item: pprint(item)
+        case _:
+            print("invalid engine")
+            engine = lambda item: print(item)
+
+    for obj in objects:
+        engine(obj)
+
+
+@pytest.mark.django_db
+def test_search_menu_items_by_name(registered_restaurant):
+    """Searching by item name should return matching results."""
+    client = APIClient()
+    url = reverse("menuitem-search")  # make sure this is in your urls.py
+
+    response = client.get(url, {"q": "Cheeseburger"})
+    assert response.status_code == 200
+
+    data = response.json()
+    assert isinstance(data, list)
+    assert any("Cheeseburger" in item["custom_name"] for item in data)
+
+
+@pytest.mark.django_db
+def test_menu_item_list(registered_restaurant):
+    """Searching by item name should return matching results."""
+    client = APIClient()
+    url = reverse("menu-list", args=[registered_restaurant.restaurant_id])  # make sure this is in your urls.py
+
+    response = client.get(url)
+    assert response.status_code == 200
+
+    data = response.json()
+    assert isinstance(data, list)
+    assert any("Cheeseburger" in item["custom_name"] for cats in data for items in cats["categories"]  for item in items["items"])
 
 
 # @pytest.mark.django_db
-# def test_search_menu_items_by_name(registered_restaurant):
-#     """Searching by item name should return matching results."""
+# def test_search_menu_items_by_description(registered_restaurant):
+#     """Searching by description should return items."""
 #     client = APIClient()
-#     url = reverse("menuitem-search")  # make sure this is in your urls.py
+#     url = reverse("menuitem-search")
 
-#     response = client.get(url, {"q": "Cheeseburger"})
+#     response = client.get(url, {"q": "choc"})  # from cheeseburger description
 #     assert response.status_code == 200
 
 #     data = response.json()
 #     print(json.dumps(data, indent=1))
-#     assert isinstance(data, list)
-#     assert any("Cheeseburger" in item["custom_name"] for item in data)
+#     assert any("plant" in item["description"].lower() for item in data)
 
 
 @pytest.mark.django_db
-def test_search_menu_items_by_description(registered_restaurant):
-    """Searching by description should return items."""
+def test_search_menu_items_by_category(registered_restaurant):
+    """Searching by category name should return items."""
     client = APIClient()
     url = reverse("menuitem-search")
 
-    response = client.get(url, {"q": "choc"})  # from cheeseburger description
+    response = client.get(url, {"q": "Burgers"})
     assert response.status_code == 200
 
     data = response.json()
-    print(json.dumps(data, indent=1))
-    assert any("plant" in item["description"].lower() for item in data)
+    assert len(data) > 0
+    cprint(data)
+    # Each returned item should belong to a Burgers category
+    # depends on serializer depth
+    assert any("burger" in item["custom_name"].lower() for item in data)
 
 
-# @pytest.mark.django_db
-# def test_search_menu_items_by_category(registered_restaurant):
-#     """Searching by category name should return items."""
-#     client = APIClient()
-#     url = reverse("menuitem-search")
+@pytest.mark.django_db
+def test_search_menu_items_by_restaurant_name(registered_restaurant):
+    """Searching by restaurant company name should return all its items."""
+    client = APIClient()
+    url = reverse("menuitem-search")
 
-#     response = client.get(url, {"q": "Burgers"})
-#     assert response.status_code == 200
+    response = client.get(url, {"q": "Burger Planet"})
+    assert response.status_code == 200
 
-#     data = response.json()
-#     assert len(data) > 0
-#     # Each returned item should belong to a Burgers category
-#     # depends on serializer depth
-#     assert any("burger" in item["custom_name"].lower() for item in data)
+    data = response.json()
+    assert len(data) > 0
 
-
-# @pytest.mark.django_db
-# def test_search_menu_items_by_restaurant_name(registered_restaurant):
-#     """Searching by restaurant company name should return all its items."""
-#     client = APIClient()
-#     url = reverse("menuitem-search")
-
-#     response = client.get(url, {"q": "Burger Planet"})
-#     assert response.status_code == 200
-
-#     data = response.json()
-#     assert len(data) > 0
-#     # all items belong to this restaurant
-#     # serializer should include category -> menu -> restaurant fields
-#     # otherwise just check count > 0
-#     assert isinstance(data, list)
+    cprint(data)
+    # all items belong to this restaurant
+    # serializer should include category -> menu -> restaurant fields
+    # otherwise just check count > 0
+    assert isinstance(data, list)
 
 
 # @pytest.mark.django_db

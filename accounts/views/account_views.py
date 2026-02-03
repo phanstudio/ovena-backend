@@ -80,8 +80,7 @@ class RegisterResturant(APIView):
                 # Create address
                 location = Address.objects.create(
                     address="unknown",
-                    latitude=lat,
-                    longitude=long,
+                    location=Point(long, lat, srid=4326)
                 )
                 # Create restaurant profile
                 restaurant = Restaurant.objects.create(
@@ -181,7 +180,8 @@ class LinkApprove(APIView):
             device_name=device_id
         )
         user = {"user_id": primary_agent.user.id, "device_id": device_id}
-        sub_token = create_token(user, role="sub", scopes=["read", "availability:update"])
+        sub_token = create_token(user, role="sub", scopes=["read", "availability:update", "item:availability"]) 
+        # create a ascopes modules /class contain the available scopes also i'm i just reenventing the wheel that permissions can solve?
         return Response(
             {
                 "message": "Account registered successfully",

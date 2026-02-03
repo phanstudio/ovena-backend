@@ -3,28 +3,27 @@ from accounts.models import (
     Restaurant, Branch, CustomerProfile
 )
 
-class Category(models.Model): # common seached field # template for searching
-    name = models.CharField(max_length=255)
-    sort_order = models.PositiveIntegerField(default=0) # sort from time to time # auto add on save
-
-    class Meta:
-        ordering = ["sort_order"]
-
-    def __str__(self):
-        return f"{self.menu.name} - {self.name}"
+# for the name and the price where we have the base price and menu system we want ot uae the check for poverrid
+#  if no override than we and to get the base or lower level, second same for price the system needs revaming
 
 class BaseItem(models.Model):
     """
-    Canonical definition of an item (e.g., Coke, Cheese, Burger Patty).
+    Canonical definition of an item (e.g., Coke, Cheese, Burger Patty). Changed to represent the finish product might be revised
     Not sold directly. Always wrapped as MenuItem or Addon.
     """
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="base_items")
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     default_price = models.DecimalField(max_digits=10, decimal_places=2)
     image = models.ImageField(upload_to="base/items/", null=True, blank=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.restaurant.company_name} - {self.name}"
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["restaurant", "name"], name="unique_name_per_restaurant")
+        ]
 
 class Menu(models.Model):
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="menus")
@@ -73,7 +72,7 @@ class MenuItem(models.Model):
 
     @property
     def effective_price(self):
-        return self.base_price if self.base_price is not None else self.base_item.default_price
+        return self.price if self.price is not None else self.base_item.default_price
     
     @property
     def effective_image(self):

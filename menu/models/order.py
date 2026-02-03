@@ -94,6 +94,11 @@ class Order(models.Model):
         if not self.websocket_group_name:
             self.websocket_group_name = f"order_{self.id}" if self.id else None
         super().save(*args, **kwargs)
+    
+    # @property
+    # def websocket_group_name(self):
+    #     return f"order_{self.pk}"
+
 
 
 
@@ -223,20 +228,6 @@ class OrderItem(models.Model):
         super().save(*args, **kwargs)
 
 
-"""
-Updated models with GIS support and WebSocket fields
-Add these to your existing models.py
-"""
-from django.contrib.gis.db import models as gis_models
-# from django.contrib.gis.geos import Point
-# from django.contrib.gis.db.models.functions import Distance
-# from django.contrib.gis.measure import D
-# from django.db import models
-# from django.utils import timezone
-
-
-# ===== UPDATE EXISTING MODELS =====
-
 # ===== NEW MODELS =====
 
 class OrderEvent(models.Model):
@@ -325,20 +316,3 @@ class ChatMessage(models.Model):
     
     def __str__(self):
         return f"{self.sender_type} to {self.recipient_type}: {self.message[:50]}"
-
-
-class Address(gis_models.Model): # change to use address
-    """Customer delivery addresses (your existing model - keep it)"""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='addresses', null=True)
-    address = models.CharField(max_length=255, blank=True, null=True)
-    location = gis_models.PointField(geography=True, srid=4326, default=Point(0.0, 0.0, srid=4326))
-    label = models.CharField(max_length=50, blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        indexes = [
-            gis_models.Index(fields=['location']),
-        ]
-
-    def __str__(self):
-        return f"{self.label or ''} - {self.address or 'Unknown'}"

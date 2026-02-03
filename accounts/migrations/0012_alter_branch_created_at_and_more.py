@@ -21,25 +21,30 @@ class Migration(migrations.Migration):
             field=models.DateTimeField(auto_now_add=True),
         ),
         migrations.SeparateDatabaseAndState(
-    database_operations=[
-        migrations.RunSQL(
-            sql="ALTER TABLE accounts_driverprofile DROP COLUMN IF EXISTS location;",
-            reverse_sql=migrations.RunSQL.noop,
+            database_operations=[
+                # drop any old/bad column if it exists (bigint or anything)
+                migrations.RunSQL(
+                    sql="ALTER TABLE accounts_driverprofile DROP COLUMN IF EXISTS location;",
+                    reverse_sql=migrations.RunSQL.noop,
+                ),
+                # add the correct geography column
+                migrations.RunSQL(
+                    sql="ALTER TABLE accounts_driverprofile ADD COLUMN location geography(POINT,4326);",
+                    reverse_sql="ALTER TABLE accounts_driverprofile DROP COLUMN IF EXISTS location;",
+                ),
+            ],
+            state_operations=[
+                # ONLY AddField, because state doesn't have it yet at 0012
+                migrations.AddField(
+                    model_name="driverprofile",
+                    name="location",
+                    field=gis_models.PointField(
+                        geography=True,
+                        srid=4326,
+                        null=True,
+                        blank=True,
+                    ),
+                ),
+            ],
         ),
-    ],
-    state_operations=[
-        migrations.AddField(
-            model_name='driverprofile',
-            name='location',
-            field=gis_models.PointField(
-                geography=True,
-                srid=4326,
-                null=True,
-                blank=True,
-            ),
-        ),
-    ],
-),
-
-
     ]

@@ -29,7 +29,6 @@ class MenuItemAddonGroupSerializer(serializers.Serializer):
     max_selection = serializers.IntegerField(default=0)
     addons = MenuItemAddonSerializer(many=True)
 
-
 class MenuItemSerializer(serializers.Serializer):
     custom_name = serializers.CharField(required=False)  # wrapper label, e.g. "Cheeseburger"
     description = serializers.CharField(required=False, allow_blank=True)

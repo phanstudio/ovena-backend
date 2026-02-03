@@ -1,0 +1,910 @@
+{
+    "menus": [
+      {
+        "name": "All Day Menu",
+        "description": "Main menu",
+        "is_active": true,
+        "categories": [
+          {
+            "name": "Burgers",
+            "sort_order": 1,
+            "items": [
+              {
+                "custom_name": "Cheeseburger",
+                "price": "4.50",
+                "base_item": { "name": "Cheeseburger", "description": "Classic burger", "price": "4.50" },
+                "variant_groups": [
+                  {
+                    "name": "Size",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Single", "price_diff": "0.00" },
+                      { "name": "Double", "price_diff": "1.50" }
+                    ]
+                  },
+                  {
+                    "name": "Bread",
+                    "is_required": false,
+                    "options": [
+                      { "name": "Brioche", "price_diff": "0.30" },
+                      { "name": "Sesame", "price_diff": "0.00" }
+                    ]
+                  }
+                ],
+                "addon_groups": [
+                  {
+                    "name": "Toppings",
+                    "is_required": false,
+                    "max_selection": 3,
+                    "addons": [
+                      { "price": "0.50", "base_item": { "name": "Cheese Slice", "description": "", "price": "0.50" } },
+                      { "price": "0.20", "base_item": { "name": "Tomato", "description": "", "price": "0.20" } },
+                      { "price": "0.25", "base_item": { "name": "Onion", "description": "", "price": "0.25" } }
+                    ]
+                  },
+                  {
+                    "name": "Sauces",
+                    "is_required": false,
+                    "max_selection": 2,
+                    "addons": [
+                      { "price": "0.15", "base_item": { "name": "Ketchup", "description": "", "price": "0.15" } },
+                      { "price": "0.20", "base_item": { "name": "Mayo", "description": "", "price": "0.20" } }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Chicken Burger",
+                "price": "4.80",
+                "base_item": { "name": "Chicken Burger", "description": "Crispy chicken patty", "price": "4.80" },
+                "variant_groups": [
+                  {
+                    "name": "Spice Level",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Mild", "price_diff": "0.00" },
+                      { "name": "Hot", "price_diff": "0.20" }
+                    ]
+                  }
+                ],
+                "addon_groups": [
+                  {
+                    "name": "Toppings",
+                    "is_required": false,
+                    "max_selection": 3,
+                    "addons": [
+                      { "price": "0.20", "base_item": { "name": "Tomato", "description": "", "price": "0.20" } },
+                      { "price": "0.30", "base_item": { "name": "Lettuce", "description": "", "price": "0.30" } }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Veggie Burger",
+                "price": "4.20",
+                "base_item": { "name": "Veggie Burger", "description": "Plant-based patty", "price": "4.20" },
+                "variant_groups": [
+                  {
+                    "name": "Size",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Single", "price_diff": "0.00" },
+                      { "name": "Double", "price_diff": "1.20" }
+                    ]
+                  }
+                ],
+                "addon_groups": [
+                  {
+                    "name": "Sauces",
+                    "is_required": false,
+                    "max_selection": 2,
+                    "addons": [
+                      { "price": "0.20", "base_item": { "name": "Mayo", "description": "", "price": "0.20" } },
+                      { "price": "0.25", "base_item": { "name": "BBQ Sauce", "description": "", "price": "0.25" } }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Bacon Burger",
+                "price": "5.40",
+                "base_item": { "name": "Bacon Burger", "description": "Smoky bacon", "price": "5.40" },
+                "variant_groups": [
+                  {
+                    "name": "Cook Level",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Medium", "price_diff": "0.00" },
+                      { "name": "Well-done", "price_diff": "0.00" }
+                    ]
+                  }
+                ],
+                "addon_groups": [
+                  {
+                    "name": "Extras",
+                    "is_required": false,
+                    "max_selection": 2,
+                    "addons": [
+                      { "price": "0.80", "base_item": { "name": "Bacon Strip", "description": "", "price": "0.80" } },
+                      { "price": "0.50", "base_item": { "name": "Cheese Slice", "description": "", "price": "0.50" } }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Mushroom Swiss Burger",
+                "price": "5.10",
+                "base_item": { "name": "Mushroom Swiss Burger", "description": "Mushrooms + swiss", "price": "5.10" },
+                "variant_groups": [
+                  {
+                    "name": "Bread",
+                    "is_required": false,
+                    "options": [
+                      { "name": "Brioche", "price_diff": "0.30" },
+                      { "name": "Sesame", "price_diff": "0.00" }
+                    ]
+                  }
+                ],
+                "addon_groups": [
+                  {
+                    "name": "Toppings",
+                    "is_required": false,
+                    "max_selection": 3,
+                    "addons": [
+                      { "price": "0.60", "base_item": { "name": "Sauteed Mushrooms", "description": "", "price": "0.60" } },
+                      { "price": "0.20", "base_item": { "name": "Onion", "description": "", "price": "0.25" } }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Fries & Sides",
+            "sort_order": 2,
+            "items": [
+              {
+                "custom_name": "French Fries",
+                "price": "2.00",
+                "base_item": { "name": "French Fries", "description": "Crispy fries", "price": "2.00" },
+                "variant_groups": [
+                  {
+                    "name": "Size",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Small", "price_diff": "0.00" },
+                      { "name": "Large", "price_diff": "0.80" }
+                    ]
+                  }
+                ],
+                "addon_groups": [
+                  {
+                    "name": "Dips",
+                    "is_required": false,
+                    "max_selection": 2,
+                    "addons": [
+                      { "price": "0.20", "base_item": { "name": "Mayo", "description": "", "price": "0.20" } },
+                      { "price": "0.15", "base_item": { "name": "Ketchup", "description": "", "price": "0.15" } }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Sweet Potato Fries",
+                "price": "2.60",
+                "base_item": { "name": "Sweet Potato Fries", "description": "Sweet + crispy", "price": "2.60" },
+                "variant_groups": [
+                  {
+                    "name": "Size",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Small", "price_diff": "0.00" },
+                      { "name": "Large", "price_diff": "0.90" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Onion Rings",
+                "price": "2.50",
+                "base_item": { "name": "Onion Rings", "description": "Golden rings", "price": "2.50" },
+                "variant_groups": [
+                  {
+                    "name": "Size",
+                    "is_required": false,
+                    "options": [
+                      { "name": "Regular", "price_diff": "0.00" },
+                      { "name": "Large", "price_diff": "0.80" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Coleslaw",
+                "price": "1.60",
+                "base_item": { "name": "Coleslaw", "description": "Fresh cabbage salad", "price": "1.60" }
+              },
+              {
+                "custom_name": "Chicken Nuggets",
+                "price": "3.20",
+                "base_item": { "name": "Chicken Nuggets", "description": "Crispy nuggets", "price": "3.20" },
+                "variant_groups": [
+                  {
+                    "name": "Pieces",
+                    "is_required": true,
+                    "options": [
+                      { "name": "6 pcs", "price_diff": "0.00" },
+                      { "name": "12 pcs", "price_diff": "2.80" }
+                    ]
+                  }
+                ],
+                "addon_groups": [
+                  {
+                    "name": "Dips",
+                    "is_required": false,
+                    "max_selection": 2,
+                    "addons": [
+                      { "price": "0.25", "base_item": { "name": "BBQ Sauce", "description": "", "price": "0.25" } },
+                      { "price": "0.20", "base_item": { "name": "Mayo", "description": "", "price": "0.20" } }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Drinks",
+            "sort_order": 3,
+            "items": [
+              {
+                "custom_name": "Coca-Cola",
+                "price": "1.80",
+                "base_item": { "name": "Coca-Cola", "description": "", "price": "1.80" },
+                "variant_groups": [
+                  {
+                    "name": "Size",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Small", "price_diff": "0.00" },
+                      { "name": "Medium", "price_diff": "0.30" },
+                      { "name": "Large", "price_diff": "0.60" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Sprite",
+                "price": "1.80",
+                "base_item": { "name": "Sprite", "description": "", "price": "1.80" },
+                "variant_groups": [
+                  {
+                    "name": "Size",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Small", "price_diff": "0.00" },
+                      { "name": "Medium", "price_diff": "0.30" },
+                      { "name": "Large", "price_diff": "0.60" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Fanta Orange",
+                "price": "1.80",
+                "base_item": { "name": "Fanta Orange", "description": "", "price": "1.80" },
+                "variant_groups": [
+                  {
+                    "name": "Size",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Small", "price_diff": "0.00" },
+                      { "name": "Medium", "price_diff": "0.30" },
+                      { "name": "Large", "price_diff": "0.60" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Still Water",
+                "price": "1.20",
+                "base_item": { "name": "Still Water", "description": "", "price": "1.20" }
+              },
+              {
+                "custom_name": "Sparkling Water",
+                "price": "1.40",
+                "base_item": { "name": "Sparkling Water", "description": "", "price": "1.40" }
+              }
+            ]
+          },
+          {
+            "name": "Desserts",
+            "sort_order": 4,
+            "items": [
+              {
+                "custom_name": "Chocolate Brownie",
+                "price": "2.40",
+                "base_item": { "name": "Chocolate Brownie", "description": "", "price": "2.40" },
+                "addon_groups": [
+                  {
+                    "name": "Extras",
+                    "is_required": false,
+                    "max_selection": 2,
+                    "addons": [
+                      { "price": "0.60", "base_item": { "name": "Vanilla Ice Cream Scoop", "description": "", "price": "0.60" } }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Ice Cream Cup",
+                "price": "1.90",
+                "base_item": { "name": "Ice Cream Cup", "description": "", "price": "1.90" },
+                "variant_groups": [
+                  {
+                    "name": "Flavor",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Vanilla", "price_diff": "0.00" },
+                      { "name": "Chocolate", "price_diff": "0.00" },
+                      { "name": "Strawberry", "price_diff": "0.00" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Apple Pie Slice",
+                "price": "2.10",
+                "base_item": { "name": "Apple Pie Slice", "description": "", "price": "2.10" }
+              },
+              {
+                "custom_name": "Cheesecake Slice",
+                "price": "2.60",
+                "base_item": { "name": "Cheesecake Slice", "description": "", "price": "2.60" }
+              },
+              {
+                "custom_name": "Fruit Salad",
+                "price": "2.00",
+                "base_item": { "name": "Fruit Salad", "description": "", "price": "2.00" }
+              }
+            ]
+          },
+          {
+            "name": "Breakfast",
+            "sort_order": 5,
+            "items": [
+              {
+                "custom_name": "Pancakes",
+                "price": "3.80",
+                "base_item": { "name": "Pancakes", "description": "", "price": "3.80" },
+                "addon_groups": [
+                  {
+                    "name": "Toppings",
+                    "is_required": false,
+                    "max_selection": 3,
+                    "addons": [
+                      { "price": "0.30", "base_item": { "name": "Maple Syrup", "description": "", "price": "0.30" } },
+                      { "price": "0.40", "base_item": { "name": "Whipped Cream", "description": "", "price": "0.40" } },
+                      { "price": "0.50", "base_item": { "name": "Chocolate Sauce", "description": "", "price": "0.50" } }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Omelette",
+                "price": "3.60",
+                "base_item": { "name": "Omelette", "description": "", "price": "3.60" },
+                "variant_groups": [
+                  {
+                    "name": "Fillings",
+                    "is_required": false,
+                    "options": [
+                      { "name": "Cheese", "price_diff": "0.30" },
+                      { "name": "Mushroom", "price_diff": "0.40" },
+                      { "name": "Ham", "price_diff": "0.60" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Toast",
+                "price": "1.20",
+                "base_item": { "name": "Toast", "description": "", "price": "1.20" },
+                "variant_groups": [
+                  {
+                    "name": "Bread",
+                    "is_required": true,
+                    "options": [
+                      { "name": "White", "price_diff": "0.00" },
+                      { "name": "Whole Wheat", "price_diff": "0.10" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Coffee",
+                "price": "1.50",
+                "base_item": { "name": "Coffee", "description": "", "price": "1.50" },
+                "variant_groups": [
+                  {
+                    "name": "Size",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Small", "price_diff": "0.00" },
+                      { "name": "Large", "price_diff": "0.40" }
+                    ]
+                  },
+                  {
+                    "name": "Milk",
+                    "is_required": false,
+                    "options": [
+                      { "name": "No milk", "price_diff": "0.00" },
+                      { "name": "Regular", "price_diff": "0.00" },
+                      { "name": "Oat", "price_diff": "0.30" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Orange Juice",
+                "price": "2.10",
+                "base_item": { "name": "Orange Juice", "description": "", "price": "2.10" },
+                "variant_groups": [
+                  {
+                    "name": "Size",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Small", "price_diff": "0.00" },
+                      { "name": "Large", "price_diff": "0.60" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+  
+      {
+        "name": "Lunch Specials",
+        "description": "Weekday lunch deals",
+        "is_active": true,
+        "categories": [
+          {
+            "name": "Combo Meals",
+            "sort_order": 1,
+            "items": [
+              {
+                "custom_name": "Cheeseburger Combo",
+                "price": "6.90",
+                "base_item": { "name": "Cheeseburger Combo", "description": "Burger + fries + drink", "price": "6.90" },
+                "variant_groups": [
+                  {
+                    "name": "Drink Choice",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Coca-Cola", "price_diff": "0.00" },
+                      { "name": "Sprite", "price_diff": "0.00" },
+                      { "name": "Still Water", "price_diff": "-0.30" }
+                    ]
+                  },
+                  {
+                    "name": "Fries Size",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Small", "price_diff": "0.00" },
+                      { "name": "Large", "price_diff": "0.80" }
+                    ]
+                  }
+                ],
+                "addon_groups": [
+                  {
+                    "name": "Add-on Sides",
+                    "is_required": false,
+                    "max_selection": 1,
+                    "addons": [
+                      { "price": "1.60", "base_item": { "name": "Coleslaw", "description": "", "price": "1.60" } },
+                      { "price": "2.50", "base_item": { "name": "Onion Rings", "description": "", "price": "2.50" } }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Chicken Burger Combo",
+                "price": "7.20",
+                "base_item": { "name": "Chicken Burger Combo", "description": "Chicken burger combo", "price": "7.20" },
+                "variant_groups": [
+                  {
+                    "name": "Drink Choice",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Fanta Orange", "price_diff": "0.00" },
+                      { "name": "Sprite", "price_diff": "0.00" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Veggie Burger Combo",
+                "price": "6.60",
+                "base_item": { "name": "Veggie Burger Combo", "description": "Veggie burger combo", "price": "6.60" },
+                "variant_groups": [
+                  {
+                    "name": "Drink Choice",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Still Water", "price_diff": "-0.30" },
+                      { "name": "Coca-Cola", "price_diff": "0.00" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Nuggets Combo",
+                "price": "6.80",
+                "base_item": { "name": "Nuggets Combo", "description": "Nuggets + fries + drink", "price": "6.80" },
+                "variant_groups": [
+                  {
+                    "name": "Pieces",
+                    "is_required": true,
+                    "options": [
+                      { "name": "6 pcs", "price_diff": "0.00" },
+                      { "name": "12 pcs", "price_diff": "2.80" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Kids Meal",
+                "price": "5.20",
+                "base_item": { "name": "Kids Meal", "description": "Small combo for kids", "price": "5.20" },
+                "variant_groups": [
+                  {
+                    "name": "Drink Choice",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Still Water", "price_diff": "-0.30" },
+                      { "name": "Orange Juice", "price_diff": "0.60" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "Wraps",
+            "sort_order": 2,
+            "items": [
+              {
+                "custom_name": "Chicken Wrap",
+                "price": "4.90",
+                "base_item": { "name": "Chicken Wrap", "description": "", "price": "4.90" },
+                "variant_groups": [
+                  {
+                    "name": "Sauce",
+                    "is_required": true,
+                    "options": [
+                      { "name": "Mayo", "price_diff": "0.00" },
+                      { "name": "BBQ Sauce", "price_diff": "0.10" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Veggie Wrap",
+                "price": "4.50",
+                "base_item": { "name": "Veggie Wrap", "description": "", "price": "4.50" }
+              },
+              {
+                "custom_name": "Beef Wrap",
+                "price": "5.20",
+                "base_item": { "name": "Beef Wrap", "description": "", "price": "5.20" }
+              },
+              {
+                "custom_name": "Falafel Wrap",
+                "price": "4.70",
+                "base_item": { "name": "Falafel Wrap", "description": "", "price": "4.70" },
+                "addon_groups": [
+                  {
+                    "name": "Extras",
+                    "is_required": false,
+                    "max_selection": 2,
+                    "addons": [
+                      { "price": "0.30", "base_item": { "name": "Lettuce", "description": "", "price": "0.30" } },
+                      { "price": "0.20", "base_item": { "name": "Tomato", "description": "", "price": "0.20" } }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Spicy Chicken Wrap",
+                "price": "5.10",
+                "base_item": { "name": "Spicy Chicken Wrap", "description": "", "price": "5.10" }
+              }
+            ]
+          },
+          {
+            "name": "Salads",
+            "sort_order": 3,
+            "items": [
+              {
+                "custom_name": "Caesar Salad",
+                "price": "4.80",
+                "base_item": { "name": "Caesar Salad", "description": "", "price": "4.80" }
+              },
+              {
+                "custom_name": "Chicken Caesar Salad",
+                "price": "5.60",
+                "base_item": { "name": "Chicken Caesar Salad", "description": "", "price": "5.60" }
+              },
+              {
+                "custom_name": "Greek Salad",
+                "price": "4.40",
+                "base_item": { "name": "Greek Salad", "description": "", "price": "4.40" }
+              },
+              {
+                "custom_name": "Tuna Salad",
+                "price": "5.30",
+                "base_item": { "name": "Tuna Salad", "description": "", "price": "5.30" }
+              },
+              {
+                "custom_name": "Garden Salad",
+                "price": "4.00",
+                "base_item": { "name": "Garden Salad", "description": "", "price": "4.00" }
+              }
+            ]
+          },
+          {
+            "name": "Soups",
+            "sort_order": 4,
+            "items": [
+              {
+                "custom_name": "Tomato Soup",
+                "price": "2.70",
+                "base_item": { "name": "Tomato Soup", "description": "", "price": "2.70" }
+              },
+              {
+                "custom_name": "Chicken Soup",
+                "price": "3.10",
+                "base_item": { "name": "Chicken Soup", "description": "", "price": "3.10" }
+              },
+              {
+                "custom_name": "Mushroom Soup",
+                "price": "3.00",
+                "base_item": { "name": "Mushroom Soup", "description": "", "price": "3.00" }
+              },
+              {
+                "custom_name": "Lentil Soup",
+                "price": "2.90",
+                "base_item": { "name": "Lentil Soup", "description": "", "price": "2.90" }
+              },
+              {
+                "custom_name": "Vegetable Soup",
+                "price": "2.80",
+                "base_item": { "name": "Vegetable Soup", "description": "", "price": "2.80" }
+              }
+            ]
+          },
+          {
+            "name": "Lunch Desserts",
+            "sort_order": 5,
+            "items": [
+              {
+                "custom_name": "Brownie + Ice Cream",
+                "price": "2.90",
+                "base_item": { "name": "Brownie + Ice Cream", "description": "", "price": "2.90" }
+              },
+              {
+                "custom_name": "Apple Pie + Ice Cream",
+                "price": "2.80",
+                "base_item": { "name": "Apple Pie + Ice Cream", "description": "", "price": "2.80" }
+              },
+              {
+                "custom_name": "Fruit Cup",
+                "price": "1.80",
+                "base_item": { "name": "Fruit Cup", "description": "", "price": "1.80" }
+              },
+              {
+                "custom_name": "Cookie",
+                "price": "1.20",
+                "base_item": { "name": "Cookie", "description": "", "price": "1.20" }
+              },
+              {
+                "custom_name": "Cheesecake Bite",
+                "price": "1.60",
+                "base_item": { "name": "Cheesecake Bite", "description": "", "price": "1.60" }
+              }
+            ]
+          }
+        ]
+      },
+  
+      {
+        "name": "Dinner Menu",
+        "description": "Evening favorites",
+        "is_active": true,
+        "categories": [
+          {
+            "name": "Grill",
+            "sort_order": 1,
+            "items": [
+              {
+                "custom_name": "Grilled Chicken Plate",
+                "price": "7.90",
+                "base_item": { "name": "Grilled Chicken Plate", "description": "", "price": "7.90" },
+                "variant_groups": [
+                  {
+                    "name": "Side Choice",
+                    "is_required": true,
+                    "options": [
+                      { "name": "French Fries", "price_diff": "0.00" },
+                      { "name": "Garden Salad", "price_diff": "0.20" },
+                      { "name": "Coleslaw", "price_diff": "0.10" }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Grilled Beef Plate",
+                "price": "8.60",
+                "base_item": { "name": "Grilled Beef Plate", "description": "", "price": "8.60" }
+              },
+              {
+                "custom_name": "Grilled Veg Plate",
+                "price": "6.80",
+                "base_item": { "name": "Grilled Veg Plate", "description": "", "price": "6.80" }
+              },
+              {
+                "custom_name": "BBQ Ribs",
+                "price": "9.40",
+                "base_item": { "name": "BBQ Ribs", "description": "", "price": "9.40" },
+                "addon_groups": [
+                  {
+                    "name": "Extras",
+                    "is_required": false,
+                    "max_selection": 2,
+                    "addons": [
+                      { "price": "0.25", "base_item": { "name": "BBQ Sauce", "description": "", "price": "0.25" } },
+                      { "price": "0.30", "base_item": { "name": "Ketchup", "description": "", "price": "0.15" } }
+                    ]
+                  }
+                ]
+              },
+              {
+                "custom_name": "Steak Sandwich",
+                "price": "7.20",
+                "base_item": { "name": "Steak Sandwich", "description": "", "price": "7.20" }
+              }
+            ]
+          },
+          {
+            "name": "Pasta",
+            "sort_order": 2,
+            "items": [
+              { "custom_name": "Spaghetti Bolognese", "price": "6.90", "base_item": { "name": "Spaghetti Bolognese", "description": "", "price": "6.90" } },
+              { "custom_name": "Chicken Alfredo", "price": "7.30", "base_item": { "name": "Chicken Alfredo", "description": "", "price": "7.30" } },
+              { "custom_name": "Pesto Pasta", "price": "6.60", "base_item": { "name": "Pesto Pasta", "description": "", "price": "6.60" } },
+              { "custom_name": "Mac & Cheese", "price": "5.90", "base_item": { "name": "Mac & Cheese", "description": "", "price": "5.90" } },
+              { "custom_name": "Veggie Pasta", "price": "6.20", "base_item": { "name": "Veggie Pasta", "description": "", "price": "6.20" } }
+            ]
+          },
+          {
+            "name": "Seafood",
+            "sort_order": 3,
+            "items": [
+              { "custom_name": "Fish & Chips", "price": "7.10", "base_item": { "name": "Fish & Chips", "description": "", "price": "7.10" } },
+              { "custom_name": "Grilled Fish", "price": "7.80", "base_item": { "name": "Grilled Fish", "description": "", "price": "7.80" } },
+              { "custom_name": "Shrimp Basket", "price": "7.60", "base_item": { "name": "Shrimp Basket", "description": "", "price": "7.60" } },
+              { "custom_name": "Seafood Salad", "price": "7.20", "base_item": { "name": "Seafood Salad", "description": "", "price": "7.20" } },
+              { "custom_name": "Tuna Steak", "price": "8.10", "base_item": { "name": "Tuna Steak", "description": "", "price": "8.10" } }
+            ]
+          },
+          {
+            "name": "Dinner Drinks",
+            "sort_order": 4,
+            "items": [
+              { "custom_name": "Iced Tea", "price": "1.90", "base_item": { "name": "Iced Tea", "description": "", "price": "1.90" } },
+              { "custom_name": "Lemonade", "price": "2.00", "base_item": { "name": "Lemonade", "description": "", "price": "2.00" } },
+              { "custom_name": "Sparkling Water", "price": "1.40", "base_item": { "name": "Sparkling Water", "description": "", "price": "1.40" } },
+              { "custom_name": "Coffee", "price": "1.50", "base_item": { "name": "Coffee", "description": "", "price": "1.50" } },
+              { "custom_name": "Orange Juice", "price": "2.10", "base_item": { "name": "Orange Juice", "description": "", "price": "2.10" } }
+            ]
+          },
+          {
+            "name": "Dinner Desserts",
+            "sort_order": 5,
+            "items": [
+              { "custom_name": "Cheesecake Slice", "price": "2.60", "base_item": { "name": "Cheesecake Slice", "description": "", "price": "2.60" } },
+              { "custom_name": "Chocolate Brownie", "price": "2.40", "base_item": { "name": "Chocolate Brownie", "description": "", "price": "2.40" } },
+              { "custom_name": "Ice Cream Cup", "price": "1.90", "base_item": { "name": "Ice Cream Cup", "description": "", "price": "1.90" } },
+              { "custom_name": "Fruit Salad", "price": "2.00", "base_item": { "name": "Fruit Salad", "description": "", "price": "2.00" } },
+              { "custom_name": "Apple Pie Slice", "price": "2.10", "base_item": { "name": "Apple Pie Slice", "description": "", "price": "2.10" } }
+            ]
+          }
+        ]
+      },
+  
+      {
+        "name": "Kids Menu",
+        "description": "Smaller portions",
+        "is_active": true,
+        "categories": [
+          {
+            "name": "Kids Mains",
+            "sort_order": 1,
+            "items": [
+              { "custom_name": "Kids Cheeseburger", "price": "3.60", "base_item": { "name": "Kids Cheeseburger", "description": "", "price": "3.60" } },
+              { "custom_name": "Kids Nuggets", "price": "3.40", "base_item": { "name": "Kids Nuggets", "description": "", "price": "3.40" } },
+              { "custom_name": "Kids Pasta", "price": "3.50", "base_item": { "name": "Kids Pasta", "description": "", "price": "3.50" } },
+              { "custom_name": "Kids Fish Bites", "price": "3.80", "base_item": { "name": "Kids Fish Bites", "description": "", "price": "3.80" } },
+              { "custom_name": "Kids Veg Plate", "price": "3.30", "base_item": { "name": "Kids Veg Plate", "description": "", "price": "3.30" } }
+            ]
+          },
+          {
+            "name": "Kids Sides",
+            "sort_order": 2,
+            "items": [
+              { "custom_name": "Kids Fries", "price": "1.40", "base_item": { "name": "Kids Fries", "description": "", "price": "1.40" } },
+              { "custom_name": "Kids Fruit Cup", "price": "1.20", "base_item": { "name": "Kids Fruit Cup", "description": "", "price": "1.20" } },
+              { "custom_name": "Kids Coleslaw", "price": "1.00", "base_item": { "name": "Kids Coleslaw", "description": "", "price": "1.00" } },
+              { "custom_name": "Kids Onion Rings", "price": "1.50", "base_item": { "name": "Kids Onion Rings", "description": "", "price": "1.50" } },
+              { "custom_name": "Kids Salad", "price": "1.10", "base_item": { "name": "Kids Salad", "description": "", "price": "1.10" } }
+            ]
+          },
+          {
+            "name": "Kids Drinks",
+            "sort_order": 3,
+            "items": [
+              { "custom_name": "Kids Water", "price": "0.80", "base_item": { "name": "Kids Water", "description": "", "price": "0.80" } },
+              { "custom_name": "Kids Juice", "price": "1.20", "base_item": { "name": "Kids Juice", "description": "", "price": "1.20" } },
+              { "custom_name": "Kids Milk", "price": "1.00", "base_item": { "name": "Kids Milk", "description": "", "price": "1.00" } },
+              { "custom_name": "Kids Iced Tea", "price": "1.10", "base_item": { "name": "Kids Iced Tea", "description": "", "price": "1.10" } },
+              { "custom_name": "Kids Lemonade", "price": "1.10", "base_item": { "name": "Kids Lemonade", "description": "", "price": "1.10" } }
+            ]
+          },
+          {
+            "name": "Kids Desserts",
+            "sort_order": 4,
+            "items": [
+              { "custom_name": "Kids Cookie", "price": "0.90", "base_item": { "name": "Kids Cookie", "description": "", "price": "0.90" } },
+              { "custom_name": "Kids Ice Cream", "price": "1.20", "base_item": { "name": "Kids Ice Cream", "description": "", "price": "1.20" } },
+              { "custom_name": "Kids Brownie", "price": "1.30", "base_item": { "name": "Kids Brownie", "description": "", "price": "1.30" } },
+              { "custom_name": "Kids Fruit Salad", "price": "1.20", "base_item": { "name": "Kids Fruit Salad", "description": "", "price": "1.20" } },
+              { "custom_name": "Kids Pie Bite", "price": "1.10", "base_item": { "name": "Kids Pie Bite", "description": "", "price": "1.10" } }
+            ]
+          },
+          {
+            "name": "Kids Extras",
+            "sort_order": 5,
+            "items": [
+              {
+                "custom_name": "Extra Cheese Slice",
+                "price": "0.50",
+                "base_item": { "name": "Cheese Slice", "description": "", "price": "0.50" }
+              },
+              {
+                "custom_name": "Extra Ketchup",
+                "price": "0.15",
+                "base_item": { "name": "Ketchup", "description": "", "price": "0.15" }
+              },
+              {
+                "custom_name": "Extra Mayo",
+                "price": "0.20",
+                "base_item": { "name": "Mayo", "description": "", "price": "0.20" }
+              },
+              {
+                "custom_name": "Extra Tomato",
+                "price": "0.20",
+                "base_item": { "name": "Tomato", "description": "", "price": "0.20" }
+              },
+              {
+                "custom_name": "Extra Lettuce",
+                "price": "0.30",
+                "base_item": { "name": "Lettuce", "description": "", "price": "0.30" }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+}
+  

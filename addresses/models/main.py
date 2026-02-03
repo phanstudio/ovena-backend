@@ -6,7 +6,9 @@ from django.contrib.gis.measure import D
 from django.db import models
 from django.utils import timezone
 
+# are addresses a user thing?
 class Address(gis_models.Model):
+    # user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='addresses', null=True)
     address = gis_models.CharField(max_length=255, blank=True, null=True)  # human-readable
     location = gis_models.PointField(
         geography=True, 

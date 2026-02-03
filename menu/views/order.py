@@ -3,352 +3,27 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from rest_framework.generics import GenericAPIView
-# from rest_framework.mixins import ListModelMixin, CreateModelMixin, UpdateModelMixin
-from .serializers import ouput_serializers  as otS
-from .serializers import input_serializers as InS
-from .models import (
-    Menu, MenuCategory, MenuItem, VariantGroup, VariantOption, 
-    MenuItemAddonGroup, MenuItemAddon, BaseItem, 
-    Restaurant, Branch, BaseItemAvailability, 
-    Order, Coupons, OrderEvent
+from ..models import (
+    Branch, Order, Coupons, OrderEvent
 )
-from .pagifications import StandardResultsSetPagination
+from ..pagifications import StandardResultsSetPagination
 
-from accounts.models import LinkedStaff, User, Rating
+from accounts.models import LinkedStaff, User
 from authflow.decorators import subuser_authentication
 from authflow.authentication import CustomCustomerAuth, CustomDriverAuth
 from authflow.permissions import ScopePermission, ReadScopePermission
 from authflow.services import generate_passphrase, hash_phrase, verify_delivery_phrase
 
 from django.shortcuts import get_object_or_404
-from django.db.models import Avg, Count, Q
 from django.conf import settings
 from django.utils import timezone
 
-
-
-from .websocket_utils import *
-from .tasks import *
+from ..websocket_utils import *
+from ..tasks import *
 import logging
-from .payment_services import initialize_paystack_transaction
+from ..payment_services import initialize_paystack_transaction
 
 logger = logging.getLogger(__name__)
-
-class RestaurantView(APIView):
-    def get(self, request):
-        restaurants = Restaurant.objects.prefetch_related(
-            "menus__categories__items__variant_groups__options",
-            "menus__categories__items__addon_groups__addons",
-            "menus__categories__items__branch_availabilities",
-        )
-        serializer = otS.RestaurantSerializer(restaurants, many=True)
-        return Response(serializer.data)
-
-class TopBranchesView(APIView):
-    def get(self, request):
-        top_branches = Branch.objects.annotate(
-            avg_rating=Avg('branch_ratings_received__stars'),
-            rating_count=Count('branch_ratings_received')
-        ).select_related("restaurant"
-        ).filter(
-            rating_count__gt=0
-        ).order_by('-avg_rating', '-rating_count')[:10]
-        serializer = otS.TopBranchSerilazer(top_branches, many=True)
-        return Response({'data': serializer.data})
-
-class MenuView(APIView):
-    def get(self, request, restaurant_id):
-        menus = Menu.objects.filter(restaurant_id=restaurant_id)\
-                            .prefetch_related("categories__items")
-        serializer = otS.MenuSerializer(menus, many=True)
-        return Response(serializer.data)
-
-class RateView(APIView):
-    authentication_classes=[CustomCustomerAuth]
-    permission_classes = [IsAuthenticated]
-    def post(self, request):
-        data = request.data
-        user = request.user
-        if not hasattr(user, "customer_profile"):
-            return Response({"error": "not a cusomer"}, 403)
-        
-        order_id = data.get("order_id")
-        rating_who = data.get("rating_who") or 0 # 0, 1, 2
-        stars = data.get("stars") or 1
-        review = data.get("review") or None
-        complaint_type = data.get("complaint_type") # get the complaint type
-        
-        if not complaint_type:
-            return Response({"error": "no complaint type"}, 403)
-
-        order = Order.objects.filter(pk=order_id).first()
-        if not order:
-            return Response({"error": "no order passed, invalid order id"}, 403)
-        
-        rated_driver_id = None
-        rated_branch_id = None
-
-        if rating_who in [0, 2]:
-            rated_driver_id = order.driver_id
-        if rating_who in [1, 2]:
-            rated_branch_id = order.branch_id
-
-        Rating.objects.create(
-            rater=user.customer_profile,
-            rated_driver_id=rated_driver_id,
-            rated_branch_id=rated_branch_id,
-            stars=stars,
-            review=review,
-            complaint_type=complaint_type,
-        )
-
-# how to test searching 
-class SearchMenuItems(APIView):# the search should show the restorunt the menu item came from 
-    def get(self, request):
-        query = request.query_params.get("q", "") # add is active? and is available
-        items = MenuItem.objects.filter(
-            Q(custom_name__icontains=query) |
-            Q(description__icontains=query) |
-            Q(category__name__icontains=query) |
-            Q(category__menu__restaurant__company_name__icontains=query)
-        ).select_related("category__menu__restaurant")
-
-        serializer = otS.MenuItemSerializer(items, many=True)
-        return Response(serializer.data)
-
-# # we need to be able to get the a list of the menus, and the resturants, 
-# # we need perform proper searching whether wth caching and other techniques
-# # we search by categories resturants and so on?
-
-# class HomepageView(APIView):
-#     def get(self, request):
-#         restaurants = Restaurant.objects.prefetch_related(
-#             "menus__categories__items__variant_groups__options",
-#             "menus__categories__items__addon_groups__addons",
-#             "menus__categories__items__branch_availabilities",
-#         )
-#         # get top categories
-#         # recently visited resturants, empty 
-#         # top picks # best rated resturants
-#         # pagification for the resturant 
-
-#         serializer = RestaurantSerializer(restaurants, many=True)
-#         return Response(serializer.data)
-
-# # another for getting the other resturants
-# # the same resturants
-
-# class UsersActivites(APIView):
-#     def post(self, request):
-#         # send all the users info as thime passes 
-#         # if the user order add that 
-#         pass
-
-
-    # orderer = models.ForeignKey(CustomerProfile, on_delete= models.CASCADE, related_name="orders")
-    # branch = models.ForeignKey(Branch, on_delete= models.CASCADE, related_name= "orders")
-    # # delivery_price = models.DecimalField(decimal_places= 5, max_digits= 10, default= 0)
-    # # ovena_commision = models.DecimalField(max_digits=5, decimal_places=2, default= 10)
-    # coupons = models.ForeignKey(Coupons, on_delete= models.CASCADE, related_name= "coupons", blank=True, null= True)
-
-    # # status = models.CharField(max_length= 30, choices= STATUS_CHOICES, default= "pending")
-
-# who is this for the user before payment is made, the payment gatway has been made no pyment is made yet so we need to kill that transaction
-# custom authentication with select related for this, we need paginification here
-# finished
-
-
-@subuser_authentication
-class AvaliabilityView(GenericAPIView): # not sure if it wil be this direct sha must likely not be
-    queryset = BaseItemAvailability.objects.all()
-    permission_classes=[ScopePermission, ReadScopePermission]
-    pagination_class=StandardResultsSetPagination
-    required_scopes = ["item:availability"]
-
-    def patch(self, request):
-        user = self.request.user
-        is_available = request.data.get("is_available") # should be a bool
-        base_item_id = request.data.get("base_item_id")
-        branch = None
-
-        if isinstance(user, LinkedStaff):
-            branch = user.created_by.branch
-        elif isinstance(user, User):
-            branch = user.primaryagent.branch
-        else:
-            return Response(
-                {"detail": "user is not a resturant employee"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        updated = (
-            self.get_queryset()
-            .filter(branch=branch, base_item_id=base_item_id)
-            .update(is_available=is_available)
-        )
-
-        if not updated:
-            return Response(
-                {"detail": "Item availability not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        return Response(
-            {"detail": "Availability updated", "is_available": is_available},
-            status=status.HTTP_200_OK,
-        )
-
-
-# first in order split the json into section all the branches and all the categories and etc one by one bulk create each that way the is faster than a for loop-> 
-class MenuRegistrationView(APIView):
-    """
-    Register menus for an existing restaurant.
-    JSON payload includes menus, categories, items, variants, addons, availabilities.
-    """
-    def post(self, request):
-        restaurant_id = request.data.get("restaurant_id")
-        if not restaurant_id:
-            return Response({"detail": "restaurant_id is required"}, status=400)
-
-        try:
-            restaurant = Restaurant.objects.get(pk=restaurant_id)
-        except Restaurant.DoesNotExist:
-            return Response({"detail": "Restaurant not found"}, status=404)
-
-        menus_data = request.data.get("menus", [])
-        created_menus = []
-
-        for menu_data in menus_data:
-            # Validate with serializer
-            serializer = InS.MenuSerializer(data=menu_data)
-            serializer.is_valid(raise_exception=True)
-
-            # Create menu
-            menu = Menu.objects.create(
-                restaurant=restaurant,
-                name=serializer.validated_data["name"],
-                description=serializer.validated_data.get("description", ""),
-                is_active=serializer.validated_data.get("is_active", True),
-            )
-
-            # Loop categories
-            for cat_data in serializer.validated_data["categories"]:
-                category = MenuCategory.objects.create(
-                    menu=menu,
-                    name=cat_data["name"],
-                    sort_order=cat_data.get("sort_order", 0),
-                )
-
-                # Items under this category
-                for item_data in cat_data["items"]:
-                    # === Create or reuse BaseItem
-                    base_item, _ = BaseItem.objects.get_or_create(
-                        name=item_data["base_item"]["name"],
-                        defaults={
-                            "description": item_data["base_item"].get("description", ""),
-                            "default_price": item_data["base_item"]["price"],
-                            "image": item_data["base_item"].get("image", None),
-                        },
-                    )
-
-                    # === Wrap as MenuItem
-                    item = MenuItem.objects.create(
-                        category=category,
-                        base_item=base_item,
-                        custom_name=item_data.get("custom_name", base_item.name),
-                        description=item_data.get("description", base_item.description),
-                        price=item_data.get("price", base_item.default_price),
-                        image=item_data.get("image", None),
-                    )
-
-                    # === Variant groups + options
-                    for vg_data in item_data.get("variant_groups", []):
-                        vg = VariantGroup.objects.create(
-                            item=item,
-                            name=vg_data["name"],
-                            is_required=vg_data.get("is_required", True),
-                        )
-                        options = [
-                            VariantOption(
-                                group=vg,
-                                name=opt["name"],
-                                price_diff=opt.get("price_diff", 0),
-                            )
-                            for opt in vg_data.get("options", [])
-                        ]
-                        VariantOption.objects.bulk_create(options)
-
-                    # === Addon groups + addons
-                    for ag_data in item_data.get("addon_groups", []):
-                        ag = MenuItemAddonGroup.objects.create(
-                            item=item,
-                            name=ag_data["name"],
-                            is_required=ag_data.get("is_required", False),
-                            max_selection=ag_data.get("max_selection", 0),
-                        )
-
-                        addons = []
-                        for addon in ag_data.get("addons", []):
-                            # Reuse or create BaseItem for addon
-                            addon_base, _ = BaseItem.objects.get_or_create(
-                                name=addon["base_item"]["name"],
-                                defaults={
-                                    "description": addon["base_item"].get("description", ""),
-                                    "default_price": addon["base_item"]["price"],
-                                    "image": addon["base_item"].get("image", None),
-                                },
-                            )
-                            addon_obj = MenuItemAddon.objects.create(
-                                base_item=addon_base,
-                                price=addon.get("price", addon_base.default_price),
-                            )
-                            addons.append(addon_obj)
-
-                        if addons:
-                            # ManyToMany relationship to group
-                            for ad in addons:
-                                ad.groups.add(ag)
-
-            created_menus.append(menu.id)
-
-        return Response(
-            {
-                "message": "Menus registered successfully",
-                "menus": created_menus,
-                "company_name": restaurant.company_name,
-            },
-            status=status.HTTP_201_CREATED,
-        )
-
-if False: # comment
-    # move to branch adding and editing
-    # === Availability updates (BaseItemAvailability)
-                    # updates = []
-                    # for av_data in item_data.get("availabilities", []):
-                    #     try:
-                    #         branch = Branch.objects.get(name=av_data["branch"])
-                    #     except Branch.DoesNotExist:
-                    #         continue
-
-                    #     obj = BaseItemAvailability.objects.filter(
-                    #         branch=branch, base_item=base_item
-                    #     ).first()
-
-                    #     if obj:
-                    #         new_is_available = av_data.get("is_available", obj.is_available)
-                    #         new_override = av_data.get("override_price", obj.override_price)
-
-                    #         if obj.is_available != new_is_available or obj.override_price != new_override:
-                    #             obj.is_available = new_is_available
-                    #             obj.override_price = new_override
-                    #             updates.append(obj)
-
-                    # if updates:
-                    #     BaseItemAvailability.objects.bulk_update(
-                    #         updates, ["is_available", "override_price"]
-                    #     )
-    ...
-
 
 class OrderView(APIView):
     authentication_classes = [CustomCustomerAuth]
@@ -462,12 +137,16 @@ class OrderCancelView(APIView):
 
     def patch(self, request, order_id=None, *args, **kwargs):
         """Customer cancels their own order"""
+        user = request.user.customer_profile
         if not order_id:
             return Response({"error": "order_id required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        order = Order.objects.filter(id=order_id).first()
+        order:Order = Order.objects.filter(id=order_id).first()
         if not order:
             return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        if order.orderer_id != user.id:
+            return Response({"error": "Invalid customer account"}, status=status.HTTP_403_FORBIDDEN)
 
         # Can only cancel before driver picks up
         if order.status not in ["pending", "confirmed", "payment_pending"]:
@@ -485,7 +164,7 @@ class OrderCancelView(APIView):
             order=order,
             event_type='cancelled',
             actor_type='customer',
-            actor_id=request.user.customer_profile.id,
+            actor_id=user.id,
             old_status=old_status,
             new_status='cancelled',
             metadata={'reason': 'customer_cancelled'}

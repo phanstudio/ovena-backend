@@ -8,6 +8,7 @@ from django.core.cache import cache
 from accounts.utils.otp import generate_otp
 from django.utils import timezone
 import secrets, hashlib
+import string
 
 def create_token(user, role="main", scopes=None, expires_in=3600):
     """
@@ -107,3 +108,8 @@ def verify_delivery_phrase(order, entered_phrase):
         order.save(update_fields=["status", "delivery_verified", "delivery_verified_at"])
         return True
     return False
+
+
+def generate_referral_code(length=8):
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))

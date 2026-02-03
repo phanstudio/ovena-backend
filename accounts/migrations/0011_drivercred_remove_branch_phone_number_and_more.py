@@ -4,7 +4,7 @@ import django.contrib.gis.db.models.fields
 import django.db.models.deletion
 import django.utils.timezone
 from django.db import migrations, models
-
+from django.contrib.gis.db import models as gis_models
 
 class Migration(migrations.Migration):
 
@@ -114,10 +114,35 @@ class Migration(migrations.Migration):
             name='vehicle_number',
             field=models.CharField(blank=True, max_length=50, null=True),
         ),
-        migrations.AlterField(
-            model_name='branch',
-            name='location',
-            field=django.contrib.gis.db.models.fields.PointField(geography=True, srid=4326),
+        # migrations.AlterField(
+        #     model_name='branch',
+        #     name='location',
+        #     field=django.contrib.gis.db.models.fields.PointField(geography=True, srid=4326),
+        # ),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunSQL(
+                    sql="ALTER TABLE accounts_branch DROP COLUMN IF EXISTS location;",
+                    reverse_sql=migrations.RunSQL.noop,
+                ),
+                migrations.RunSQL(
+                    sql="ALTER TABLE accounts_branch ADD COLUMN location geography(POINT,4326);",
+                    reverse_sql="ALTER TABLE accounts_branch DROP COLUMN IF EXISTS location;",
+                ),
+            ],
+            state_operations=[
+                migrations.RemoveField(model_name="branch", name="location"),
+                migrations.AddField(
+                    model_name="branch",
+                    name="location",
+                    field=gis_models.PointField(
+                        geography=True,
+                        srid=4326,
+                        null=True,
+                        blank=True,
+                    ),
+                ),
+            ],
         ),
         migrations.AlterField(
             model_name='branch',

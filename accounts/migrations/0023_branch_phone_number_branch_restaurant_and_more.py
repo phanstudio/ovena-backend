@@ -2,6 +2,7 @@
 
 import django.db.models.deletion
 from django.db import migrations, models
+from django.contrib.gis.db import models as gis_models
 
 
 class Migration(migrations.Migration):
@@ -22,9 +23,42 @@ class Migration(migrations.Migration):
             name='restaurant',
             field=models.ForeignKey(default=1, on_delete=django.db.models.deletion.CASCADE, related_name='branches', to='accounts.restaurant'),
         ),
-        migrations.AlterField(
-            model_name='branch',
-            name='location',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='branches', to='addresses.address'),
+        # migrations.AlterField(
+        #     model_name='branch',
+        #     name='location',
+        #     field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='branches', to='addresses.address'),
+        # ),
+        migrations.SeparateDatabaseAndState(
+    database_operations=[
+        # Drop whichever version exists (could be location or location_id)
+        migrations.RunSQL(
+            sql="""
+                ALTER TABLE accounts_branch
+                DROP COLUMN IF EXISTS location;
+                ALTER TABLE accounts_branch
+                DROP COLUMN IF EXISTS location_id;
+            """,
+            reverse_sql=migrations.RunSQL.noop,
         ),
+        migrations.RunSQL(
+            sql="ALTER TABLE accounts_branch ADD COLUMN location geography(POINT,4326);",
+            reverse_sql="ALTER TABLE accounts_branch DROP COLUMN IF EXISTS location;",
+        ),
+    ],
+    state_operations=[
+        # Ensure state ends with PointField
+        migrations.RemoveField(model_name="branch", name="location"),
+        migrations.AddField(
+            model_name="branch",
+            name="location",
+            field=gis_models.PointField(
+                geography=True,
+                srid=4326,
+                null=True,
+                blank=True,
+            ),
+        ),
+    ],
+),
+
     ]

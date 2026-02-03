@@ -6,7 +6,11 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - redis
+      # - redis
+      redis:
+        condition: service_started
+      db:
+        condition: service_healthy
     volumes:
       - .:/app   # mount your local project into /app in the container
     environment:
@@ -30,3 +34,17 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: ovena
+      POSTGRES_USER: ovena
+      POSTGRES_PASSWORD: ovena
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ovena -d ovena -h localhost -p 5432"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
