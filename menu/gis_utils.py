@@ -1,7 +1,3 @@
-"""
-GIS utilities for driver matching and distance calculations
-Place in: drivers/gis_utils.py
-"""
 from django.contrib.gis.geos import Point
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.measure import D

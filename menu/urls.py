@@ -14,6 +14,8 @@ urlpatterns = [
     path("restaurant-order/", views.ResturantOrderView.as_view(), name="restaurant-order"),
     path("driver-order/", views.DriverOrderView.as_view(), name="driver-order"),
 
+    path("home-page/", views.HomePageView.as_view(), name="home-page"),
+
     path("order/", views.OrderView.as_view(), name="order"),
     path("order/<int:order_id>/cancel/", views.OrderCancelView.as_view(), name="order-cancel"),
 

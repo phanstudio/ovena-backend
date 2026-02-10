@@ -157,7 +157,7 @@ class BranchRating(RatingBase):
         super().clean()
         if self.pk:
             old = type(self).objects.filter(pk=self.pk).values("branch_id", "order_id").first()
-            if old and (old["branch_id"] != self.driver_id or old["order_id"] != self.order_id):
+            if old and (old["branch_id"] != self.branch_id or old["order_id"] != self.order_id):
                 raise ValidationError("Cannot change branch/order for an existing rating.")
 
     def __str__(self):

@@ -170,7 +170,7 @@ from pathlib import Path
 import pytest
 from django.urls import reverse
 from rest_framework.test import APIClient
-from rest_framework_simplejwt.tokens import RefreshToken
+from utils import authenticate
 
 from accounts.models import (
     Restaurant, Address, Branch, User, PrimaryAgent, LinkedStaff,
@@ -179,11 +179,6 @@ from accounts.models import (
 from addresses.utils.gis_point import make_point
 from menu.models import Order, OrderItem
 
-
-def authenticate(client, user):
-    refresh = RefreshToken.for_user(user)
-    client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
-    return client
 
 
 @pytest.fixture(scope="session")
@@ -287,7 +282,12 @@ def user1(db):
         email="ajugasusii@gmail.com",
         name="susii",
     )
-    CustomerProfile.objects.create(user=user)
+    address_obj = Address.objects.create(
+        address="10 Downing St",
+        location=make_point(34.1278, 51.5074),  # lon, lat
+    )
+    profile = CustomerProfile.objects.create(user=user, default_address=address_obj)
+    profile.addresses.set([address_obj])
     return user
 
 

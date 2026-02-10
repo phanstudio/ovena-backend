@@ -46,13 +46,14 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_gis',
     'corsheaders',
-    'addresses',
     'accounts',
+    'addresses',
     'menu',
     'authflow',
+    'ratings',
+    'coupons_discount',
     # 'anymail',
 ]
-
 
 
 MIDDLEWARE = [
@@ -109,7 +110,7 @@ BRANCH_CONFIRMATION_TIMEOUT = 300  # minutes
 PAYMENT_TIMEOUT = 300  # minutes
 
 # paystack
-PAYSTACK_SECRET_KEY = env("PAYSTACK_SERECT_KEY")
+PAYSTACK_SECRET_KEY = env("PAYSTACK_SERECT_KEY") # correct change later
 
 
 DRIVER_SEARCH_RADIUS_KM = [5, 10, 15]
@@ -187,12 +188,6 @@ WEBSOCKET_URL = env("WEBSOCKET_URL", default="ws://localhost:8000")
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
-# DATABASES = {
-#     "default": env.db()  # parses DATABASE_URL
-# }
-# DATABASES["default"]["ENGINE"] = "django.contrib.gis.db.backends.postgis"
-
 # Parse the DATABASE_URL first
 db_config = env.db()  # returns a dict with ENGINE, NAME, USER, PASSWORD, HOST, PORT
 

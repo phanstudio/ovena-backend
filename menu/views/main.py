@@ -18,9 +18,10 @@ from ..websocket_utils import *
 from ..tasks import *
 import logging
 
-from django.db.models import OuterRef, Subquery
+from django.db.models import OuterRef, Subquery, IntegerField
 from django.contrib.gis.db.models.functions import Distance
 from addresses.utils import resolve_user_point
+from django.db.models.functions import Coalesce
 
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ class SearchMenuItems(APIView):# the search should show the restorunt the menu i
 # we get restrants 
 # top picks
 # recently visited
-class HomepageView(APIView):
+class HomePageView(APIView):
     def get(self, request):
         user_point = resolve_user_point(request)
         if not user_point:
@@ -115,7 +116,7 @@ class HomepageView(APIView):
         restaurants = restaurants.prefetch_related(
             "menus__categories__items__variant_groups__options",
             "menus__categories__items__addon_groups__addons",
-            "menus__categories__items__branch_availabilities",
+            # "menus__categories__items__branch_availabilities",
         )
 
         # Bulk fetch nearest branches (NO N+1)
@@ -130,7 +131,55 @@ class HomepageView(APIView):
                 "user_point": user_point,
             },
         )
-        return Response(serializer.data)
+
+        # for one customer: last time they ordered from each restaurant
+        last_order_qs = (
+            Order.objects
+            .filter(
+                orderer=request.user.customer_profile,
+                branch__restaurant_id=OuterRef("pk"),
+            )
+            .exclude(status="cancelled")               # optional
+            .order_by("-created_at")
+        )
+
+        recent_restaurants = (
+            Restaurant.objects
+            .annotate(last_order_at=Subquery(last_order_qs.values("created_at")[:1]))
+            .filter(last_order_at__isnull=False)
+            .order_by("-last_order_at")[:10]
+        )
+
+        recent_serializer = otS.RestaurantSerializer(
+            recent_restaurants,
+            many=True,
+        )
+
+        top_branch_qs = (
+            Branch.objects
+            .filter(restaurant_id=OuterRef("pk"), is_active=True, is_accepting_orders=True)
+            .order_by("-rating_sum", "-rating_count", "id")
+        )
+
+        top_restaurants = (
+            Restaurant.objects
+            .annotate(top_branch_id=Subquery(top_branch_qs.values("id")[:1]))
+            .annotate(top_branch_sum=Coalesce(Subquery(top_branch_qs.values("rating_sum")[:1]), 0, output_field=IntegerField()))
+            .annotate(top_branch_count=Coalesce(Subquery(top_branch_qs.values("rating_count")[:1]), 0, output_field=IntegerField()))
+            .order_by("-top_branch_sum", "-top_branch_count", "id")
+        )
+
+        top_serializer = otS.RestaurantSerializer(
+            top_restaurants,
+            many=True,
+        )
+
+
+        return Response({
+            "nearby": serializer.data,
+            "top_picks": top_serializer.data,
+            "recently_visited": recent_serializer.data
+        })
 
 
 # # another for getting the other resturants

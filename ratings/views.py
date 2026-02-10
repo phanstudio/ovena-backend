@@ -1,70 +1,3 @@
-from django.shortcuts import render
-
-# Create your views here.
-
-from rest_framework import permissions, status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-
-from rest_framework import status
-
-from menu.models import Order
-from .serializers import (
-    SubmitOrderRatingsSerializer,
-    DriverRatingSerializer,
-    BranchRatingSerializer,
-)
-from .services import RatingService
-
-
-class SubmitOrderRatingsView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        serializer = SubmitOrderRatingsSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        order_id = serializer.validated_data["order_id"]
-        driver_payload = serializer.validated_data.get("driver")
-        branch_payload = serializer.validated_data.get("branch")
-
-        # Your app likely has a CustomerProfile relation:
-        rater = request.user.customerprofile
-
-        # Load order
-        order = (
-            Order.objects
-            .select_related("driver", "branch")
-            .get(id=order_id)
-        )
-
-        # Important business rules you probably want:
-        # - only the order owner can rate
-        if hasattr(order, "customer_id") and order.customer_id != rater.id:
-            return Response({"detail": "You cannot rate this order."}, status=status.HTTP_403_FORBIDDEN)
-
-        # - only rate delivered/completed orders
-        if getattr(order, "status", None) not in ("delivered", "completed"):
-            return Response({"detail": "You can only rate after delivery."}, status=status.HTTP_400_BAD_REQUEST)
-
-        results = RatingService.submit_for_order(
-            order=order,
-            rater=rater,
-            driver_payload=driver_payload,
-            branch_payload=branch_payload,
-        )
-
-        response = {}
-        if "driver_rating" in results:
-            response["driver_rating"] = DriverRatingSerializer(results["driver_rating"]).data
-        if "branch_rating" in results:
-            response["branch_rating"] = BranchRatingSerializer(results["branch_rating"]).data
-
-        return Response(response, status=status.HTTP_200_OK)
-
-
-
-
 # ratings/views.py
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status
@@ -80,7 +13,9 @@ from .serializers import (
     BranchRatingReadSerializer,
 )
 from .services import RatingService
-
+from authflow.decorators import subuser_authentication
+from authflow.permissions import ReadScopePermission
+from authflow.authentication import CustomDriverAuth
 
 class SubmitOrderRatingsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -117,7 +52,6 @@ class SubmitOrderRatingsView(APIView):
 
         return Response(payload, status=status.HTTP_200_OK)
 
-
 class MyDriverRatingsView(ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = DriverRatingReadSerializer
@@ -125,7 +59,6 @@ class MyDriverRatingsView(ListAPIView):
     def get_queryset(self):
         rater = self.request.user.customerprofile
         return DriverRating.objects.filter(rater=rater).select_related("driver", "order").order_by("-created_at")
-
 
 class MyBranchRatingsView(ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -135,7 +68,25 @@ class MyBranchRatingsView(ListAPIView):
         rater = self.request.user.customerprofile
         return BranchRating.objects.filter(rater=rater).select_related("branch", "order").order_by("-created_at")
 
+class DriverRatingsView(ListAPIView):
+    authentication_classes = [CustomDriverAuth]
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = DriverRatingReadSerializer
 
+    def get_queryset(self):
+        driver = self.request.user.driver_profile
+        return DriverRating.objects.filter(driver=driver).select_related("driver", "order").order_by("-created_at")
+
+@subuser_authentication
+class BranchRatingsView(ListAPIView):
+    permission_classes = [ReadScopePermission]
+    required_scopes = ["ratings:read"]
+    serializer_class = BranchRatingReadSerializer
+
+    def get_queryset(self):
+        _, primaryagent = self.get_linkeduser()
+        self.request.user
+        return BranchRating.objects.filter(branch=primaryagent.branch).select_related("branch", "order").order_by("-created_at")
 
 
 

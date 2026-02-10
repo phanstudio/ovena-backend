@@ -84,10 +84,15 @@ class VariantGroup(models.Model):
     name = models.CharField(max_length=100)  # e.g., "Size", "Style"
     is_required = models.BooleanField(default=True)
 
+    def __str__(self):
+        return f"{self.item.custom_name} - {self.name}"
+
 class VariantOption(models.Model):
     group = models.ForeignKey(VariantGroup, on_delete=models.CASCADE, related_name="options")
     name = models.CharField(max_length=100)  # e.g., "Small", "Large", "Crunchy", "Grilled"
     price_diff = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    def __str__(self):
+        return f"{self.group.item.custom_name} - {self.name}"
 
 class MenuItemAddonGroup(models.Model):
     item = models.ForeignKey("MenuItem", on_delete=models.CASCADE, related_name="addon_groups")
@@ -96,7 +101,7 @@ class MenuItemAddonGroup(models.Model):
     max_selection = models.PositiveIntegerField(default=0)  # 0 = unlimited
 
     def __str__(self):
-        return f"{self.item.name} - {self.name}"
+        return f"{self.item.custom_name} - {self.name}"
 
 class MenuItemAddonManager(models.Manager):
     def available(self, branch):

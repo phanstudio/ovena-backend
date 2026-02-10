@@ -1,8 +1,3 @@
-"""
-WebSocket consumers - Part 2
-Add these to orders/consumers.py (after Part 1)
-"""
-
 from django.utils import timezone
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
@@ -16,11 +11,8 @@ from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import AccessToken
 from django.contrib.auth.models import AnonymousUser
 import json
-
-
 from rest_framework_simplejwt.backends import TokenBackend
 from django.conf import settings
-from django.utils import timezone
 
 
 class BaseConsumer(AsyncWebsocketConsumer):
@@ -78,7 +70,7 @@ class BaseConsumer(AsyncWebsocketConsumer):
         return hasattr(user, 'driver_profile') and user.driver_profile is not None
     
     @database_sync_to_async
-    def check_is_branch_staff(self, user):
+    def check_is_branch_staff(self, user): # add for the resturant staffs
         """Check if user is branch staff"""
         return hasattr(user, 'primaryagent') and user.primaryagent is not None
     

@@ -8,6 +8,8 @@ from accounts.models import (
 )
 from .payment import Payment
 
+from coupons_discount.models import Coupons, CouponWheel
+
 
 """
 Updated models with GIS support and WebSocket fields
@@ -44,7 +46,7 @@ class Order(models.Model):
     # Pricing
     delivery_price = models.DecimalField(decimal_places=2, max_digits=10, default=0)
     ovena_commission = models.DecimalField(max_digits=5, decimal_places=2, default=10)
-    coupons = models.ForeignKey('Coupons', on_delete=models.CASCADE, related_name="coupons", blank=True, null=True)
+    coupons = models.ForeignKey(Coupons, on_delete=models.CASCADE, related_name="orders", blank=True, null=True)
     
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     discount_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -103,47 +105,7 @@ class Order(models.Model):
 
 
 # appliing checking and attaching said coupons
-class Coupons(models.Model): # are coupons for the entire order or a single order item 
-    #build coupon view
-    # use coupon is in order 
-    
-    TYPE_CHOICES = [
-        ("delivery", "Free-delivery"),
-        ("itemdiscount", "Amount-off-an-Item"),
-        ("categorydiscount", "Amount-off-a-category"),
-        ("BxGy", "Buy-X-Get-Y")
-    ]
 
-    SCOPE_CHOICES = [
-        ("global", "Platform-wide"),
-        ("restaurant", "Restaurant-only"),
-    ]
-    DISCOUNT_CHOICES = [("percent", "Percent"), ("amount", "Fixed-amount")]
-
-    code = models.CharField(max_length=100, unique=True)
-    description = models.CharField(max_length=255, blank=True)
-
-    coupon_type = models.CharField(max_length=30, choices=TYPE_CHOICES, default="delivery")
-    category = models.ForeignKey(MenuCategory, on_delete=models.CASCADE, null=True, blank=True, related_name= "coupons")
-    item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, null=True, blank=True, related_name= "coupons")
-    # get = models.ForeignKey(MenuItem, on_delete=models.CASCADE, null=True, blank=True, related_name= "coupons")
-    # get is for a case where we want to buy buger get something else.
-    buy_amount = models.PositiveIntegerField(default=0)
-    get_amount = models.PositiveIntegerField(default=0)
-
-    scope = models.CharField(max_length=20, choices=SCOPE_CHOICES, default="restaurant")
-    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, null=True, blank=True, related_name="coupons")
-
-    discount_type = models.CharField(max_length=10, choices=DISCOUNT_CHOICES, default="percent")
-    discount_value = models.DecimalField(max_digits=8, decimal_places=2, default=0.0)
-
-    # min_order_value = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
-    max_uses = models.PositiveIntegerField(null=True, blank=True)
-    uses_count = models.PositiveIntegerField(default=0)
-
-    valid_from = models.DateTimeField()
-    valid_until = models.DateTimeField(blank=True, null= True)
-    is_active = models.BooleanField(default=True)
 
 # # calculate the distance to get the drivers amount
 # # create a way to pick from the closest branch
