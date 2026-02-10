@@ -21,7 +21,7 @@ class BaseConsumer(AsyncWebsocketConsumer):
     async def authenticate_user(self, token):
         """Authenticate user from JWT token"""
         try:
-            # Decode JWT
+            # Decode JWT, decode the sub token or the main token?
             decoded = AccessToken(token)
             # print(decoded)
             user_id = decoded['user_id']

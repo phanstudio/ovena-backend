@@ -24,12 +24,16 @@ class Coupons(models.Model): # are coupons for the entire order or a single orde
     description = models.CharField(max_length=255, blank=True)
 
     coupon_type = models.CharField(max_length=30, choices=TYPE_CHOICES, default="delivery")
+    # categorydiscount
     category = models.ForeignKey(MenuCategory, on_delete=models.CASCADE, null=True, blank=True, related_name= "coupons")
+    # itemdiscount
     item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, null=True, blank=True, related_name= "coupons")
-    # get = models.ForeignKey(MenuItem, on_delete=models.CASCADE, null=True, blank=True, related_name= "coupons")
-    # get is for a case where we want to buy buger get something else.
+
+    # BxGy
     buy_amount = models.PositiveIntegerField(default=0)
     get_amount = models.PositiveIntegerField(default=0)
+    buy_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, null=True, blank=True, related_name="buy_coupons")
+    get_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, null=True, blank=True, related_name="get_coupons")
 
     scope = models.CharField(max_length=20, choices=SCOPE_CHOICES, default="restaurant")
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, null=True, blank=True, related_name="coupons")

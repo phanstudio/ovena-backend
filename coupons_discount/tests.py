@@ -2,9 +2,13 @@ from datetime import timedelta
 
 import pytest
 from django.utils import timezone
+from rest_framework.test import APIClient
+from django.urls import reverse
 
-from accounts.models import Restaurant
-from menu.models import Menu, MenuCategory, MenuItem, BaseItem
+from accounts.models import Restaurant, User, Branch
+from accounts.models import CustomerProfile
+from menu.models import Menu, MenuCategory, MenuItem, BaseItem, Order, OrderItem
+from menu.services import CouponService
 
 from .models import Coupons, CouponWheel
 from .serializers import CouponCreateUpdateSerializer, CouponSerializer, CouponWheelSetSerializer
@@ -31,6 +35,34 @@ def menu_item(db, restaurant):
         price=12,
     )
 
+@pytest.fixture
+def menu_items(db, restaurant):
+    menu = Menu.objects.create(restaurant=restaurant, name="Main")
+    category = MenuCategory.objects.create(menu=menu, name="Burgers")
+    base_buy = BaseItem.objects.create(
+        restaurant=restaurant,
+        name="Buy Item",
+        default_price=10,
+    )
+    base_get = BaseItem.objects.create(
+        restaurant=restaurant,
+        name="Get Item",
+        default_price=6,
+    )
+    buy_item = MenuItem.objects.create(
+        category=category,
+        base_item=base_buy,
+        custom_name="Buy Item",
+        price=10,
+    )
+    get_item = MenuItem.objects.create(
+        category=category,
+        base_item=base_get,
+        custom_name="Get Item",
+        price=6,
+    )
+    return buy_item, get_item
+
 
 def create_coupon(**kwargs):
     now = timezone.now()
@@ -45,6 +77,10 @@ def create_coupon(**kwargs):
         "valid_from": now - timedelta(days=1),
         "valid_until": now + timedelta(days=1),
         "is_active": True,
+        "buy_amount": 0,
+        "get_amount": 0,
+        "buy_item": None,
+        "get_item": None,
     }
     defaults.update(kwargs)
     return Coupons.objects.create(**defaults)
@@ -132,3 +168,70 @@ def test_coupon_wheel_set_serializer_filters_ineligible_coupons(menu_item):
 
     wheel.refresh_from_db()
     assert set(wheel.coupons.values_list("id", flat=True)) == {eligible.id}
+
+
+@pytest.mark.django_db
+def test_coupon_wheel_spin_picks_eligible_coupon():
+    user = User.objects.create(email="wheel@example.com", name="Wheel User")
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    coupon = create_coupon(code="WHEEL-001")
+    wheel = CouponWheel.objects.create(max_entries_amount=6, is_active=True)
+    wheel.coupons.add(coupon)
+
+    url = reverse("coupon-wheel-spin")
+    response = client.post(url)
+    assert response.status_code == 200
+    assert response.data["picked"]["code"] == coupon.code
+
+
+@pytest.mark.django_db
+def test_apply_bxgy_coupon_to_order(menu_items, restaurant):
+    buy_item, get_item = menu_items
+
+    branch = Branch.objects.create(restaurant=restaurant, name="Main Branch")
+    user = User.objects.create(email="buyer@example.com", name="Buyer")
+    customer_profile = CustomerProfile.objects.create(user=user)
+
+    order = Order.objects.create(
+        orderer=customer_profile,
+        branch=branch,
+        delivery_secret_hash="secret",
+        status="pending",
+    )
+
+    OrderItem.objects.create(
+        order=order,
+        menu_item=buy_item,
+        price=buy_item.price,
+        quantity=2,
+        line_total=buy_item.price * 2,
+    )
+    OrderItem.objects.create(
+        order=order,
+        menu_item=get_item,
+        price=get_item.price,
+        quantity=1,
+        line_total=get_item.price * 1,
+    )
+
+    coupon = create_coupon(
+        code="BXGY-001",
+        coupon_type="BxGy",
+        buy_amount=2,
+        get_amount=1,
+        buy_item=buy_item,
+        get_item=get_item,
+        scope="restaurant",
+        restaurant=restaurant,
+    )
+
+    applied = CouponService.apply_coupon_to_order(coupon, order)
+    assert applied is True
+
+    order.refresh_from_db()
+    assert order.coupons_id == coupon.id
+    assert order.discount_total == get_item.price
+    coupon.refresh_from_db()
+    assert coupon.uses_count == 1

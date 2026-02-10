@@ -3,10 +3,12 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from rest_framework.generics import GenericAPIView
+from rest_framework.exceptions import ValidationError
 from ..models import (
-    Branch, Order, Coupons, OrderEvent
+    Branch, Order, Coupons, OrderEvent, MenuItem, OrderItem
 )
 from ..pagifications import StandardResultsSetPagination
+from ..services import CouponService
 
 from accounts.models import LinkedStaff, User
 from authflow.decorators import subuser_authentication
@@ -22,6 +24,7 @@ from ..websocket_utils import *
 from ..tasks import *
 import logging
 from ..payment_services import initialize_paystack_transaction
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +59,9 @@ class OrderView(APIView):
         )
         return Response(list(orders))
 
+    # the order item part can be handeled with a serilizer and bulk create; also should an order be made with no 
+    # items also there is a minimum of 5000 order amount i.e line total before discount per order. 
+    # also the variats and addons should be there too.
     def post(self, request, *args, **kwargs):
         """CREATE a new order with WebSocket broadcast"""
         data = request.data
@@ -66,6 +72,7 @@ class OrderView(APIView):
 
         branch_id = data.get("branch_id")
         coupon_code = data.get("coupon_code")
+        items_data = data.get("items") or []
 
         if not branch_id:
             return Response({"error": "branch_id required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -86,18 +93,55 @@ class OrderView(APIView):
             coupon = Coupons.objects.filter(code=coupon_code).first()
             if not coupon:
                 return Response({"error": "Coupon not found"}, status=status.HTTP_400_BAD_REQUEST)
+            if coupon.coupon_type in ["itemdiscount", "categorydiscount", "BxGy"] and not items_data:
+                return Response(
+                    {"error": "items are required to apply this coupon type"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         # Generate secure delivery phrase
         phrase = generate_passphrase()
 
-        # Create order
-        order = Order.objects.create(
-            orderer=user.customer_profile,
-            branch=branch,
-            coupons=coupon,
-            delivery_secret_hash=hash_phrase(phrase),
-            status='pending'
-        )
+        # Create order + optional items (transactional)
+        with transaction.atomic():
+            order = Order.objects.create(
+                orderer=user.customer_profile,
+                branch=branch,
+                coupons=coupon,
+                delivery_secret_hash=hash_phrase(phrase),
+                status='pending'
+            )
+
+            if items_data:
+                for entry in items_data:
+                    menu_item_id = entry.get("menu_item_id")
+                    quantity = entry.get("quantity", 1)
+
+                    if not menu_item_id:
+                        raise ValidationError({"items": "menu_item_id is required for each item."})
+                    if int(quantity) <= 0:
+                        raise ValidationError({"items": "quantity must be > 0 for each item."})
+
+                    menu_item = MenuItem.objects.filter(id=menu_item_id).first()
+                    if not menu_item:
+                        raise ValidationError({"items": f"Menu item {menu_item_id} not found."})
+
+                    price = menu_item.price
+                    line_total = price * int(quantity)
+                    OrderItem.objects.create(
+                        order=order,
+                        menu_item=menu_item,
+                        price=price,
+                        quantity=int(quantity),
+                        line_total=line_total,
+                    )
+
+            if coupon:
+                applied = CouponService.apply_coupon_to_order(coupon, order)
+                if not applied:
+                    raise ValidationError({"coupon_code": "Coupon is not valid for this order."})
+            elif items_data:
+                CouponService.recalculate_totals(order)
 
         # Log event
         OrderEvent.objects.create(
@@ -106,7 +150,7 @@ class OrderView(APIView):
             actor_type='customer',
             actor_id=user.customer_profile.id,
             new_status='pending',
-            metadata={'items_count': data.get('items_count', 0)}
+            metadata={'items_count': len(items_data) or data.get('items_count', 0)}
         )
 
         # 🔥 Broadcast to branch via WebSocket
@@ -275,17 +319,9 @@ class ResturantOrderView(GenericAPIView):
             new_status='confirmed'
         )
 
-        
-
         # Initialize payment
-        total = 100#order.grand_total  # Use actual total
-        # transaction_data = Transaction.initialize(
-        #     amount=round(total * 100),  # Convert to kobo
-        #     email=self.check_email_with_default(order.orderer.user.email),
-        # )
+        total = max(order.grand_total, 500)
         transaction_data = initialize_paystack_transaction(total, order.orderer.user.email)
-
-        
 
         if not transaction_data['status']:
             return Response(

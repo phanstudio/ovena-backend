@@ -1,6 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 from .models import Coupons, CouponWheel
+from .services import eligible_coupon_q
 
 class CouponSerializer(serializers.ModelSerializer):
     exhausted = serializers.SerializerMethodField()
@@ -14,6 +15,8 @@ class CouponSerializer(serializers.ModelSerializer):
             "discount_type", "discount_value",
             "max_uses", "uses_count",
             "valid_from", "valid_until",
+            "buy_amount", "get_amount",
+            "buy_item", "get_item",
             "exhausted",
             "time_left_seconds",
         ]
@@ -47,6 +50,7 @@ class CouponCreateUpdateSerializer(serializers.ModelSerializer):
             "code", "description",
             "coupon_type", "category", "item",
             "buy_amount", "get_amount",
+            "buy_item", "get_item",
             "scope", "restaurant",
             "discount_type", "discount_value",
             "max_uses",
@@ -61,6 +65,8 @@ class CouponCreateUpdateSerializer(serializers.ModelSerializer):
         item = attrs.get("item", getattr(self.instance, "item", None))
         buy_amount = attrs.get("buy_amount", getattr(self.instance, "buy_amount", 0))
         get_amount = attrs.get("get_amount", getattr(self.instance, "get_amount", 0))
+        buy_item = attrs.get("buy_item", getattr(self.instance, "buy_item", None))
+        get_item = attrs.get("get_item", getattr(self.instance, "get_item", None))
 
         scope = attrs.get("scope", getattr(self.instance, "scope", None))
         restaurant = attrs.get("restaurant", getattr(self.instance, "restaurant", None))
@@ -85,20 +91,28 @@ class CouponCreateUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"buy_amount": "buy_amount must be > 0 for BxGy."})
             if get_amount <= 0:
                 raise serializers.ValidationError({"get_amount": "get_amount must be > 0 for BxGy."})
-            # You likely need at least an item OR category for BxGy to define what it applies to
-            if not item and not category:
+            if not buy_item:
+                raise serializers.ValidationError({"buy_item": "buy_item is required for BxGy."})
+            if not get_item:
+                raise serializers.ValidationError({"get_item": "get_item is required for BxGy."})
+        else:
+            if buy_item or get_item:
                 raise serializers.ValidationError(
-                    {"detail": "BxGy should define an item or category (or add a 'buy_item/get_item' design)."}
+                    {"detail": "buy_item/get_item can only be used with coupon_type=BxGy."}
                 )
 
         if valid_from and valid_until and valid_until < valid_from:
             raise serializers.ValidationError({"valid_until": "valid_until must be >= valid_from."})
 
-        return attrs
+        if coupon_type == "BxGy" and scope == "restaurant" and restaurant:
+            buy_restaurant = getattr(getattr(getattr(buy_item, "category", None), "menu", None), "restaurant", None)
+            get_restaurant = getattr(getattr(getattr(get_item, "category", None), "menu", None), "restaurant", None)
+            if buy_restaurant and buy_restaurant != restaurant:
+                raise serializers.ValidationError({"buy_item": "buy_item must belong to the selected restaurant."})
+            if get_restaurant and get_restaurant != restaurant:
+                raise serializers.ValidationError({"get_item": "get_item must belong to the selected restaurant."})
 
-# coupons/serializers.py
-from django.db.models import F
-from .services import eligible_coupon_q
+        return attrs
 
 class CouponWheelSetSerializer(serializers.ModelSerializer):
     coupon_ids = serializers.ListField(

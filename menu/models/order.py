@@ -102,54 +102,6 @@ class Order(models.Model):
     #     return f"order_{self.pk}"
 
 
-
-
-# appliing checking and attaching said coupons
-
-
-# # calculate the distance to get the drivers amount
-# # create a way to pick from the closest branch
-# # order -> accepted -> pay -> accepted by driver -> ontheway -> delived -> cancelled
-# class Order(models.Model):
-#     STATUS_CHOICES = [
-#         ("pending", "Pending"), # order
-#         ("confirmed", "Confirmed"), # accepted by rest,  can cancle
-#         ("pay", "Pay"), # if pay not made cancle the order
-#         ("preparing", "Preparing"), # 
-#         ("ready", "Ready for Pickup"), # accept for driver
-#         ("on_the_way", "On the Way"), # 
-#         ("delivered", "Delivered"), # ("Completed", "completed"),
-#         ("cancelled", "Cancelled"),
-#     ]
-
-#     orderer = models.ForeignKey(CustomerProfile, on_delete= models.CASCADE, related_name="orders")
-#     branch = models.ForeignKey(Branch, on_delete= models.CASCADE, related_name= "orders")
-    
-#     driver = models.ForeignKey(DriverProfile, on_delete= models.CASCADE, related_name= "orders", blank=True, null= True)
-#     delivery_price = models.DecimalField(decimal_places= 5, max_digits= 10, default= 0)
-#     ovena_commision = models.DecimalField(max_digits=5, decimal_places=2, default= 10)
-#     coupons = models.ForeignKey(Coupons, on_delete= models.CASCADE, related_name= "coupons", blank=True, null= True)
-#     payment = models.OneToOneField(Payment, on_delete= models.CASCADE, related_name="order", null= True, blank= True)
-
-#     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)        # sum(line_total)
-#     discount_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # sum(discount_amount)
-#     grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)     # subtotal - discount_total + delivery
-
-#     # if it is zero then delivery fee is should show free delivery
-#     # coupons = models.ForeignKey(Coupons, on_delete= models.CASCADE, related_name= "coupons") # feels wrong
-#     # we can use a signal to set the coupons used parameter
-#     # or we can apply it in the view
-#     order_number = models.IntegerField(default= 0) # randomily generate the code
-#     status = models.CharField(max_length= 30, choices= STATUS_CHOICES, default= "pending")
-#     created_at = models.DateTimeField(auto_now_add=True)
-#     last_modified_at = models.DateTimeField(auto_now=True)
-
-#     # new for verification
-#     # payment_reference = models.CharField(max_length= 200) # for saving the payment refrence to get find the order
-#     delivery_secret_hash = models.CharField(max_length= 200, default="khjgfdsfgjhkjuiyhffs")
-#     delivery_verified = models.BooleanField(default= False)
-#     delivery_verified_at = models.DateTimeField(blank=True, null=True)
-
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete= models.CASCADE, related_name= "items")
     menu_item = models.ForeignKey(MenuItem, on_delete= models.CASCADE, related_name= "orders")
