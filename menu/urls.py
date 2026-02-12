@@ -17,6 +17,7 @@ urlpatterns = [
     path("home-page/", views.HomePageView.as_view(), name="home-page"),
 
     path("order/", views.OrderView.as_view(), name="order"),
+    path("orders/<int:order_id>/", views.OrderView.as_view(), name="order-detail"),
     path("order/<int:order_id>/cancel/", views.OrderCancelView.as_view(), name="order-cancel"),
 
     path("", include(payment_urls)),

@@ -25,7 +25,7 @@ from django.utils import timezone
 
 # ===== UPDATE EXISTING MODELS =====
 
-class Order(models.Model):
+class Order(models.Model): # do we add a coupon snap shot or not also a discount amount snapshot?
     STATUS_CHOICES = [
         ("pending", "Pending"),  # waiting for branch confirmation
         ("confirmed", "Confirmed"),  # branch accepted, waiting payment
@@ -110,6 +110,7 @@ class OrderItem(models.Model):
     price = models.DecimalField(decimal_places= 5, max_digits= 12, default= 0)
     added_total = models.DecimalField(decimal_places= 5, max_digits= 12, default= 0) # is this needed
     discount_amount = models.DecimalField(decimal_places= 5, max_digits= 12, default= 0)
+    snapshot = models.JSONField(default=dict, blank=True)
 
     # we can create a snap shot of the entire process but we will use a json instead addon, variant, price
     addons = models.ManyToManyField(MenuItemAddon) 

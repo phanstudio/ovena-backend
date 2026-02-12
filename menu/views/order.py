@@ -25,35 +25,116 @@ from ..tasks import *
 import logging
 from ..payment_services import initialize_paystack_transaction
 from django.db import transaction
+from ..serializers import OrderCreateSerializer
 
 logger = logging.getLogger(__name__)
+
+
+# views.py
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.db import transaction
+from django.db.models import Prefetch
 
 class OrderView(APIView):
     authentication_classes = [CustomCustomerAuth]
 
-    def get_queryset(self, request):
-        """Return only the logged-in user's orders."""
+    # def get_queryset(self, request):
+    #     user = request.user
+    #     if not hasattr(user, "customer_profile"):
+    #         return Order.objects.none()
+
+    #     return (
+    #         Order.objects
+    #         .filter(orderer=user.customer_profile)
+    #         .select_related("branch", "coupons")
+    #         .prefetch_related(
+    #             Prefetch(
+    #                 "items",
+    #                 queryset=OrderItem.objects
+    #                     .select_related("menu_item", "menu_item__base_item")  # for names fallback
+    #                     .prefetch_related("variants", "addons")
+    #             )
+    #         )
+    #     )
+    
+    def get_list_queryset(self, request):
         user = request.user
         if not hasattr(user, "customer_profile"):
             return Order.objects.none()
         return Order.objects.filter(orderer=user.customer_profile).select_related("branch", "coupons")
 
+    def get_detail_queryset(self, request):
+        return self.get_list_queryset(request).prefetch_related(
+            Prefetch(
+                "items",
+                queryset=OrderItem.objects
+                    .select_related("menu_item", "menu_item__base_item")
+                    .prefetch_related("variants", "addons")
+            )
+        )
+
+
+
     def get(self, request, order_id=None, *args, **kwargs):
-        qs = self.get_queryset(request)
+        """
+        This function retrieves order details and items information based on the order ID or returns a
+        list of orders with specific fields.
+        
+        :param request: The `get` method you provided is a part of a Django REST framework view. It
+        handles GET requests for retrieving order details based on the `order_id` provided in the URL.
+        Here's a breakdown of the parameters used in the method:
+        :param order_id: The `order_id` parameter in the `get` method is used to retrieve a specific
+        order based on its ID. If the `order_id` is provided, the method fetches the order details and
+        related items to construct a response for that specific order. If `order_id` is not provided
+        :return: The `get` method returns a response containing order details if an `order_id` is
+        provided. If no `order_id` is provided, it returns a list of orders with limited details such as
+        order id, status, creation date, branch name, and coupon code.
+        """
+        print(order_id)
 
         if order_id:
+            qs = self.get_list_queryset(request)
             order = get_object_or_404(qs, id=order_id)
+            items_payload = []
+            for item in order.items.all():
+                snap = item.snapshot or {}
+
+                name = (getattr(item.menu_item, "custom_name", None) or "").strip()
+                if not name:
+                    # fallback: base_item name
+                    if item.menu_item_id and item.menu_item.base_item_id:
+                        name = item.menu_item.base_item.name
+                if not name:
+                    # fallback: snapshot
+                    name = snap.get("menu_item", {}).get("name")
+
+                items_payload.append({
+                    "name": name,
+                    "quantity": item.quantity,
+                    "price": str(item.price),
+                    "added_total": str(item.added_total),
+                    "line_total": str(item.line_total),
+
+                    # OPTIONAL: only include snapshot details if you want
+                    # "snapshot": snap,
+                })
+
+
             data = {
                 "id": order.id,
                 "status": order.status,
                 "created_at": order.created_at,
                 "branch": order.branch.name if order.branch else None,
                 "coupon": order.coupons.code if order.coupons else None,
-                "items": list(order.items.values("menu_item__name", "quantity", "price")),
+                # "items": list(order.items.values("menu_item__name", "quantity", "price")),
+                "items": items_payload,
                 "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",  # Update domain
             }
             return Response(data)
 
+        qs = self.get_detail_queryset(request)
         orders = qs.order_by("-created_at").values(
             "id", "status", "created_at", "branch__name", "coupons__code"
         )
@@ -62,107 +143,149 @@ class OrderView(APIView):
     # the order item part can be handeled with a serilizer and bulk create; also should an order be made with no 
     # items also there is a minimum of 5000 order amount i.e line total before discount per order. 
     # also the variats and addons should be there too.
-    def post(self, request, *args, **kwargs):
-        """CREATE a new order with WebSocket broadcast"""
-        data = request.data
-        user = request.user
+    # def post(self, request, *args, **kwargs):
+    #     """CREATE a new order with WebSocket broadcast"""
+    #     data = request.data
+    #     user = request.user
 
+    #     if not hasattr(user, "customer_profile"):
+    #         return Response({"error": "Invalid customer account"}, status=status.HTTP_403_FORBIDDEN)
+
+    #     branch_id = data.get("branch_id")
+    #     coupon_code = data.get("coupon_code")
+    #     items_data = data.get("items") or []
+
+    #     if not branch_id:
+    #         return Response({"error": "branch_id required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    #     branch = Branch.objects.filter(id=branch_id, is_active=True).first()
+    #     if not branch:
+    #         return Response({"error": "Invalid branch"}, status=status.HTTP_404_NOT_FOUND)
+
+    #     # Check if branch is accepting orders
+    #     if not branch.is_accepting_orders:
+    #         return Response(
+    #             {"error": "This restaurant is not accepting orders right now"},
+    #             status=status.HTTP_400_BAD_REQUEST
+    #         )
+
+    #     coupon = None
+    #     if coupon_code:
+    #         coupon = Coupons.objects.filter(code=coupon_code).first()
+    #         if not coupon:
+    #             return Response({"error": "Coupon not found"}, status=status.HTTP_400_BAD_REQUEST)
+    #         if coupon.coupon_type in ["itemdiscount", "categorydiscount", "BxGy"] and not items_data:
+    #             return Response(
+    #                 {"error": "items are required to apply this coupon type"},
+    #                 status=status.HTTP_400_BAD_REQUEST,
+    #             )
+
+    #     # Generate secure delivery phrase
+    #     phrase = generate_passphrase()
+
+    #     # Create order + optional items (transactional)
+    #     with transaction.atomic():
+    #         order = Order.objects.create(
+    #             orderer=user.customer_profile,
+    #             branch=branch,
+    #             coupons=coupon,
+    #             delivery_secret_hash=hash_phrase(phrase),
+    #             status='pending'
+    #         )
+
+    #         if items_data:
+    #             for entry in items_data:
+    #                 menu_item_id = entry.get("menu_item_id")
+    #                 quantity = entry.get("quantity", 1)
+
+    #                 if not menu_item_id:
+    #                     raise ValidationError({"items": "menu_item_id is required for each item."})
+    #                 if int(quantity) <= 0:
+    #                     raise ValidationError({"items": "quantity must be > 0 for each item."})
+
+    #                 menu_item = MenuItem.objects.filter(id=menu_item_id).first()
+    #                 if not menu_item:
+    #                     raise ValidationError({"items": f"Menu item {menu_item_id} not found."})
+
+    #                 price = menu_item.price
+    #                 line_total = price * int(quantity)
+    #                 OrderItem.objects.create(
+    #                     order=order,
+    #                     menu_item=menu_item,
+    #                     price=price,
+    #                     quantity=int(quantity),
+    #                     line_total=line_total,
+    #                 )
+
+    #         if coupon:
+    #             applied = CouponService.apply_coupon_to_order(coupon, order)
+    #             if not applied:
+    #                 raise ValidationError({"coupon_code": "Coupon is not valid for this order."})
+    #         elif items_data:
+    #             CouponService.recalculate_totals(order)
+
+    #     # Log event
+    #     OrderEvent.objects.create(
+    #         order=order,
+    #         event_type='created',
+    #         actor_type='customer',
+    #         actor_id=user.customer_profile.id,
+    #         new_status='pending',
+    #         metadata={'items_count': len(items_data) or data.get('items_count', 0)}
+    #     )
+
+    #     # 🔥 Broadcast to branch via WebSocket
+    #     notify_order_created(order)
+
+    #     # 🔥 Start branch confirmation timeout
+    #     check_branch_confirmation_timeout.apply_async(
+    #         args=[order.id],
+    #         countdown=settings.BRANCH_CONFIRMATION_TIMEOUT
+    #     )
+
+    #     logger.info(f"Order {order.id} created and broadcasted to branch {branch_id}")
+
+    #     return Response(
+    #         {
+    #             "order_id": order.id,
+    #             "order_number": order.order_number,
+    #             "delivery_passphrase": phrase,
+    #             "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
+    #             "message": "Order created successfully. Waiting for restaurant confirmation."
+    #         },
+    #         status=status.HTTP_201_CREATED
+    #     )
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
         if not hasattr(user, "customer_profile"):
             return Response({"error": "Invalid customer account"}, status=status.HTTP_403_FORBIDDEN)
 
-        branch_id = data.get("branch_id")
-        coupon_code = data.get("coupon_code")
-        items_data = data.get("items") or []
+        serializer = OrderCreateSerializer(
+            data=request.data,
+            context={"request": request, "user": user},
+        )
+        serializer.is_valid(raise_exception=True)
 
-        if not branch_id:
-            return Response({"error": "branch_id required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        branch = Branch.objects.filter(id=branch_id, is_active=True).first()
-        if not branch:
-            return Response({"error": "Invalid branch"}, status=status.HTTP_404_NOT_FOUND)
-
-        # Check if branch is accepting orders
-        if not branch.is_accepting_orders:
-            return Response(
-                {"error": "This restaurant is not accepting orders right now"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        coupon = None
-        if coupon_code:
-            coupon = Coupons.objects.filter(code=coupon_code).first()
-            if not coupon:
-                return Response({"error": "Coupon not found"}, status=status.HTTP_400_BAD_REQUEST)
-            if coupon.coupon_type in ["itemdiscount", "categorydiscount", "BxGy"] and not items_data:
-                return Response(
-                    {"error": "items are required to apply this coupon type"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        # Generate secure delivery phrase
-        phrase = generate_passphrase()
-
-        # Create order + optional items (transactional)
         with transaction.atomic():
-            order = Order.objects.create(
-                orderer=user.customer_profile,
-                branch=branch,
-                coupons=coupon,
-                delivery_secret_hash=hash_phrase(phrase),
-                status='pending'
-            )
+            order, phrase = serializer.save()
 
-            if items_data:
-                for entry in items_data:
-                    menu_item_id = entry.get("menu_item_id")
-                    quantity = entry.get("quantity", 1)
-
-                    if not menu_item_id:
-                        raise ValidationError({"items": "menu_item_id is required for each item."})
-                    if int(quantity) <= 0:
-                        raise ValidationError({"items": "quantity must be > 0 for each item."})
-
-                    menu_item = MenuItem.objects.filter(id=menu_item_id).first()
-                    if not menu_item:
-                        raise ValidationError({"items": f"Menu item {menu_item_id} not found."})
-
-                    price = menu_item.price
-                    line_total = price * int(quantity)
-                    OrderItem.objects.create(
-                        order=order,
-                        menu_item=menu_item,
-                        price=price,
-                        quantity=int(quantity),
-                        line_total=line_total,
-                    )
-
-            if coupon:
-                applied = CouponService.apply_coupon_to_order(coupon, order)
-                if not applied:
-                    raise ValidationError({"coupon_code": "Coupon is not valid for this order."})
-            elif items_data:
-                CouponService.recalculate_totals(order)
-
-        # Log event
+        # log + websocket + timeout (same as you already do)
         OrderEvent.objects.create(
             order=order,
-            event_type='created',
-            actor_type='customer',
+            event_type="created",
+            actor_type="customer",
             actor_id=user.customer_profile.id,
-            new_status='pending',
-            metadata={'items_count': len(items_data) or data.get('items_count', 0)}
+            new_status="pending",
+            metadata={"items_count": order.items.count()},
         )
 
-        # 🔥 Broadcast to branch via WebSocket
         notify_order_created(order)
 
-        # 🔥 Start branch confirmation timeout
         check_branch_confirmation_timeout.apply_async(
             args=[order.id],
             countdown=settings.BRANCH_CONFIRMATION_TIMEOUT
         )
-
-        logger.info(f"Order {order.id} created and broadcasted to branch {branch_id}")
 
         return Response(
             {
@@ -170,9 +293,9 @@ class OrderView(APIView):
                 "order_number": order.order_number,
                 "delivery_passphrase": phrase,
                 "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
-                "message": "Order created successfully. Waiting for restaurant confirmation."
+                "message": "Order created successfully. Waiting for restaurant confirmation.",
             },
-            status=status.HTTP_201_CREATED
+            status=status.HTTP_201_CREATED,
         )
 
 
