@@ -15,7 +15,6 @@ def authenticate(client, user):
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
     return client
 
-
 @pytest.fixture
 def order_context(db):
     restaurant = Restaurant.objects.create(company_name="Order Test Rest", bn_number="BN-ORDER-001")
@@ -82,7 +81,6 @@ def test_order_create_success(notify_mock, timeout_mock, order_context):
     notify_mock.assert_called_once()
     timeout_mock.apply_async.assert_called_once()
 
-
 @pytest.mark.django_db
 @patch("menu.views.order.check_branch_confirmation_timeout")
 @patch("menu.views.order.notify_order_created")
@@ -118,7 +116,6 @@ def test_order_get_success(notify_mock, timeout_mock, order_context):
     notify_mock.assert_called_once()
     timeout_mock.apply_async.assert_called_once()
 
-
 @pytest.mark.django_db
 def test_order_get_list_returns_only_current_customer_orders(order_context):
     client = APIClient()
@@ -145,4 +142,3 @@ def test_order_get_list_returns_only_current_customer_orders(order_context):
     assert response.status_code == 200
     assert len(response.data) == 1
     assert response.data[0]["id"] == own_order.id
-

@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from accounts.serializers import UserSerializer, OAuthCodeSerializer
-from accounts.models import User
+# from accounts.models import User
 from ..utils.oath import verify_apple_token
 from authflow.services import _issue_jwt_for_user
 from django.contrib.auth import get_user_model
@@ -20,9 +20,9 @@ class AuthLogic():
 
         # what is sub for
         info = serializer.validated_data['info']
-        info["referre_code"] = serializer.validated_data['referre_code']
-        info["lat"] = serializer.validated_data['lat']
-        info["long"] = serializer.validated_data['long']
+        info["referre_code"] = request.data.get('referre_code')
+        info["lat"] = request.data.get('lat')
+        info["long"] = request.data.get('long')
 
         user, info["created"] = User.objects.get_or_create(
             email=serializer.validated_data['email'],

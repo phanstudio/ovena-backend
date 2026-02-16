@@ -33,7 +33,7 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 
 # Application definition
 INSTALLED_APPS = [
-    "daphne",          # 🔥 REQUIRED
+    "daphne",
     "channels",
     'django.contrib.admin',
     'django.contrib.auth',
@@ -45,6 +45,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_gis',
+    "drf_spectacular",
+    "drf_spectacular_sidecar",
     'corsheaders',
     'accounts',
     'addresses',
@@ -75,6 +77,7 @@ REST_FRAMEWORK = {
     # 'DEFAULT_PERMISSION_CLASSES': (
     #     'rest_framework.permissions.IsAuthenticated',
     # ),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 SIMPLE_JWT = {
@@ -186,6 +189,18 @@ CELERY_TIMEZONE = "UTC"
 
 WEBSOCKET_URL = env("WEBSOCKET_URL", default="ws://localhost:8000")
 
+# monitoring
+ENABLE_METRICS = env("ENABLE_METRICS", cast=bool, default=False)
+
+if ENABLE_METRICS:
+    INSTALLED_APPS += ["django_prometheus"]
+    MIDDLEWARE = (
+        ["django_prometheus.middleware.PrometheusBeforeMiddleware"]
+        + MIDDLEWARE
+        + ["django_prometheus.middleware.PrometheusAfterMiddleware"]
+    )
+
+
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 # Parse the DATABASE_URL first
@@ -211,6 +226,22 @@ db_config.update({
 
 DATABASES = {
     "default": db_config
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Ovena-food-D API",
+    "DESCRIPTION": "API with JWT authentication",
+    "VERSION": "1.0.0",
+    "SECURITY": [{"BearerAuth": []}],
+    "COMPONENTS": {
+        "securitySchemes": {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+            }
+        }
+    },
 }
 
 # Password validation
