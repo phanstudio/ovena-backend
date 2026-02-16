@@ -40,6 +40,13 @@ factory_boy
 paystackapi
 whitenoise
 google-auth
+django-anymail[amazon-ses]
 
 # new
 watchdog>=4.0
+# drf-spectacular[sidecar]
+drf-spectacular 
+drf-spectacular-sidecar
+
+# moitoring
+django-prometheus
