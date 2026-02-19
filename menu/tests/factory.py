@@ -1,6 +1,6 @@
 import factory
 from decimal import Decimal
-from accounts.models import Restaurant, Branch, Address
+from accounts.models import Business, Branch, Address
 from menu.models import (
     Menu, MenuCategory, MenuItem,
     VariantGroup, VariantOption,
@@ -20,17 +20,17 @@ class AddressFactory(factory.django.DjangoModelFactory):
 
 class RestaurantFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = Restaurant
+        model = Business
 
-    company_name = factory.Sequence(lambda n: f"Restaurant {n}")
-    # email = factory.Sequence(lambda n: f"restaurant{n}@example.com")
+    business_name = factory.Sequence(lambda n: f"Business {n}")
+    # email = factory.Sequence(lambda n: f"Business{n}@example.com")
 
 
 class BranchFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Branch
 
-    restaurant = factory.SubFactory(RestaurantFactory)
+    Business = factory.SubFactory(RestaurantFactory)
     location = factory.SubFactory(AddressFactory)
     name = factory.Sequence(lambda n: f"Branch {n}")
     phone_number = factory.Sequence(lambda n: f"+1234567{n:04d}")
@@ -40,7 +40,7 @@ class MenuFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Menu
 
-    restaurant = factory.SubFactory(RestaurantFactory)
+    Business = factory.SubFactory(RestaurantFactory)
     name = factory.Sequence(lambda n: f"Menu {n}")
     description = "Default menu description"
 
@@ -105,3 +105,4 @@ class MenuItemAvailabilityFactory(factory.django.DjangoModelFactory):
     item = factory.SubFactory(MenuItemFactory)
     branch = factory.SubFactory(BranchFactory)
     is_available = True
+

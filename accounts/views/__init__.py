@@ -1,11 +1,11 @@
-from .otp_views import SendOTPView, VerifyOTPView
+from .otp_views import VerifyOTPView, VerifyEmailOTPView, SendEmailOTPView, SendPhoneOTPView # noqa: F401
 from .account_views import (
-    RegisterCustomer, RegisterRManager, LinkApprove, LinkRequestCreate, 
-    UserProfileView, DeleteAccountView, UpdateBranch, Delete2AccountView,
-    UpdateCustomer
+    RegisterCustomer, RegisterRManager, # noqa: F401
+    UserProfileView, DeleteAccountView, UpdateBranch, Delete2AccountView, # noqa: F401
+    UpdateCustomer, RegisterRAdmin # noqa: F401
 )
-from .oath_views import OAuthExchangeView
-import accounts.views.jwt_views
+from .oath_views import OAuthExchangeView # noqa: F401
+import accounts.views.jwt_views  # noqa: F401
 
 # from .auth_views import LoginView, RegisterView
 # from .restaurant_views import RestaurantListView

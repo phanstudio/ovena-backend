@@ -41,6 +41,8 @@ paystackapi
 whitenoise
 google-auth
 django-anymail[amazon-ses]
+django-storages[boto3] 
+boto3
 
 # new
 watchdog>=4.0

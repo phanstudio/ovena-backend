@@ -4,7 +4,7 @@ from rest_framework import status, permissions
 from accounts.serializers import UserSerializer, OAuthCodeSerializer
 # from accounts.models import User
 from ..utils.oath import verify_apple_token
-from authflow.services import _issue_jwt_for_user
+from authflow.services import issue_jwt_for_user
 from django.contrib.auth import get_user_model
 from ..serializers import GoogleAuthSerializer, CreateCustomerSerializer
 User = get_user_model()
@@ -99,7 +99,7 @@ class OAuthExchangeView(APIView):
             serializer.save()
 
         # this might be a probelm we might ask for the refresh token to destroy or create a  access if that process is not done
-        tokens = _issue_jwt_for_user(user) 
+        tokens = issue_jwt_for_user(user) 
         
         return Response({
             "user": UserSerializer(user).data,

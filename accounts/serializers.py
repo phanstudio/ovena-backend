@@ -7,9 +7,10 @@ from rest_framework import serializers
 from .models import (
     CustomerProfile,
     DriverProfile,
-    Restaurant,
+    Business,
     User,
-    Address
+    Address,
+    BusinessAdmin
 )
 
 class CustomerProfileSerializer(serializers.ModelSerializer):
@@ -30,10 +31,19 @@ class DriverProfileSerializer(serializers.ModelSerializer):
             #   "nin", "driver_license", "plate_number", "vehicle_type", "photo"
         ]
 
-class RestaurantProfileSerializer(serializers.ModelSerializer):
+class BuisnessAdminProfileSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Restaurant
-        fields = ["id", "company_name", "certification", "bn_number"]
+        model = BusinessAdmin
+        fields = ["id", 
+            #   "nin", "driver_license", "plate_number", "vehicle_type", "photo"
+        ]
+
+class RestaurantProfileSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source="business_name", read_only=True)
+
+    class Meta:
+        model = Business
+        fields = ["id", "business_name", "company_name", "business_type", "certification", "bn_number"]
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:

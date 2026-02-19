@@ -5,24 +5,19 @@ from rest_framework.generics import GenericAPIView
 from ..serializers import ouput_serializers  as otS
 from ..models import (
     Menu, MenuItem,
-    Restaurant, Branch, BaseItemAvailability, 
+    Business, Branch, BaseItemAvailability, Order,
 )
 from ..pagifications import StandardResultsSetPagination
 
 from accounts.models import LinkedStaff, User
 from authflow.decorators import subuser_authentication
 from authflow.permissions import ScopePermission, ReadScopePermission
-from django.db.models import Avg, Count, Q
 
-from ..websocket_utils import *
-from ..tasks import *
 import logging
-
-from django.db.models import OuterRef, Subquery, IntegerField
+from django.db.models import OuterRef, Subquery, IntegerField, Avg, Count, Q
 from django.contrib.gis.db.models.functions import Distance
 from addresses.utils import resolve_user_point
 from django.db.models.functions import Coalesce
-
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +26,12 @@ logger = logging.getLogger(__name__)
 # auhentication for the resturant view
 class RestaurantView(APIView):
     def get(self, request):
-        restaurants = Restaurant.objects.prefetch_related(
+        businesses = Business.objects.prefetch_related(
             "menus__categories__items__variant_groups__options",
             "menus__categories__items__addon_groups__addons",
             "menus__categories__items__branch_availabilities",
         )
-        serializer = otS.RestaurantSerializer(restaurants, many=True)
+        serializer = otS.BusinessSerializer(businesses, many=True)
         return Response(serializer.data)
 
 class TopBranchesView(APIView):
@@ -44,7 +39,7 @@ class TopBranchesView(APIView):
         top_branches = Branch.objects.annotate(
             avg_rating=Avg('branch_ratings_received__stars'),
             rating_count=Count('branch_ratings_received')
-        ).select_related("restaurant"
+        ).select_related("business"
         ).filter(
             rating_count__gt=0
         ).order_by('-avg_rating', '-rating_count')[:10]
@@ -52,8 +47,8 @@ class TopBranchesView(APIView):
         return Response({'data': serializer.data})
 
 class MenuView(APIView):
-    def get(self, request, restaurant_id):
-        menus = Menu.objects.filter(restaurant_id=restaurant_id)\
+    def get(self, request, business_id):
+        menus = Menu.objects.filter(business_id=business_id)\
                             .prefetch_related("categories__items")
         serializer = otS.MenuSerializer(menus, many=True)
         return Response(serializer.data)
@@ -66,8 +61,8 @@ class SearchMenuItems(APIView):# the search should show the restorunt the menu i
             Q(custom_name__icontains=query) |
             Q(description__icontains=query) |
             Q(category__name__icontains=query) |
-            Q(category__menu__restaurant__company_name__icontains=query)
-        ).select_related("category__menu__restaurant")
+            Q(category__menu__business__business_name__icontains=query)
+        ).select_related("category__menu__business")
 
         serializer = otS.MenuItemSerializer(items, many=True)
         return Response(serializer.data)
@@ -93,7 +88,7 @@ class HomePageView(APIView):
         nearest_branch_qs = (
             Branch.objects
             .filter(
-                restaurant_id=OuterRef("pk"),
+                business_id=OuterRef("pk"),
                 is_active=True,
                 is_accepting_orders=True,
                 location__isnull=False,
@@ -104,8 +99,8 @@ class HomePageView(APIView):
 
         # this gives us all the closeby returants period
 
-        restaurants = (
-            Restaurant.objects
+        businesses = (
+            Business.objects
             .annotate(nearest_branch_id=Subquery(nearest_branch_qs.values("id")[:1]))
             .annotate(nearest_branch_distance=Subquery(nearest_branch_qs.values("dist")[:1]))
             .filter(nearest_branch_id__isnull=False)
@@ -113,18 +108,18 @@ class HomePageView(APIView):
         )
 
         # If homepage must include full menu nesting, keep your prefetch (heavy):
-        restaurants = restaurants.prefetch_related(
+        businesses = businesses.prefetch_related(
             "menus__categories__items__variant_groups__options",
             "menus__categories__items__addon_groups__addons",
             # "menus__categories__items__branch_availabilities",
         )
 
         # Bulk fetch nearest branches (NO N+1)
-        branch_ids = [r.nearest_branch_id for r in restaurants]
+        branch_ids = [r.nearest_branch_id for r in businesses]
         branches_by_id = Branch.objects.in_bulk(branch_ids)
 
-        serializer = otS.RestaurantSerializer(
-            restaurants,
+        serializer = otS.BusinessSerializer(
+            businesses,
             many=True,
             context={
                 "branches_by_id": branches_by_id,
@@ -137,40 +132,40 @@ class HomePageView(APIView):
             Order.objects
             .filter(
                 orderer=request.user.customer_profile,
-                branch__restaurant_id=OuterRef("pk"),
+                branch__business_id=OuterRef("pk"),
             )
             .exclude(status="cancelled")               # optional
             .order_by("-created_at")
         )
 
-        recent_restaurants = (
-            Restaurant.objects
+        recent_businesses = (
+            Business.objects
             .annotate(last_order_at=Subquery(last_order_qs.values("created_at")[:1]))
             .filter(last_order_at__isnull=False)
             .order_by("-last_order_at")[:10]
         )
 
-        recent_serializer = otS.RestaurantSerializer(
-            recent_restaurants,
+        recent_serializer = otS.BusinessSerializer(
+            recent_businesses,
             many=True,
         )
 
         top_branch_qs = (
             Branch.objects
-            .filter(restaurant_id=OuterRef("pk"), is_active=True, is_accepting_orders=True)
+            .filter(business_id=OuterRef("pk"), is_active=True, is_accepting_orders=True)
             .order_by("-rating_sum", "-rating_count", "id")
         )
 
-        top_restaurants = (
-            Restaurant.objects
+        top_businesses = (
+            Business.objects
             .annotate(top_branch_id=Subquery(top_branch_qs.values("id")[:1]))
             .annotate(top_branch_sum=Coalesce(Subquery(top_branch_qs.values("rating_sum")[:1]), 0, output_field=IntegerField()))
             .annotate(top_branch_count=Coalesce(Subquery(top_branch_qs.values("rating_count")[:1]), 0, output_field=IntegerField()))
             .order_by("-top_branch_sum", "-top_branch_count", "id")
         )
 
-        top_serializer = otS.RestaurantSerializer(
-            top_restaurants,
+        top_serializer = otS.BusinessSerializer(
+            top_businesses,
             many=True,
         )
 

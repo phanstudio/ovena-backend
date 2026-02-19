@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from django.urls import reverse
 
-from accounts.models import Restaurant, User, Branch
+from accounts.models import Business, User, Branch
 from accounts.models import CustomerProfile
 from menu.models import Menu, MenuCategory, MenuItem, BaseItem, Order, OrderItem
 from menu.services import CouponService
@@ -15,16 +15,16 @@ from .serializers import CouponCreateUpdateSerializer, CouponSerializer, CouponW
 
 
 @pytest.fixture
-def restaurant(db):
-    return Restaurant.objects.create(company_name="Test Restaurant", bn_number="BN-123")
+def Business(db):
+    return Business.objects.create(business_name="Test Business", bn_number="BN-123")
 
 
 @pytest.fixture
-def menu_item(db, restaurant):
-    menu = Menu.objects.create(restaurant=restaurant, name="Main")
+def menu_item(db, Business):
+    menu = Menu.objects.create(Business=Business, name="Main")
     category = MenuCategory.objects.create(menu=menu, name="Burgers")
     base_item = BaseItem.objects.create(
-        restaurant=restaurant,
+        Business=Business,
         name="Burger Base",
         default_price=10,
     )
@@ -36,16 +36,16 @@ def menu_item(db, restaurant):
     )
 
 @pytest.fixture
-def menu_items(db, restaurant):
-    menu = Menu.objects.create(restaurant=restaurant, name="Main")
+def menu_items(db, Business):
+    menu = Menu.objects.create(Business=Business, name="Main")
     category = MenuCategory.objects.create(menu=menu, name="Burgers")
     base_buy = BaseItem.objects.create(
-        restaurant=restaurant,
+        Business=Business,
         name="Buy Item",
         default_price=10,
     )
     base_get = BaseItem.objects.create(
-        restaurant=restaurant,
+        Business=Business,
         name="Get Item",
         default_price=6,
     )
@@ -71,7 +71,7 @@ def create_coupon(**kwargs):
         "description": "",
         "coupon_type": "delivery",
         "scope": "global",
-        "restaurant": None,
+        "Business": None,
         "discount_type": "percent",
         "discount_value": 10,
         "valid_from": now - timedelta(days=1),
@@ -103,13 +103,13 @@ def test_coupon_urls_include_public_and_admin():
 
 
 @pytest.mark.django_db
-def test_coupon_create_serializer_rejects_invalid_date_order(restaurant):
+def test_coupon_create_serializer_rejects_invalid_date_order(Business):
     now = timezone.now()
     data = {
         "code": "DATE-001",
         "coupon_type": "delivery",
-        "scope": "restaurant",
-        "restaurant": restaurant.id,
+        "scope": "Business",
+        "Business": Business.id,
         "discount_type": "percent",
         "discount_value": 10,
         "valid_from": now,
@@ -122,13 +122,13 @@ def test_coupon_create_serializer_rejects_invalid_date_order(restaurant):
 
 
 @pytest.mark.django_db
-def test_coupon_create_serializer_global_clears_restaurant(restaurant):
+def test_coupon_create_serializer_global_clears_restaurant(Business):
     now = timezone.now()
     data = {
         "code": "GLOBAL-001",
         "coupon_type": "delivery",
         "scope": "global",
-        "restaurant": restaurant.id,
+        "Business": Business.id,
         "discount_type": "percent",
         "discount_value": 10,
         "valid_from": now,
@@ -137,7 +137,7 @@ def test_coupon_create_serializer_global_clears_restaurant(restaurant):
     }
     serializer = CouponCreateUpdateSerializer(data=data)
     assert serializer.is_valid(), serializer.errors
-    assert serializer.validated_data["restaurant"] is None
+    assert serializer.validated_data["Business"] is None
 
 
 @pytest.mark.django_db
@@ -187,10 +187,10 @@ def test_coupon_wheel_spin_picks_eligible_coupon():
 
 
 @pytest.mark.django_db
-def test_apply_bxgy_coupon_to_order(menu_items, restaurant):
+def test_apply_bxgy_coupon_to_order(menu_items, Business):
     buy_item, get_item = menu_items
 
-    branch = Branch.objects.create(restaurant=restaurant, name="Main Branch")
+    branch = Branch.objects.create(Business=Business, name="Main Branch")
     user = User.objects.create(email="buyer@example.com", name="Buyer")
     customer_profile = CustomerProfile.objects.create(user=user)
 
@@ -223,8 +223,8 @@ def test_apply_bxgy_coupon_to_order(menu_items, restaurant):
         get_amount=1,
         buy_item=buy_item,
         get_item=get_item,
-        scope="restaurant",
-        restaurant=restaurant,
+        scope="Business",
+        Business=Business,
     )
 
     applied = CouponService.apply_coupon_to_order(coupon, order)
@@ -235,3 +235,4 @@ def test_apply_bxgy_coupon_to_order(menu_items, restaurant):
     assert order.discount_total == get_item.price
     coupon.refresh_from_db()
     assert coupon.uses_count == 1
+

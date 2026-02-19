@@ -15,6 +15,10 @@ from ..tasks import *
 from .main import get_branch_staff
 
 
+# assign pagent for unassigned branch;
+# the intail agent works like a agent;
+# assign branchs at create
+
 # edit permissions later
 # first in order split the json into section all the branches and all the categories and etc one by one 
 # bulk create each that way the is faster than a for loop-> 
@@ -36,7 +40,7 @@ class RegisterMenusView(APIView):
         if error:
             return error
 
-        restaurant = branch.restaurant  # restaurant that owns the catalog
+        business = branch.business  # business that owns the catalog
 
         menus_data = request.data.get("menus", [])
 
@@ -104,7 +108,7 @@ class RegisterMenusView(APIView):
             # 1) BASE ITEMS (restaurant-scoped): fetch existing, bulk_create missing
             # =========================================================
             existing_qs = BaseItem.objects.filter(
-                restaurant=restaurant,
+                business=business,
                 name__in=all_base_names,
             ).only("id", "name")
 
@@ -114,7 +118,7 @@ class RegisterMenusView(APIView):
             if missing_names:
                 new_base_items = [
                     BaseItem(
-                        restaurant=restaurant,
+                        business=business,
                         name=name,
                         description=defaults_by_name[name]["description"],
                         default_price=defaults_by_name[name]["default_price"],
@@ -128,7 +132,7 @@ class RegisterMenusView(APIView):
 
                 # Re-fetch to ensure we have PKs for everything
                 existing_qs = BaseItem.objects.filter(
-                    restaurant=restaurant,
+                    business=business,
                     name__in=all_base_names,
                 ).only("id", "name", "default_price", "description", "image")
                 base_by_name = {b.name: b for b in existing_qs}
@@ -138,7 +142,7 @@ class RegisterMenusView(APIView):
             # =========================================================
             menus_to_create = [
                 Menu(
-                    restaurant=restaurant,
+                    business=business,
                     name=m["name"],
                     description=m.get("description", "") or "",
                     is_active=m.get("is_active", True),
@@ -325,7 +329,7 @@ class RegisterMenusView(APIView):
             {
                 "message": "Menus registered successfully",
                 "menus": created_menu_ids,
-                "company_name": restaurant.company_name,
+                "business_name": business.business_name,
                 "base_items_referenced": len(all_base_names),
             },
             status=status.HTTP_201_CREATED,

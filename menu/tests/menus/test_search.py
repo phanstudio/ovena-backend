@@ -23,7 +23,7 @@ def test_search_menu_items_by_name(registered_restaurant):
 def test_menu_item_list(registered_restaurant):
     """Searching by item name should return matching results."""
     client = APIClient()
-    url = reverse("menu-list", args=[registered_restaurant.restaurant_id])  # make sure this is in your urls.py
+    url = reverse("menu-list", args=[registered_restaurant.business_id])  # make sure this is in your urls.py
 
     response = client.get(url)
     assert response.status_code == 200
@@ -108,7 +108,7 @@ def test_search_menu_items_by_category(registered_restaurant):
 
 @pytest.mark.django_db
 def test_search_menu_items_by_restaurant_name(registered_restaurant):
-    """Searching by restaurant company name should return all its items."""
+    """Searching by Business company name should return all its items."""
     client = APIClient()
     url = reverse("menuitem-search")
 
@@ -119,8 +119,8 @@ def test_search_menu_items_by_restaurant_name(registered_restaurant):
     assert len(data) > 0
 
     # cprint(data)
-    # all items belong to this restaurant
-    # serializer should include category -> menu -> restaurant fields
+    # all items belong to this Business
+    # serializer should include category -> menu -> Business fields
     # otherwise just check count > 0
     assert isinstance(data, list)
 
@@ -136,3 +136,4 @@ def test_search_menu_items_by_restaurant_name(registered_restaurant):
 
 #     data = response.json()
 #     assert data == []
+

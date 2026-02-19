@@ -1,6 +1,6 @@
 from django.db import models
 from menu.models import MenuCategory, MenuItem
-from accounts.models import Restaurant
+from accounts.models import Business
 
 
 class Coupons(models.Model): # are coupons for the entire order or a single order item 
@@ -36,7 +36,7 @@ class Coupons(models.Model): # are coupons for the entire order or a single orde
     get_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, null=True, blank=True, related_name="get_coupons")
 
     scope = models.CharField(max_length=20, choices=SCOPE_CHOICES, default="restaurant")
-    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, null=True, blank=True, related_name="coupons")
+    business = models.ForeignKey(Business, on_delete=models.CASCADE, null=True, blank=True, related_name="coupons")
 
     discount_type = models.CharField(max_length=10, choices=DISCOUNT_CHOICES, default="percent")
     discount_value = models.DecimalField(max_digits=8, decimal_places=2, default=0.0)

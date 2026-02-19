@@ -31,8 +31,10 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 
-# Application definition
-INSTALLED_APPS = [
+
+# APPS
+# ------------------------------------------------------------------------------
+DJANGO_APPS = [
     "daphne",
     "channels",
     'django.contrib.admin',
@@ -41,22 +43,35 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django.contrib.gis',    
+    'django.contrib.gis',
+]
+THIRD_PARTY_APPS = [
+    # "allauth",
+    # "allauth.account",
+    # "allauth.mfa",
+    # "allauth.socialaccount",
+    # "django_celery_beat",
+    # "rest_framework.authtoken",
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_gis',
     "drf_spectacular",
     "drf_spectacular_sidecar",
     'corsheaders',
+    "anymail",
+]
+
+LOCAL_APPS = [
+    # "ovena.users",
     'accounts',
     'addresses',
     'menu',
     'authflow',
     'ratings',
     'coupons_discount',
-    # 'anymail',
 ]
 
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -144,7 +159,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [os.environ["REDIS_URL"]],  # <-- Use full URL
+            "hosts": [REDIS_URL],  # <-- Use full URL
             "capacity": 1500,
             "expiry": 10,
             "prefix": "ws",
@@ -201,6 +216,66 @@ if ENABLE_METRICS:
     )
 
 
+# Aws
+AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
+AWS_S3_REGION_NAME = env("DJANGO_AWS_S3_REGION_NAME", default=None)
+
+AWS_PUBLIC_BUCKET_NAME = env("DJANGO_AWS_PUBLIC_BUCKET_NAME")
+AWS_PRIVATE_BUCKET_NAME = env("DJANGO_AWS_PRIVATE_BUCKET_NAME")
+
+AWS_PUBLIC_CUSTOM_DOMAIN = env("DJANGO_AWS_PUBLIC_CUSTOM_DOMAIN", default=None)  # e.g. cdn.example.com
+AWS_PRIVATE_CUSTOM_DOMAIN = env("DJANGO_AWS_PRIVATE_CUSTOM_DOMAIN", default=None)  # optional, often none
+
+PUBLIC_DOMAIN = AWS_PUBLIC_CUSTOM_DOMAIN or f"{AWS_PUBLIC_BUCKET_NAME}.s3.amazonaws.com"
+PRIVATE_DOMAIN = AWS_PRIVATE_CUSTOM_DOMAIN or f"{AWS_PRIVATE_BUCKET_NAME}.s3.amazonaws.com"
+
+_AWS_EXPIRY = 60 * 60 * 24 * 7
+AWS_S3_OBJECT_PARAMETERS = {
+    "CacheControl": f"max-age={_AWS_EXPIRY}, s-maxage={_AWS_EXPIRY}",
+}
+# "CacheControl": f"max-age={_AWS_EXPIRY}, s-maxage={_AWS_EXPIRY}, must-revalidate",
+
+AWS_S3_MAX_MEMORY_SIZE = env.int(
+    "DJANGO_AWS_S3_MAX_MEMORY_SIZE",
+    default=25_000_000,  # 100MB
+)
+
+# storage
+STORAGES = {
+    # keep static in container (Option A)
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+
+    # default media (public) - optional: make this public by default
+    "default": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": AWS_PUBLIC_BUCKET_NAME,
+            "location": "media",
+            "file_overwrite": False,
+            "custom_domain": AWS_PUBLIC_CUSTOM_DOMAIN,  # ok if None
+            "querystring_auth": False,  # public URLs
+        },
+    },
+
+    # private media storage
+    "private": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": AWS_PRIVATE_BUCKET_NAME,
+            "location": "private",
+            "file_overwrite": False,
+            "custom_domain": AWS_PRIVATE_CUSTOM_DOMAIN,  # often None
+            "querystring_auth": True,  # SIGNED URLs
+        },
+    },
+}
+
+MEDIA_URL = f"https://{PUBLIC_DOMAIN}/media/"
+
+
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 # Parse the DATABASE_URL first
@@ -254,6 +329,23 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',},
 ]
 
+EMAIL_BACKEND = "anymail.backends.amazon_ses.EmailBackend"
+
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
+SERVER_EMAIL = env("SERVER_EMAIL")
+
+ANYMAIL = {
+    "AMAZON_SES_CLIENT_PARAMS": {
+        "aws_access_key_id": AWS_ACCESS_KEY_ID,
+        "aws_secret_access_key": AWS_SECRET_ACCESS_KEY,
+        "region_name": env("AWS_DEFAULT_REGION"),
+    }
+}
+
+PRODUCT_NAME = "Newbutt"
+WEBSITE_URL = "https://newbutt.buzz/"
+EMAIL_LOGO_URL = "https://res.cloudinary.com/daxdh7b3t/image/upload/v1767957815/1f2b751b-cc9a-42cd-a623-05b0febc4472.webp" 
+
 # TIMEZONE & LANGUAGE
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = env("TIME_ZONE", default="UTC")
@@ -263,8 +355,6 @@ USE_TZ = True
 # STATIC & MEDIA
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

@@ -1,10 +1,8 @@
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from addresses.models import Address
-from django.contrib.gis.db import models as gis_models
 from django.utils import timezone
 from authflow.services import generate_referral_code
 from django.db import models, IntegrityError, transaction
-from .main import User, Branch
+from .main import User, Branch, Business
 
 # profile
 class ProfileBase(models.Model):
@@ -155,3 +153,13 @@ class LinkedStaff(models.Model):
 
     def __str__(self):
         return f"{self.device_name or 'Unnamed Device'} - staff for {self.created_by.user.name}"
+
+class BusinessAdmin(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="business_admin")
+    business = models.OneToOneField(Business, on_delete=models.CASCADE, related_name="admin")
+
+    def __str__(self):
+        return f"{self.user.name} admin @ {self.business.business_name}"
+
+# admin Profle connected to the restaurant:
+# password;

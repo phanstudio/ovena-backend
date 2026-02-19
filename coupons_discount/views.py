@@ -23,22 +23,22 @@ class EligibleCouponsListView(generics.ListAPIView):
     Returns coupons that can be added / shown (not exhausted, active, valid).
     Optional filters:
       ?scope=global|restaurant
-      ?restaurant_id=123
+      ?business_id=123
       ?coupon_type=delivery|itemdiscount|...
     """
     serializer_class = CouponSerializer
     permission_classes = [permissions.IsAdminUser] 
 
     def get_queryset(self):
-        qs = Coupons.objects.filter(eligible_coupon_q()).select_related("restaurant", "category", "item")
+        qs = Coupons.objects.filter(eligible_coupon_q()).select_related("business", "category", "item")
 
         scope = self.request.query_params.get("scope")
         if scope:
             qs = qs.filter(scope=scope)
 
-        restaurant_id = self.request.query_params.get("restaurant_id")
-        if restaurant_id:
-            qs = qs.filter(restaurant_id=restaurant_id)
+        business_id = self.request.query_params.get("business_id") or self.request.query_params.get("restaurant_id")
+        if business_id:
+            qs = qs.filter(business_id=business_id)
 
         coupon_type = self.request.query_params.get("coupon_type")
         if coupon_type:

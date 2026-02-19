@@ -3,39 +3,33 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from rest_framework.generics import GenericAPIView
-from rest_framework.exceptions import ValidationError
 from ..models import (
-    Branch, Order, Coupons, OrderEvent, MenuItem, OrderItem
+    Order, OrderEvent, OrderItem, DriverProfile
 )
 from ..pagifications import StandardResultsSetPagination
-from ..services import CouponService
 
 from accounts.models import LinkedStaff, User
 from authflow.decorators import subuser_authentication
 from authflow.authentication import CustomCustomerAuth, CustomDriverAuth
 from authflow.permissions import ScopePermission, ReadScopePermission
-from authflow.services import generate_passphrase, hash_phrase, verify_delivery_phrase
+from authflow.services import verify_delivery_phrase
 
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.utils import timezone
 
-from ..websocket_utils import *
-from ..tasks import *
+from ..websocket_utils import (
+    notify_order_cancelled, notify_order_created, notify_order_ready, notify_order_confirmed, 
+    notify_order_delivered, notify_order_picked_up
+)
+from ..tasks import check_branch_confirmation_timeout, find_and_assign_driver, check_payment_timeout
 import logging
 from ..payment_services import initialize_paystack_transaction
 from django.db import transaction
 from ..serializers import OrderCreateSerializer
+from django.db.models import Prefetch
 
 logger = logging.getLogger(__name__)
-
-
-# views.py
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from django.db import transaction
-from django.db.models import Prefetch
 
 class OrderView(APIView):
     authentication_classes = [CustomCustomerAuth]
@@ -74,8 +68,6 @@ class OrderView(APIView):
                     .prefetch_related("variants", "addons")
             )
         )
-
-
 
     def get(self, request, order_id=None, *args, **kwargs):
         """

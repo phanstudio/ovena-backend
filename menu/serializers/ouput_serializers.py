@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from ..models import (
-    Restaurant, Menu, MenuCategory, MenuItem, VariantGroup, 
+    Business, Menu, MenuCategory, MenuItem, VariantGroup,
     VariantOption, MenuItemAddonGroup, MenuItemAddon, Branch
 )
 
@@ -54,23 +54,23 @@ class MenuSerializer(serializers.ModelSerializer):
         model = Menu
         fields = ["id", "name", "description", "is_active", "categories"]
 
-class RestaurantSerializer(serializers.ModelSerializer):
+class BusinessSerializer(serializers.ModelSerializer):
     menus = MenuSerializer(many=True, read_only=True)
 
     class Meta:
-        model = Restaurant
-        fields = ["id", "company_name", "menus"]
+        model = Business
+        fields = ["id", "business_name", "business_type", "menus"]
 
 # extras
 class TopBranchSerilazer(serializers.ModelSerializer):
     avg_rating = serializers.FloatField()
     rating_count = serializers.IntegerField()
-    restaurant_name = serializers.CharField(source='restaurant.company_name', read_only=True)
+    business_name = serializers.CharField(source='business.business_name', read_only=True)
     # menus = MenuSerializer(many=True, read_only=True)
 
     class Meta:
         model = Branch
-        fields = ['id', 'restaurant_name', 'name', 'location', 'avg_rating', 'rating_count',]# 'menus']
+        fields = ['id', 'business_name', 'name', 'location', 'avg_rating', 'rating_count',]# 'menus']
 
 
 

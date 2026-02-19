@@ -6,7 +6,7 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 from utils import cprint
-from accounts.models import CustomerProfile, Restaurant, User, Branch
+from accounts.models import CustomerProfile, Business, User, Branch
 from menu.models import BaseItem, Menu, MenuCategory, MenuItem, Order, OrderEvent
 
 
@@ -17,13 +17,13 @@ def authenticate(client, user):
 
 @pytest.fixture
 def order_context(db):
-    restaurant = Restaurant.objects.create(company_name="Order Test Rest", bn_number="BN-ORDER-001")
-    branch = Branch.objects.create(restaurant=restaurant, name="Main Branch", is_active=True, is_accepting_orders=True)
+    business = Business.objects.create(business_name="Order Test Rest", bn_number="BN-ORDER-001")
+    branch = Branch.objects.create(Business=business, name="Main Branch", is_active=True, is_accepting_orders=True)
 
-    menu = Menu.objects.create(restaurant=restaurant, name="Main")
+    menu = Menu.objects.create(Business=business, name="Main")
     category = MenuCategory.objects.create(menu=menu, name="Meals", sort_order=1)
     base_item = BaseItem.objects.create(
-        restaurant=restaurant,
+        Business=business,
         name="High Value Meal",
         default_price=Decimal("6000.00"),
     )
@@ -142,3 +142,4 @@ def test_order_get_list_returns_only_current_customer_orders(order_context):
     assert response.status_code == 200
     assert len(response.data) == 1
     assert response.data[0]["id"] == own_order.id
+

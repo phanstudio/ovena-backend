@@ -1,26 +1,12 @@
 from django.db import models
 from .main import (
-    MenuCategory, MenuItem, Restaurant, BaseItemAvailability, 
+    MenuItem, BaseItemAvailability,
     CustomerProfile, MenuItemAddon, VariantOption, Branch
 )
 from accounts.models import (
-    DriverProfile, User
+    DriverProfile
 )
-from .payment import Payment
-
-from coupons_discount.models import Coupons, CouponWheel
-
-
-"""
-Updated models with GIS support and WebSocket fields
-Add these to your existing models.py
-"""
-from django.contrib.gis.db import models as gis_models
-from django.contrib.gis.geos import Point
-from django.contrib.gis.db.models.functions import Distance
-from django.contrib.gis.measure import D
-from django.db import models
-from django.utils import timezone
+from coupons_discount.models import Coupons
 
 
 # ===== UPDATE EXISTING MODELS =====

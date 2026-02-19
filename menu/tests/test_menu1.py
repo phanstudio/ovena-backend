@@ -1,7 +1,7 @@
 import pytest
 from decimal import Decimal
 from django.db import IntegrityError
-from accounts.models import Restaurant
+from accounts.models import Business
 from menu.models import (
     Menu, MenuCategory, MenuItem, VariantGroup, VariantOption,
     MenuItemAddonGroup, MenuItemAddon, MenuItemAvailability
@@ -11,18 +11,18 @@ from menu.models import (
 class TestBasicMenuModels:
     """Test basic functionality of menu models"""
 
-    def test_menu_creation_and_str(self, restaurant):
+    def test_menu_creation_and_str(self, Business):
         """Test basic menu creation and string representation"""
         menu = Menu.objects.create(
-            restaurant=restaurant,
+            Business=Business,
             name="Breakfast Menu",
             description="Morning specials",
             is_active=True
         )
         
-        assert str(menu) == f"{restaurant.company_name} - Breakfast Menu"
+        assert str(menu) == f"{Business.business_name} - Breakfast Menu"
         assert menu.is_active is True
-        assert menu.restaurant == restaurant
+        assert menu.Business == Business
 
     def test_menu_category_ordering(self, menu):
         """Test that menu categories are ordered by sort_order"""
@@ -138,10 +138,10 @@ class TestComplexMenuStructure:
         menu_items = MenuItem.objects.filter(category__menu=lunch_menu)
         assert menu_items.count() == 3
 
-    def test_inactive_menu_handling(self, restaurant):
+    def test_inactive_menu_handling(self, Business):
         """Test handling of inactive menus"""
         inactive_menu = Menu.objects.create(
-            restaurant=restaurant,
+            Business=Business,
             name="Seasonal Menu",
             description="Winter specials",
             is_active=False
@@ -451,13 +451,13 @@ class TestCompleteMenuIntegration:
     """Test complete menu system integration with all components"""
 
     def test_complete_restaurant_menu_system(self, gourmet_restaurant, gourmet_branches):
-        """Test a complete restaurant system with complex menu structure"""
+        """Test a complete Business system with complex menu structure"""
         downtown_branch = gourmet_branches["downtown"]
         uptown_branch = gourmet_branches["uptown"]
         
         # Create dinner menu
         dinner_menu = Menu.objects.create(
-            restaurant=gourmet_restaurant,
+            Business=gourmet_restaurant,
             name="Dinner Menu",
             description="Evening fine dining"
         )
@@ -583,7 +583,7 @@ class TestMenuQueries:
         
         # Create menu
         menu = Menu.objects.create(
-            restaurant=gourmet_restaurant,
+            Business=gourmet_restaurant,
             name="Test Menu"
         )
         
@@ -717,20 +717,20 @@ class TestMenuQueries:
         assert downtown_available.first() == items["cheap"]
 
     def test_menu_traversal_queries(self, query_test_setup):
-        """Test traversing from restaurant to all menu items"""
+        """Test traversing from Business to all menu items"""
         setup = query_test_setup
         menu = setup["menu"]
         
-        # Get all items for this restaurant
+        # Get all items for this Business
         restaurant_items = MenuItem.objects.filter(
-            category__menu__restaurant=menu.restaurant
+            category__menu__business=menu.Business
         )
         
         assert restaurant_items.count() == 3
         
         # Get items from active menus only
         active_menu_items = MenuItem.objects.filter(
-            category__menu__restaurant=menu.restaurant,
+            category__menu__business=menu.Business,
             category__menu__is_active=True
         )
         
@@ -741,7 +741,7 @@ class TestMenuQueries:
 class TestMenuPerformance:
     """Test performance-related aspects and edge cases"""
 
-    def test_bulk_menu_creation(self, restaurant):
+    def test_bulk_menu_creation(self, Business):
         """Test creating menus in bulk"""
         menus_data = [
             {"name": "Breakfast Menu", "description": "Morning specials"},
@@ -751,13 +751,13 @@ class TestMenuPerformance:
         ]
         
         menus = [
-            Menu(restaurant=restaurant, **menu_data)
+            Menu(Business=Business, **menu_data)
             for menu_data in menus_data
         ]
         
         Menu.objects.bulk_create(menus)
         
-        assert Menu.objects.filter(restaurant=restaurant).count() == 4
+        assert Menu.objects.filter(Business=Business).count() == 4
 
     def test_menu_item_counting(self, lunch_menu):
         """Test counting items across categories efficiently"""
@@ -797,10 +797,10 @@ def test_database_transactions():
     """Test that database transactions work properly with pytest-django"""
     # This test ensures that each test runs in its own transaction
     # and that database changes don't leak between tests
-    assert Restaurant.objects.count() == 0
+    assert Business.objects.count() == 0
     
-    restaurant = Restaurant.objects.create(
-        company_name="Transaction Test",
+    Business = Business.objects.create(
+        business_name="Transaction Test",
     )
     
-    assert Restaurant.objects.count() == 1
+    assert Business.objects.count() == 1

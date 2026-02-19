@@ -1,28 +1,28 @@
 import json
 import pytest
 from rest_framework.test import APIClient
-# from accounts.models import Restaurant
+# from accounts.models import Business
 from django.urls import reverse
 from authflow.services import start_time, calculate_time
 from addresses.utils.gis_point import make_point
 # from pathlib import Path
 from accounts.models import (
-    Restaurant, Branch, Address, User, PrimaryAgent
+    Business, Branch, Address, User, PrimaryAgent
 )
 
 
 # @pytest.fixture
 # def restaurant_payload():
-#     """Load raw restaurant JSON from file."""
+#     """Load raw Business JSON from file."""
 #     data_path = Path(__file__).parent / "data" / "new_payload.json"#"resturant_payload.json" # restaurant_payload
 #     with data_path.open() as f:
 #         return json.load(f)
 
 @pytest.fixture
-def restaurant(db):
-    """Create a restaurant in the DB (without menus)."""
-    return Restaurant.objects.create(
-        company_name="Burger Planet",
+def Business(db):
+    """Create a Business in the DB (without menus)."""
+    return Business.objects.create(
+        business_name="Burger Planet",
         bn_number="5678903-209"
     )
 
@@ -30,9 +30,9 @@ def restaurant(db):
 
 @pytest.fixture
 def registered_branch(db):
-    """Create restaurant + register its menus via API."""
-    restaurant = Restaurant.objects.create(
-        company_name="Burger Planet",
+    """Create Business + register its menus via API."""
+    Business = Business.objects.create(
+        business_name="Burger Planet",
         bn_number="5678903-209"
     )
     addresss = Address.objects.create(
@@ -42,7 +42,7 @@ def registered_branch(db):
     branch = Branch.objects.create(
         phone_number = "08140147868",
         name="Ikeja branch",
-        restaurant=restaurant,
+        Business=Business,
         location=addresss
     )
 
@@ -122,3 +122,4 @@ def test_reg_manager(registered_branch):
 
 #     assert data["user"]["username"] == device_id
 #     assert "tokens" in data
+

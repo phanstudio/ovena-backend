@@ -15,7 +15,7 @@ def test_order_create_with_items(registered_restaurant, user1):
 
     branch = registered_restaurant
     menu_item = (
-        branch.restaurant.menus.first()
+        branch.Business.menus.first()
         .categories.first()
         .items.first()
     )
@@ -49,7 +49,7 @@ def test_order_create_with_delivery_coupon(registered_restaurant, user1):
 
     branch = registered_restaurant
     menu_item = (
-        branch.restaurant.menus.first()
+        branch.Business.menus.first()
         .categories.first()
         .items.first()
     )
@@ -59,8 +59,8 @@ def test_order_create_with_delivery_coupon(registered_restaurant, user1):
         code="DELIV-001",
         description="Free delivery",
         coupon_type="delivery",
-        scope="restaurant",
-        restaurant=branch.restaurant,
+        scope="Business",
+        Business=branch.Business,
         discount_type="percent",
         discount_value=0,
         valid_from=now - timedelta(days=1),
@@ -87,3 +87,4 @@ def test_order_create_with_delivery_coupon(registered_restaurant, user1):
     assert order.coupons_id == coupon.id
     coupon.refresh_from_db()
     assert coupon.uses_count == 1
+

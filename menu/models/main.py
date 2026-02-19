@@ -1,6 +1,6 @@
 from django.db import models
 from accounts.models import (
-    Restaurant, Branch, CustomerProfile
+    Business, Branch, CustomerProfile
 )
 
 # for the name and the price where we have the base price and menu system we want ot uae the check for poverrid
@@ -11,28 +11,44 @@ class BaseItem(models.Model):
     Canonical definition of an item (e.g., Coke, Cheese, Burger Patty). Changed to represent the finish product might be revised
     Not sold directly. Always wrapped as MenuItem or Addon.
     """
-    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="base_items")
+    business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name="base_items", null=True, blank=True)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     default_price = models.DecimalField(max_digits=10, decimal_places=2)
     image = models.ImageField(upload_to="base/items/", null=True, blank=True)
 
+    @property
+    def restaurant(self):
+        return self.business
+
+    @restaurant.setter
+    def restaurant(self, value):
+        self.business = value
+
     def __str__(self):
-        return f"{self.restaurant.company_name} - {self.name}"
+        return f"{self.business.business_name} - {self.name}"
     
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["restaurant", "name"], name="unique_name_per_restaurant")
+            models.UniqueConstraint(fields=["business", "name"], name="unique_name_per_business")
         ]
 
 class Menu(models.Model):
-    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="menus")
+    business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name="menus", null=True, blank=True)
     name = models.CharField(max_length=255)  # e.g., "Lunch Menu", "Weekend Specials"
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
 
+    @property
+    def restaurant(self):
+        return self.business
+
+    @restaurant.setter
+    def restaurant(self, value):
+        self.business = value
+
     def __str__(self):
-        return f"{self.restaurant.company_name} - {self.name}"
+        return f"{self.business.business_name} - {self.name}"
 
 class MenuCategory(models.Model):
     menu = models.ForeignKey(Menu, on_delete=models.CASCADE, related_name="categories")

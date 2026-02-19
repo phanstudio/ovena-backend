@@ -1,8 +1,8 @@
 from django.urls import path, include
 from .views import (
-    SendOTPView, VerifyOTPView, UserProfileView, DeleteAccountView, UpdateBranch, Delete2AccountView,
-    OAuthExchangeView, LinkRequestCreate, LinkApprove, RegisterRManager, RegisterCustomer, UpdateCustomer,
-    jwt_views
+    VerifyOTPView, UserProfileView, DeleteAccountView, UpdateBranch, Delete2AccountView,
+    OAuthExchangeView, RegisterRManager, RegisterCustomer, UpdateCustomer,
+    jwt_views, SendEmailOTPView, VerifyEmailOTPView, RegisterRAdmin, SendPhoneOTPView
 )
 
 token_urls = [
@@ -13,17 +13,21 @@ token_urls = [
 ]
 
 urlpatterns = [
-    path("send-otp/", SendOTPView.as_view(), name="send-otp"),
+    path("send-otp/", SendPhoneOTPView.as_view(), name="send-otp"),
     path("verify-otp/", VerifyOTPView.as_view(), name="verify-otp"),
-    path("link-approval/", LinkApprove.as_view(), name="link-approval"),
-    path("link-request/", LinkRequestCreate.as_view(), name="link-request-create"),
-    path("register-manger/", RegisterRManager.as_view(), name="register-rmanager"),
+    # path("link-approval/", LinkApprove.as_view(), name="link-approval"),
+    # path("link-request/", LinkRequestCreate.as_view(), name="link-request-create"),
+    path("register-manager/", RegisterRManager.as_view(), name="register-rmanager"),
+    path("register-admin/", RegisterRAdmin.as_view(), name="register-radmin"),
     path("register-user/", RegisterCustomer.as_view(), name="register-user"),
     path("oauth/exchange/", OAuthExchangeView.as_view(), name="oauth-exchange"),
     path("profile/", UserProfileView.as_view(), name="user-profile"),
     path("customer/update/", UpdateCustomer.as_view(), name="user-update"),
     path("profile/delete/", DeleteAccountView.as_view(), name="user-delete"),
     path("profile/delete2/", Delete2AccountView.as_view(), name="user-delete"),
+
+    path("send-email-otp/", SendEmailOTPView.as_view(), name="send-email-otp"),
+    path("verify-email-otp/", VerifyEmailOTPView.as_view(), name="verify-email-otp"),
 
     path("branches/<int:branch_id>/update/", UpdateBranch.as_view()),
     path("", include(token_urls)),

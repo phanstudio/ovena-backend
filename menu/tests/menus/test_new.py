@@ -13,7 +13,7 @@ def test_restorder_listview(orders_taken, resturant_manager, registered_restaura
     user, *_ = resturant_manager
     client = APIClient()
     client = authenticate(client, user)
-    url = reverse("restaurant-order")
+    url = reverse("Business-order")
 
     response = client.get(url)
     assert response.status_code == 200
@@ -26,7 +26,7 @@ def test_restorder_listview(orders_taken, resturant_manager, registered_restaura
 #     user, *_ = resturant_manager
 #     client = APIClient()
 #     client = authenticate(client, user)
-#     url = reverse("restaurant-order")
+#     url = reverse("Business-order")
 
 #     response = client.post(url, {"action":"accept", "order_id": orders_taken.id})
 #     assert response.status_code == 202
@@ -41,7 +41,7 @@ def test_restorder_listview(orders_taken, resturant_manager, registered_restaura
 #     """Searching by description should return items."""
 #     client = APIClient()
 #     client = subauth(client, linkedstaff)
-#     url = reverse("restaurant-order")
+#     url = reverse("Business-order")
 
 #     response = client.post(url, {"action": "cancle", "order_id": orders_taken.id})  # from cheeseburger description
 #     assert response.status_code == 200
@@ -61,7 +61,7 @@ def subauth(client, linkedstaff):
 
 # @pytest.mark.django_db
 # def test_create_restaurant(registered_restaurant):
-#     assert registered_restaurant.company_name == "Burger Planet"
+#     assert registered_restaurant.business_name == "Burger Planet"
 
 #     # Check menus exist
 #     menus = registered_restaurant.menus.all()
@@ -71,7 +71,7 @@ def subauth(client, linkedstaff):
 # def test_get_menus(registered_restaurant):
 #     client = APIClient()
 
-#     url = reverse("menu-list", kwargs={"restaurant_id": registered_restaurant.pk})
+#     url = reverse("menu-list", kwargs={"business_id": registered_restaurant.pk})
 #     response = client.get(url)
 
 #     assert response.status_code == 200
@@ -81,3 +81,4 @@ def subauth(client, linkedstaff):
 #     assert isinstance(data, list)
 #     assert len(data) == 3
 #     assert any(menu["name"] == "Breakfast Menu" for menu in data)
+

@@ -2,7 +2,7 @@ import pytest
 from rest_framework.test import APIClient
 from django.urls import reverse
 from menu.models import (
-    Restaurant, Menu, MenuCategory, MenuItem, Branch, 
+    Business, Menu, MenuCategory, MenuItem, Branch, 
     MenuItemAddon, MenuItemAddonGroup, VariantGroup, VariantOption
 )
 from accounts.models import Address
@@ -29,19 +29,19 @@ def sample_data(db):
     addons = []
 
     for r in range(1, 3):
-        restaurant = Restaurant.objects.create(company_name=f"Testaurant {r}")
-        restaurants.append(restaurant)
+        Business = Business.objects.create(business_name=f"Testaurant {r}")
+        restaurants.append(Business)
 
-        # Create branches for this restaurant
-        branch1 = Branch.objects.create(restaurant=restaurant, name=f"Ikeja Branch {r}", location=addr1)
-        branch2 = Branch.objects.create(restaurant=restaurant, name=f"Yaba Branch {r}", location=addr2)
+        # Create branches for this Business
+        branch1 = Branch.objects.create(Business=Business, name=f"Ikeja Branch {r}", location=addr1)
+        branch2 = Branch.objects.create(Business=Business, name=f"Yaba Branch {r}", location=addr2)
         branches.extend([branch1, branch2])
 
-        # Create 1 menu per restaurant
+        # Create 1 menu per Business
         menu = Menu.objects.create(
-            restaurant=restaurant,
+            Business=Business,
             name=f"Menu {r}",
-            description=f"Specials for restaurant {r}"
+            description=f"Specials for Business {r}"
         )
         menus.append(menu)
 
@@ -99,20 +99,20 @@ def sample_data(db):
 
 @pytest.mark.django_db
 def test_restaurant_list(api_client, sample_data):
-    url = reverse("restaurant-list")  # depends on your urls.py
+    url = reverse("Business-list")  # depends on your urls.py
     response = api_client.get(url)
 
     assert response.status_code == 200
     data = response.json()
     print(json.dumps(data, indent=2))
     assert len(data) == 1
-    assert data[0]["company_name"] == "Testaurant"
+    assert data[0]["business_name"] == "Testaurant"
     assert data[0]["menus"][0]["name"] == "Lunch Menu"
 
 @pytest.mark.django_db
 def test_menu_list(api_client, sample_data):
-    restaurant_id = sample_data["restaurant"].id
-    url = reverse("menu-list", args=[restaurant_id])
+    business_id = sample_data["Business"].id
+    url = reverse("menu-list", args=[business_id])
     response = api_client.get(url)
 
     assert response.status_code == 200
@@ -129,3 +129,4 @@ def test_search_menu_items(api_client, sample_data):
     data = response.json()
     assert len(data) == 1
     assert data[0]["name"] == "Cheeseburger"
+

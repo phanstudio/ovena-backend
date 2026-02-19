@@ -5,7 +5,7 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 
-from authflow.services import _issue_jwt_for_user
+from authflow.services import issue_jwt_for_user
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -62,7 +62,7 @@ class LogoutView(APIView):
         except Exception:
             return Response({"error": "Invalid token"}, status=400)
 
-class LogInView(APIView):
+class LogInView(APIView): # can work with password
     # permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -72,19 +72,18 @@ class LogInView(APIView):
         if not phone_number and not email:
             return Response({"error": "Phone number or email is required"}, status=400)
 
-
+        user = None
         if phone_number:
             # ✅ Create or get the user
-            user = User.objects.get(
-                phone_number=phone_number,
-            )
+            user = User.objects.filter(phone_number=phone_number).first()
         else:
-            user = User.objects.get(
-                email=email,
-            )
+            user = User.objects.filter(email=email).first()
+      
+        if not user:
+            return Response({"error": f"User does not exist for: {phone_number if phone_number else email}"}, status=400)
 
         # ✅ Issue JWT tokens
-        token = _issue_jwt_for_user(user)
+        token = issue_jwt_for_user(user)
         return Response({
             "message": "User logged in successfully",
             "refresh": token["refresh"],

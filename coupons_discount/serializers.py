@@ -51,7 +51,7 @@ class CouponCreateUpdateSerializer(serializers.ModelSerializer):
             "coupon_type", "category", "item",
             "buy_amount", "get_amount",
             "buy_item", "get_item",
-            "scope", "restaurant",
+            "scope", "business",
             "discount_type", "discount_value",
             "max_uses",
             "valid_from", "valid_until",
@@ -69,15 +69,15 @@ class CouponCreateUpdateSerializer(serializers.ModelSerializer):
         get_item = attrs.get("get_item", getattr(self.instance, "get_item", None))
 
         scope = attrs.get("scope", getattr(self.instance, "scope", None))
-        restaurant = attrs.get("restaurant", getattr(self.instance, "restaurant", None))
+        business = attrs.get("business", getattr(self.instance, "business", None))
         valid_from = attrs.get("valid_from", getattr(self.instance, "valid_from", None))
         valid_until = attrs.get("valid_until", getattr(self.instance, "valid_until", None))
 
         # Scope rules
-        if scope == "restaurant" and not restaurant:
-            raise serializers.ValidationError({"restaurant": "Restaurant is required when scope=restaurant."})
+        if scope == "restaurant" and not business:
+            raise serializers.ValidationError({"business": "Business is required when scope=restaurant."})
         if scope == "global":
-            attrs["restaurant"] = None
+            attrs["business"] = None
 
         # Type-specific rules
         if coupon_type == "categorydiscount" and not category:
@@ -104,13 +104,13 @@ class CouponCreateUpdateSerializer(serializers.ModelSerializer):
         if valid_from and valid_until and valid_until < valid_from:
             raise serializers.ValidationError({"valid_until": "valid_until must be >= valid_from."})
 
-        if coupon_type == "BxGy" and scope == "restaurant" and restaurant:
-            buy_restaurant = getattr(getattr(getattr(buy_item, "category", None), "menu", None), "restaurant", None)
-            get_restaurant = getattr(getattr(getattr(get_item, "category", None), "menu", None), "restaurant", None)
-            if buy_restaurant and buy_restaurant != restaurant:
-                raise serializers.ValidationError({"buy_item": "buy_item must belong to the selected restaurant."})
-            if get_restaurant and get_restaurant != restaurant:
-                raise serializers.ValidationError({"get_item": "get_item must belong to the selected restaurant."})
+        if coupon_type == "BxGy" and scope == "restaurant" and business:
+            buy_business = getattr(getattr(getattr(buy_item, "category", None), "menu", None), "business", None)
+            get_business = getattr(getattr(getattr(get_item, "category", None), "menu", None), "business", None)
+            if buy_business and buy_business != business:
+                raise serializers.ValidationError({"buy_item": "buy_item must belong to the selected business."})
+            if get_business and get_business != business:
+                raise serializers.ValidationError({"get_item": "get_item must belong to the selected business."})
 
         return attrs
 

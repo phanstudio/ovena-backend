@@ -2,7 +2,7 @@
 # import pytest
 # from pathlib import Path
 # from rest_framework.test import APIClient
-# from accounts.models import Restaurant, Address, Branch, User, PrimaryAgent, LinkedStaff, DriverProfile, CustomerProfile
+# from accounts.models import Business, Address, Branch, User, PrimaryAgent, LinkedStaff, DriverProfile, CustomerProfile
 # from addresses.utils.gis_point import make_point
 # from django.urls import reverse
 # from menu.models import Order, OrderItem
@@ -19,16 +19,16 @@
 # # we remove availability only 
 # @pytest.fixture(scope="session")
 # def restaurant_payload():
-#     """Load raw restaurant JSON from file."""
+#     """Load raw Business JSON from file."""
 #     data_path = Path(__file__).parent / "data" / "new2_payload.json"
 #     with data_path.open() as f:
 #         return json.load(f)
 
 # @pytest.fixture
-# def restaurant(db):
-#     """Create a restaurant in the DB (without menus)."""
-#     return Restaurant.objects.create(
-#         company_name="Burger Planet",
+# def Business(db):
+#     """Create a Business in the DB (without menus)."""
+#     return Business.objects.create(
+#         business_name="Burger Planet",
 #         bn_number="5678903-209"
 #     )
 
@@ -39,19 +39,19 @@
 #     return client
 
 # # @pytest.fixture
-# # def registered_restaurant(db, restaurant, restaurant_payload):
-# #     """Create restaurant + register its menus via API."""
+# # def registered_restaurant(db, Business, restaurant_payload):
+# #     """Create Business + register its menus via API."""
 # #     client = APIClient()
 
-# #     # attach the restaurant ID into payload
-# #     # restaurant_payload["restaurant_id"] = restaurant.pk
+# #     # attach the Business ID into payload
+# #     # restaurant_payload["business_id"] = Business.pk
 # #     print("new news2")
 # #     url = reverse("register-menu")
 # #     response = client.post(url, restaurant_payload, format="json")
 # #     print("new news")
 # #     assert response.status_code == 201, response.content
 
-# #     return restaurant  # DB object, now with menus
+# #     return Business  # DB object, now with menus
 
 # @pytest.fixture
 # def registered_restaurant(
@@ -61,7 +61,7 @@
 #     restaurant_payload,
 # ):
 #     """
-#     Create restaurant + register its menus via API
+#     Create Business + register its menus via API
 #     as the authenticated primary agent.
 #     """
 
@@ -75,7 +75,7 @@
 
 #     assert response.status_code == 201, response.content
 
-#     # Return the branch (restaurant) tied to the primary agent
+#     # Return the branch (Business) tied to the primary agent
 #     return registered_branch
 
 
@@ -111,7 +111,7 @@
 # def orders_taken(db, resturant_manager, driverUser, user1):
 #     """Create an order with a menu item attached."""
 #     _, branch, _ = resturant_manager
-#     menu_item = branch.restaurant.menus.first().categories.first().items.first()
+#     menu_item = branch.Business.menus.first().categories.first().items.first()
 
 #     order = Order.objects.create(
 #         driver=driverUser,
@@ -125,8 +125,8 @@
 #     return order
 
 # @pytest.fixture
-# def registered_branch(db, restaurant):
-#     """Create restaurant + register its menus via API."""
+# def registered_branch(db, Business):
+#     """Create Business + register its menus via API."""
 #     addresss = Address.objects.create(
 #         address="10 Downing St",
 #         location=make_point(-0.1278, 51.5074),
@@ -134,7 +134,7 @@
 #     branch = Branch.objects.create(
 #         phone_number = "08140147868",
 #         name="Ikeja branch",
-#         restaurant=restaurant,
+#         Business=Business,
 #         location=addresss
 #     )
 
@@ -173,7 +173,7 @@ from rest_framework.test import APIClient
 from utils import authenticate
 
 from accounts.models import (
-    Restaurant, Address, Branch, User, PrimaryAgent, LinkedStaff,
+    Business, Address, Branch, User, PrimaryAgent, LinkedStaff,
     DriverProfile, CustomerProfile
 )
 from addresses.utils.gis_point import make_point
@@ -183,24 +183,24 @@ from menu.models import Order, OrderItem
 
 @pytest.fixture(scope="session")
 def restaurant_payload():
-    """Load raw restaurant JSON from file."""
+    """Load raw Business JSON from file."""
     data_path = Path(__file__).parent / "data" / "new2_payload.json"
     with data_path.open() as f:
         return json.load(f)
 
 
 @pytest.fixture
-def restaurant(db):
-    """Create a restaurant in the DB (without menus)."""
-    return Restaurant.objects.create(
-        company_name="Burger Planet",
+def Business(db):
+    """Create a Business in the DB (without menus)."""
+    return Business.objects.create(
+        business_name="Burger Planet",
         bn_number="5678903-209"
     )
 
 
 @pytest.fixture
-def registered_branch(db, restaurant):
-    """Create a branch for the restaurant."""
+def registered_branch(db, Business):
+    """Create a branch for the Business."""
     address_obj = Address.objects.create(
         address="10 Downing St",
         location=make_point(-0.1278, 51.5074),  # lon, lat
@@ -209,7 +209,7 @@ def registered_branch(db, restaurant):
     branch = Branch.objects.create(
         # phone_number="08140147868",
         name="Ikeja branch",
-        restaurant=restaurant,
+        Business=Business,
         location=address_obj.location,  # ✅ PointField expects a point, not Address
     )
     return branch
@@ -301,7 +301,7 @@ def orders_taken(db, registered_restaurant, resturant_manager, driverUser, user1
 
     # assuming your register-menu created menus -> categories -> items
     menu_item = (
-        branch.restaurant.menus.first()
+        branch.Business.menus.first()
         .categories.first()
         .items.first()
     )
@@ -326,3 +326,4 @@ def linkedstaff(db, resturant_manager):
         created_by=pa,
     )
     return linked_user
+
