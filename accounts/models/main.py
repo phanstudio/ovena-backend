@@ -133,7 +133,7 @@ class UserManager(BaseUserManager):
 
         user = self.model(phone_number=phone_number, **extra_fields)
 
-        if user.is_staff or user.is_superuser or user.role == "BusinessAdmin":
+        if user.is_staff or user.is_superuser:
             if not password:
                 raise ValueError("Admins must have a password")
             user.set_password(password)

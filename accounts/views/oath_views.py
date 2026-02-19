@@ -80,10 +80,10 @@ class OAuthExchangeView(APIView):
         if user:
             pass # raise error
 
+        print(user, info)
         # send there location
         if info["created"]:
             data = {
-                # "email": info["email"],
                 "long": info["long"],
                 "lat": info["lat"],
                 # "birth_date": "april 2000 22",
