@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from urllib.parse import urlparse
 
 # Check description and name becuase they are set at initail creation of all this, 
 class BaseItemSerializer(serializers.Serializer):
@@ -6,6 +7,18 @@ class BaseItemSerializer(serializers.Serializer):
     description = serializers.CharField(required=False, allow_blank=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2)  # default_price
     image = serializers.CharField(required=False, allow_blank=True)  # canonical
+
+    def validate_image(self, value):
+        if not value:
+            return None
+        parsed = urlparse(value)
+        if parsed.scheme not in ("http", "https"):
+            raise serializers.ValidationError("Image must be a valid http/https URL.")
+        # Optional: restrict to your bucket domain only
+        if "your-bucket.s3.amazonaws.com" not in parsed.netloc \
+           and "cdn.yourdomain.com" not in parsed.netloc:
+            raise serializers.ValidationError("Image URL must point to an approved host.")
+        return value
 
 class VariantOptionSerializer(serializers.Serializer):
     name = serializers.CharField()
