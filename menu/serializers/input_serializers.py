@@ -15,9 +15,9 @@ class BaseItemSerializer(serializers.Serializer):
         if parsed.scheme not in ("http", "https"):
             raise serializers.ValidationError("Image must be a valid http/https URL.")
         # Optional: restrict to your bucket domain only
-        if "your-bucket.s3.amazonaws.com" not in parsed.netloc \
-           and "cdn.yourdomain.com" not in parsed.netloc:
-            raise serializers.ValidationError("Image URL must point to an approved host.")
+        # if "your-bucket.s3.amazonaws.com" not in parsed.netloc \
+        #    and "cdn.yourdomain.com" not in parsed.netloc:
+        #     raise serializers.ValidationError("Image URL must point to an approved host.")
         return value
 
 class VariantOptionSerializer(serializers.Serializer):
