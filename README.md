@@ -10,3 +10,4 @@
 # we can use batch updates for drivers locations:
 ## that way the location is updated at interval we store on every websocket interval and store periodically
 # nice christmas
+nice
