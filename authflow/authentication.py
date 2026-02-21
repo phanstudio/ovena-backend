@@ -126,3 +126,9 @@ class CustomCustomerAuth(CustomJWtAuth):
         return self.user_model.objects.select_related("customer_profile").get(
             **{api_settings.USER_ID_FIELD: user_id}
         )
+
+class CustomBAdminAuth(CustomJWtAuth):
+    def custom_get_user(self, user_id):
+        return self.user_model.objects.select_related("business_admin").get(
+            **{api_settings.USER_ID_FIELD: user_id}
+        )

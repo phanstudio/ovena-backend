@@ -21,11 +21,8 @@ class Business(models.Model):
     email = models.EmailField(blank=True, null=True)
     phone_number = models.CharField(max_length=20, blank=True, default="")
     business_image = models.ImageField(upload_to="business/images/", null=True, blank=True)
-
-    bn_number = models.CharField(max_length=100, blank=True, default="")
-    certification = models.FileField(upload_to="business/certs/", null=True, blank=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
+    onboarding_complete = models.BooleanField(default=False)
 
     def __str__(self):
         return self.business_name
@@ -36,9 +33,10 @@ class Business(models.Model):
 
 class BusinessCerd(models.Model):
     BUSINESS_TYPE_CHOICES = [
-        ("restaurant", "Restaurant"),
-        ("hotel", "Hotel"),
-        ("other", "Other"),
+        ("LLC", "Limited Liability Company"),
+        ("C", "Corporations"),
+        ("P", "Partnerships "),
+        ("SP", "Sole Proprietorships"),
     ]
 
     class DocType(models.TextChoices):
@@ -47,7 +45,7 @@ class BusinessCerd(models.Model):
         ID = "id", "ID Document"
         OTHER = "other", "Other"
     
-    business = models.OneToOneField(Business, on_delete=models.CASCADE, related_name="buiness")
+    business = models.OneToOneField(Business, on_delete=models.CASCADE, related_name="cerd")
     business_type = models.CharField(max_length=120, choices=BUSINESS_TYPE_CHOICES, default="restaurant")
     doc_type = models.CharField(max_length=20, choices=DocType.choices, default=DocType.OTHER)
     business_doc = models.FileField(
@@ -61,6 +59,7 @@ class BusinessCerd(models.Model):
     registered_business_name = models.CharField(max_length=255, null=True, blank=True) # well also remove to another model
     tax_identification_number = models.CharField(max_length=100, null=True, blank=True) # should be the last 4 bdigits for safety
     rc_number = models.CharField(max_length=100, null=True, blank=True)
+    bn_number = models.CharField(max_length=100, blank=True, default="")
 
     def __str__(self):
         return self.registered_business_name
@@ -73,7 +72,8 @@ class BusinessPayoutAccount(models.Model):
     account_name = models.CharField(max_length=120)
 
     # Safer than storing BVN raw:
-    bvn_last4 = models.CharField(max_length=4, null=True, blank=True)
+    # bvn_last4 = models.CharField(max_length=4, null=True, blank=True)
+    bvn = models.CharField(max_length=4, null=True, blank=True)
     bvn_verification_ref = models.CharField(max_length=120, null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -102,6 +102,15 @@ class Branch(gis_models.Model):
     rating_sum = models.IntegerField(default=0)          # total stars
     rating_count = models.PositiveIntegerField(default=0)
     avg_rating = models.FloatField(default=0.0, db_index=True)  # optional but convenient
+
+    # new
+    delivery_method = models.CharField(
+        max_length=20,
+        choices=[("instant", "Instant"), ("scheduled", "Scheduled")],
+        default="instant"
+    )
+    pre_order_open_period = models.TimeField(null=True, blank=True)
+    final_order_time = models.TimeField(null=True, blank=True)
     
     class Meta:
         indexes = [
@@ -118,6 +127,19 @@ class Branch(gis_models.Model):
     @restaurant.setter
     def restaurant(self, value):
         self.business = value
+
+class BranchOperatingHours(models.Model):
+    DAYS = [(i, day) for i, day in enumerate(
+        ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    )]
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="operating_hours")
+    day = models.IntegerField(choices=DAYS)
+    open_time = models.TimeField()
+    close_time = models.TimeField()
+    is_closed = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ("branch", "day")
 
 # Temporary compatibility alias while code and migrations finish moving to Business.
 Restaurant = Business

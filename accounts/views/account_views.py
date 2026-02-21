@@ -1,19 +1,27 @@
 from rest_framework.views import APIView
+from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import status
 from accounts.serializers import (
     CustomerProfileSerializer, DriverProfileSerializer,
     CreateCustomerSerializer, UpdateCustomerSerializer,
-    BuisnessAdminProfileSerializer
+    BuisnessAdminProfileSerializer, PrimaryAgentProfileSerializer
 )
 from accounts.models import(
-    User, Business, Address, Branch, DriverProfile, PrimaryAgent, LinkedStaff, BusinessAdmin
+    User, Business, Branch, DriverProfile, PrimaryAgent, 
+    BusinessAdmin, BusinessPayoutAccount, BranchOperatingHours, BusinessCerd
 )
 from django.db import transaction, IntegrityError
 from authflow.services import create_token, issue_jwt_for_user, verify, OTPInvalidError, request_phone_otp
 from django.contrib.gis.geos import Point
-from authflow.authentication import CustomCustomerAuth
+from authflow.authentication import CustomCustomerAuth, CustomBAdminAuth
+from authflow.permissions import IsBusinessAdmin
+from addresses.utils import checkset_location
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers as s
+
+from ..serializers import InS, OpS
 
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -39,6 +47,12 @@ class UserProfileView(APIView):
                 return Response({"detail": "Business Admin profile not found."}, status=status.HTTP_404_NOT_FOUND)
             serializer = BuisnessAdminProfileSerializer(profile)
             # might add the resturant owners
+        elif user.role == "buisnessstaff":
+            profile = getattr(user, "primary_agent", None)
+            if not profile:
+                return Response({"detail": "Primary Agent profile not found."}, status=status.HTTP_404_NOT_FOUND)
+            serializer = PrimaryAgentProfileSerializer(profile)
+            # might add the resturant owners
         else:
             return Response({"detail": "Invalid role."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -57,90 +71,16 @@ class Delete2AccountView(APIView):
     def delete(self, request):
         user_id = request.data.get("user_id")
         User.objects.filter(id=user_id).delete()
-        return Response({"detail": "User account deleted."}, status=status.HTTP_200_OK)
+        return Response({"detail": "User account deleted."}, status=status.HTTP_204_NO_CONTENT)
 
-class DeleteAccountView(APIView):
+class DeleteAccountView(APIView): # will change to a soft delete
     permission_classes = [IsAuthenticated]
     def delete(self, request):
         user = request.user
         user.delete()
-        return Response({"detail": "User account deleted."}, status=status.HTTP_200_OK)
+        return Response({"detail": "User account deleted."}, status=status.HTTP_204_NO_CONTENT)
 
-# class RegisterResturant(APIView):
-#     def post(self, request):
-#         phone_number = request.data.get("phone_number")
-#         lat = request.data.get("lat")   # ✅ fixed (was swapped in your code)
-#         long = request.data.get("long")
-#         bn_number = request.data.get("bn_number")
-#         company_name = request.data.get("company_name")
-#         branch_name = request.data.get("branch_name") or "main"
 
-#         try:
-#             with transaction.atomic():
-#                 # Create address
-#                 location = Address.objects.create(
-#                     address="unknown",
-#                     location=Point(long, lat, srid=4326)
-#                 )
-#                 business = Business.objects.create(
-#                     # certification=certification,
-#                     bn_number=bn_number,
-#                     business_name=company_name,
-#                     business_type="restaurant",
-#                     phone_number=phone_number or "",
-#                 )
-#                 Branch.objects.create(
-#                     business=business,
-#                     address=getattr(location, "address", "unknown"),
-#                     location=getattr(location, "location", None),
-#                     name=branch_name
-#                 )
-
-#             return Response({"detail": "successful"}, status=status.HTTP_201_CREATED)
-
-#         except Exception as e:
-#             return Response(
-#                 {"detail": f"registration failed: {str(e)}"},
-#                 status=status.HTTP_400_BAD_REQUEST,
-#             )
-
-class RegisterResturant(APIView):
-    def post(self, request):
-        phone_number = request.data.get("phone_number")
-        lat = request.data.get("lat")   # ✅ fixed (was swapped in your code)
-        long = request.data.get("long")
-        bn_number = request.data.get("bn_number")
-        company_name = request.data.get("company_name")
-        branch_name = request.data.get("branch_name") or "main"
-
-        try:
-            with transaction.atomic():
-                # Create address
-                location = Address.objects.create(
-                    address="unknown",
-                    location=Point(long, lat, srid=4326)
-                )
-                business = Business.objects.create(
-                    # certification=certification,
-                    bn_number=bn_number,
-                    business_name=company_name,
-                    business_type="restaurant",
-                    phone_number=phone_number or "",
-                )
-                Branch.objects.create(
-                    business=business,
-                    address=getattr(location, "address", "unknown"),
-                    location=getattr(location, "location", None),
-                    name=branch_name
-                )
-
-            return Response({"detail": "successful"}, status=status.HTTP_201_CREATED)
-
-        except Exception as e:
-            return Response(
-                {"detail": f"registration failed: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
 
 class UpdateBranch(APIView):
@@ -285,57 +225,6 @@ class RegisterRManager(APIView):
 
 # add transfer of ownershp later
 
-class RegisterRAdmin(APIView):
-    permission_classes = []
-
-    def post(self, request): # verify otp
-        fullname = request.data.get("full_name")
-        phone_number = request.data.get("phone_number")
-        # country = request.data.get("country")
-        # business_address = 
-        otp_code = request.data.get("otp_code")
-
-        if not phone_number or not otp_code or not fullname:
-            return Response({"error": "Phone number, OTP and Full Name are required;\
-                              full_name:full_name, phone_number:phone_number, \
-                             otp_code:otp_code"}, status=status.HTTP_400_BAD_REQUEST)
-
-        identifier = ""
-        try:
-            identifier = verify(otp_code, phone_number)
-        except OTPInvalidError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)        
-
-        try:
-            with transaction.atomic():
-                user = User.objects.create(name=fullname, phone_number=identifier, role="BusinessAdmin")
-                # business = Business.objects.create(country=country, )
-                # BusinessAdmin.objects.create(user=user, business=business)
-
-        except IntegrityError as e:
-            # Handle specific uniqueness violations
-            if "unique" in str(e).lower():
-                return Response(
-                    {"error": "Username or phonenumber already taken"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            # return Response(
-            #     {"error": "Branch not found or was removed during creation"},
-            #     status=status.HTTP_400_BAD_REQUEST,
-            # )
-
-        # main_token = create_token(user, role="main", expires_in=3600)
-
-        # ✅ Issue JWT tokens
-        token = issue_jwt_for_user(user)
-        return Response({
-            "message": "User registered successfully",
-            "refresh": token["refresh"],
-            "access": token["access"],
-            "user": {"id": user.id, "name": user.name},
-        }, status=status.HTTP_201_CREATED)
-
-
 
 # regular register
 class RegisterDrivers(APIView): # what is the flow for drivers
@@ -441,3 +330,366 @@ class UpdateCustomer(APIView):
         )
 
 
+@extend_schema(
+    responses=OpS.RegisterBAdminResponseSerializer
+)
+class RegisterBAdmin(GenericAPIView):
+    serializer_class = InS.RegisterBAdminSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        try:
+            identifier = verify(vd["otp_code"], vd["phone_number"])
+        except OTPInvalidError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.create(
+                name=vd["full_name"],
+                phone_number=identifier,
+                role="businessadmin"
+            )
+        except IntegrityError as e:
+            if "unique" in str(e).lower():
+                return Response(
+                    {"error": "Username or phonenumber already taken"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        token = issue_jwt_for_user(user)
+
+        response_data = OpS.RegisterBAdminResponseSerializer({
+            "message": "User registered successfully",
+            "refresh": token["refresh"],
+            "access": token["access"],
+            "user": {"id": user.id, "name": user.name},
+        })
+        return Response(response_data.data, status=status.HTTP_201_CREATED)
+
+@extend_schema(
+    responses={201: inline_serializer("Phase2Response", fields={
+        "details": s.CharField(),
+        "business_id": s.CharField(),
+    })}
+)
+class RestaurantPhase1RegisterView(GenericAPIView):
+    """
+    Phase 1: Initial restaurant + admin user registration.
+    Creates: Business (bare), User (restaurantadmin role), BusinessAdmin link.
+    No auth required — this is signup.
+    """
+    permission_classes = [IsBusinessAdmin]
+    serializer_class = InS.RestaurantPhase1Serializer
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        user = request.user
+
+        with transaction.atomic():
+            # Create the restaurant shell
+            restaurant = Business.objects.create(
+                business_name=vd["business_name"],
+                business_type=vd["business_type"],
+                country=vd["country"],
+                business_address=vd["business_address"],
+                email=vd["email"],
+                phone_number=vd["phone_number"],
+            )
+            BusinessCerd.objects.create(business=restaurant)
+            user.set_password(vd["password"])
+            user.save()
+
+            # Link admin to restaurant
+            BusinessAdmin.objects.create(business=restaurant, user=user)
+
+        return Response(
+            {"detail": "Business registered. Proceed to onboarding.", "business_id": restaurant.id},
+            status=status.HTTP_201_CREATED,
+        )
+
+@extend_schema(
+    responses={200: inline_serializer("Phase1Response", fields={
+        "details": s.CharField(),
+    })}
+)
+class RestaurantPhase2OnboardingView(GenericAPIView):
+    """
+    Phase 2: Full business details — documents, image, payment, operations, branches.
+    Requires the admin to be authenticated.
+    """
+    authentication_classes = [CustomBAdminAuth]
+    permission_classes = [IsBusinessAdmin]
+    serializer_class = InS.RestaurantPhase2Serializer
+    def post(self, request):
+        user = request.user
+
+        try:
+            admin = user.business_admin
+        except BusinessAdmin.DoesNotExist:
+            return Response({"detail": "Not a restaurant admin."}, status=status.HTTP_403_FORBIDDEN)
+
+        restaurant:Business = admin.business
+        restaurant_cerds = admin.business.cerd
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        with transaction.atomic():
+            # Update restaurant details
+            restaurant_cerds.registered_business_name = vd.get("registered_business_name", restaurant.business_name)
+            restaurant_cerds.bn_number = vd.get("bn_number", "")
+            restaurant_cerds.rc_number = vd.get("rc_number", "")
+            restaurant_cerds.tax_identification_number = vd.get("tax_identification_number", "")
+            restaurant_cerds.business_type = vd.get("business_type", restaurant.business_type)
+            restaurant_cerds.doc_type = vd.get("doc_type", "")
+
+            if "business_image" in request.FILES:
+                restaurant.business_image = request.FILES["business_image"]
+            if "business_documents" in request.FILES:
+                restaurant_cerds.business_doc = request.FILES["business_documents"]
+            
+            restaurant.onboarding_complete = True
+            restaurant_cerds.save()
+            restaurant.save()
+
+            # Payment info
+            payment_data = vd.get("payment", {})
+            if payment_data:
+                BusinessPayoutAccount.objects.update_or_create(
+                    business=restaurant,
+                    defaults={
+                        "bank_name": payment_data["bank"],
+                        "account_number": payment_data["account_number"],
+                        "account_name": payment_data["account_name"],
+                        "bvn": payment_data["bvn"][-4:],
+                    },
+                )
+            
+            # Branches + operating hours
+            branches_data = vd.get("branches", [])
+            for branch_data in branches_data:
+                branch = Branch.objects.create(
+                    business=restaurant,
+                    name=branch_data["name"],
+                    address=branch_data.get("address", "unknown"),
+                    location=checkset_location(branch_data),
+                    delivery_method=branch_data.get("delivery_method", "instant"),
+                    pre_order_open_period=branch_data.get("pre_order_open_period"),
+                    final_order_time=branch_data.get("final_order_time"),
+                )
+
+                hours_data = branch_data.get("operating_hours", [])
+                BranchOperatingHours.objects.bulk_create([
+                    BranchOperatingHours(
+                        branch=branch,
+                        day=h["day"],
+                        open_time=h["open_time"],
+                        close_time=h["close_time"],
+                        is_closed=h.get("is_closed", False),
+                    )
+                    for h in hours_data
+                ])
+
+        return Response({"detail": "Onboarding complete."}, status=status.HTTP_200_OK)
+
+
+# read 
+class BranchOperatingHoursView(APIView):
+    """
+    GET/PUT operating hours for a specific branch.
+    Useful for editing hours after onboarding.
+    """
+    authentication_classes = [CustomBAdminAuth]
+    permission_classes = [IsBusinessAdmin]
+    def get(self, request, branch_id):
+        user = request.user
+        try:
+            admin = user.business_admin
+        except BusinessAdmin.DoesNotExist:
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+        branch = Branch.objects.filter(id=branch_id, restaurant=admin.business).first()
+        if not branch:
+            return Response({"detail": "Branch not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        hours = BranchOperatingHours.objects.filter(branch=branch).order_by("day")
+        serializer = InS.BranchOperatingHoursSerializer(hours, many=True)
+        return Response(serializer.data)
+
+    def put(self, request, branch_id):
+        user = request.user
+        try:
+            admin = user.business_admin
+        except BusinessAdmin.DoesNotExist:
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+        branch = Branch.objects.filter(id=branch_id, restaurant=admin.business).first()
+        if not branch:
+            return Response({"detail": "Branch not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = InS.BranchOperatingHoursSerializer(data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            BranchOperatingHours.objects.filter(branch=branch).delete()
+            BranchOperatingHours.objects.bulk_create([
+                BranchOperatingHours(branch=branch, **h)
+                for h in serializer.validated_data
+            ])
+
+        return Response({"detail": "Operating hours updated."})
+
+
+class RestaurantPaymentView(APIView):
+    """
+    GET/PUT payment details for the restaurant.
+    """
+    authentication_classes = [CustomBAdminAuth]
+    permission_classes = [IsBusinessAdmin]
+    def get(self, request):
+        user = request.user
+        try:
+            admin = user.business_admin
+        except BusinessAdmin.DoesNotExist:
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            payment = admin.business.payment
+        except BusinessPayoutAccount.DoesNotExist:
+            return Response({"detail": "No payment info set."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = InS.RestaurantPaymentSerializer(payment)
+        return Response(serializer.data)
+
+    def put(self, request):
+        user = request.user
+        try:
+            admin = user.business_admin
+        except BusinessAdmin.DoesNotExist:
+            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = InS.RestaurantPaymentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        BusinessPayoutAccount.objects.update_or_create(
+            restaurant=admin.business,
+            defaults={
+                "bank_name": vd["bank"],
+                "account_number": vd["account_number"],
+                "account_name": vd["account_name"],
+                "bvn": vd["bvn"],
+            },
+        )
+        return Response({"detail": "Payment info updated."})
+
+
+# from django.contrib.auth.hashers import check_password
+
+# class DriverLoginView(APIView):
+#     permission_classes = [AllowAny]
+
+#     def post(self, request):
+#         phone_number = request.data.get("phone_number")
+#         password = request.data.get("password")
+
+#         if not phone_number or not password:
+#             return Response(
+#                 {"error": "Phone number and password are required"},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         user = User.objects.filter(
+#             phone_number=phone_number,
+#             role="driver"
+#         ).first()
+
+#         if not user or not user.check_password(password):
+#             return Response(
+#                 {"error": "Invalid credentials"},
+#                 status=status.HTTP_401_UNAUTHORIZED
+#             )
+
+#         # optional but recommended
+#         if not getattr(user.driver_profile, "is_approved", False):
+#             return Response(
+#                 {"error": "Account pending approval"},
+#                 status=status.HTTP_403_FORBIDDEN
+#             )
+
+#         token = issue_jwt_for_user(user)
+#         return Response({
+#             "message": "Logged in successfully",
+#             "access": token["access"],
+#             "refresh": token["refresh"],
+#         })
+
+
+# class AdminLoginView(APIView):
+#     permission_classes = [AllowAny]
+
+#     def post(self, request):
+#         phone_number = request.data.get("phone_number")
+#         password = request.data.get("password")
+
+#         if not phone_number or not password:
+#             return Response(
+#                 {"error": "Phone number and password are required"},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         user = User.objects.filter(
+#             phone_number=phone_number,
+#             role="businessadmin"
+#         ).first()
+
+#         if not user or not user.check_password(password):
+#             return Response(
+#                 {"error": "Invalid credentials"},
+#                 status=status.HTTP_401_UNAUTHORIZED
+#             )
+
+#         token = issue_jwt_for_user(user)
+#         return Response({
+#             "message": "Logged in successfully",
+#             "access": token["access"],
+#             "refresh": token["refresh"],
+#         })
+
+
+# class PasswordResetView(APIView):
+#     permission_classes = [AllowAny]
+
+#     def post(self, request):
+#         phone_number = request.data.get("phone_number")
+#         otp_code = request.data.get("otp_code")
+#         new_password = request.data.get("new_password")
+
+#         if not all([phone_number, otp_code, new_password]):
+#             return Response({"error": "All fields required"}, status=400)
+
+#         try:
+#             identifier = verify(otp_code, phone_number)
+#         except OTPInvalidError as e:
+#             return Response({"error": str(e)}, status=400)
+
+#         user = User.objects.filter(phone_number=identifier).first()
+#         if not user:
+#             return Response({"error": "User not found"}, status=404)
+
+#         user.set_password(new_password)
+#         user.save(update_fields=["password"])
+
+#         # force re-login on all devices
+#         # if you store a token version on the user model you can invalidate all JWTs
+#         # simplest approach: tell frontend to discard tokens and re-login
+
+#         return Response({"message": "Password updated successfully"})
+    

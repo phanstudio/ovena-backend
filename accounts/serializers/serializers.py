@@ -4,13 +4,14 @@ from google.oauth2 import id_token
 from google.auth.transport import requests
 from django.conf import settings
 from rest_framework import serializers
-from .models import (
+from ..models import (
     CustomerProfile,
     DriverProfile,
     Business,
     User,
     Address,
-    BusinessAdmin
+    BusinessAdmin,
+    PrimaryAgent
 )
 
 class CustomerProfileSerializer(serializers.ModelSerializer):
@@ -21,7 +22,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
         fields = [
             "id", 
             "default_address", "addresses",
-            "birth_date", "age"
+            "birth_date", "age", "referral_code"
         ]
 
 class DriverProfileSerializer(serializers.ModelSerializer):
@@ -34,6 +35,13 @@ class DriverProfileSerializer(serializers.ModelSerializer):
 class BuisnessAdminProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessAdmin
+        fields = [
+            "id"
+        ]
+
+class PrimaryAgentProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PrimaryAgent
         fields = ["id", 
             #   "nin", "driver_license", "plate_number", "vehicle_type", "photo"
         ]
@@ -313,4 +321,6 @@ class GoogleAuthSerializer(serializers.Serializer):
         data['sub'] = info['sub']
         data['info'] = info
         return data
+
+
 

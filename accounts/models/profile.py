@@ -130,7 +130,7 @@ class DriverCred(models.Model): # does the referral system work with drivers
     photo = models.ImageField(upload_to="drivers/photos/")
 
 class PrimaryAgent(models.Model): # only one primary users, so the branch should be a one to one
-    branch = models.OneToOneField(Branch, on_delete=models.CASCADE) # related_name="primary"
+    branch = models.OneToOneField(Branch, on_delete=models.CASCADE, related_name="primary_agent")
     user = models.OneToOneField(User, on_delete=models.CASCADE)
 
     def __str__(self):

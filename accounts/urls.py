@@ -2,8 +2,10 @@ from django.urls import path, include
 from .views import (
     VerifyOTPView, UserProfileView, DeleteAccountView, UpdateBranch, Delete2AccountView,
     OAuthExchangeView, RegisterRManager, RegisterCustomer, UpdateCustomer,
-    jwt_views, SendEmailOTPView, VerifyEmailOTPView, RegisterRAdmin, SendPhoneOTPView
+    jwt_views, SendEmailOTPView, VerifyEmailOTPView, RegisterBAdmin, SendPhoneOTPView,
+    RestaurantPhase2OnboardingView, RestaurantPhase1RegisterView
 )
+from menu.views import RegisterMenusPhase3View
 
 token_urls = [
     path("rotate-token/", jwt_views.RotateTokenView.as_view(), name="rotate-token"),
@@ -12,13 +14,20 @@ token_urls = [
     path("login/", jwt_views.LogInView.as_view(), name="login"),
 ]
 
+onboarding_urls = [
+    # make sure you send otp before
+    path("admin/", RegisterBAdmin.as_view(), name="register-businessadmin"),
+    path("phase1/", RestaurantPhase1RegisterView.as_view(), name="register-phase1"),
+    path("phase2/", RestaurantPhase2OnboardingView.as_view(), name="register-phase2"),
+    path("phase3/", RegisterMenusPhase3View.as_view(), name="register-menus-ob"),
+]
+
 urlpatterns = [
     path("send-otp/", SendPhoneOTPView.as_view(), name="send-otp"),
     path("verify-otp/", VerifyOTPView.as_view(), name="verify-otp"),
     # path("link-approval/", LinkApprove.as_view(), name="link-approval"),
     # path("link-request/", LinkRequestCreate.as_view(), name="link-request-create"),
     path("register-manager/", RegisterRManager.as_view(), name="register-rmanager"),
-    path("register-admin/", RegisterRAdmin.as_view(), name="register-radmin"),
     path("register-user/", RegisterCustomer.as_view(), name="register-user"),
     path("oauth/exchange/", OAuthExchangeView.as_view(), name="oauth-exchange"),
     path("profile/", UserProfileView.as_view(), name="user-profile"),
@@ -31,4 +40,5 @@ urlpatterns = [
 
     path("branches/<int:branch_id>/update/", UpdateBranch.as_view()),
     path("", include(token_urls)),
+    path("onboard/", include(onboarding_urls)),
 ]

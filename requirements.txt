@@ -43,6 +43,7 @@ google-auth
 django-anymail[amazon-ses]
 django-storages[boto3] 
 boto3
+pycountry
 
 # new
 watchdog>=4.0

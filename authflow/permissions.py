@@ -23,3 +23,16 @@ class ReadScopePermission(ScopePermission):
             request.method in permissions.SAFE_METHODS and 
             self.check_scope(self.get_scopes(request), {"read"})
         )
+
+
+class IsCustomer(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role == "customer"
+
+class IsDriver(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role == "driver"
+
+class IsBusinessAdmin(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role == "businessadmin"
