@@ -13,6 +13,7 @@ services:
         condition: service_healthy
     volumes:
       - .:/app   # mount your local project into /app in the container
+      # - ./entrypoint.sh:/app/entrypoint.sh  # explicit re-mount
     environment:
       DJANGO_SETTINGS_MODULE: core.settings
       DJANGO_AUTORELOAD_ENV: watchdog
@@ -26,6 +27,7 @@ services:
       - redis
     volumes:
       - .:/app
+      # - ./entrypoint.sh:/app/entrypoint.sh  # explicit re-mount
     environment:
       DJANGO_SETTINGS_MODULE: core.settings
       PYTHONUNBUFFERED: "1"
