@@ -38,18 +38,21 @@ django-environ
 pytest-factoryboy 
 factory_boy
 paystackapi
+
+# new
+watchdog>=4.0
 whitenoise
 google-auth
 django-anymail[amazon-ses]
 django-storages[boto3] 
 boto3
 pycountry
+python-ulid
 
-# new
-watchdog>=4.0
 # drf-spectacular[sidecar]
 drf-spectacular 
 drf-spectacular-sidecar
+
 
 # moitoring
 django-prometheus
