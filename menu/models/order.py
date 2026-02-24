@@ -122,9 +122,6 @@ class OrderItem(models.Model):
     def save(self, *args, **kwargs): # validate coupons in views # breaks if no menu avalibility
         # Only calculate when creating a new record
         if not self.pk:
-            # self.price = #self.menu_availability.effective_price
-            # self.added_total = self.calculate_addon_price()
-            # self.line_total = (self.price + self.added_total)* self.quantity
             ...
         super().save(*args, **kwargs)
 

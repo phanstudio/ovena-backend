@@ -29,10 +29,10 @@ ENV GDAL_LIBRARY_PATH=/usr/lib/libgdal.so \
 COPY entrypoint.sh /app/entrypoint.sh
 
 # Make it executable
-RUN chmod +x /app/entrypoint.sh
-# RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+# RUN chmod +x /app/entrypoint.sh
+RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
-# ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]
 
 # ---- Default CMD: run Gunicorn ----
 # CMD ["gunicorn", "-b", "0.0.0.0:8000", "core.wsgi:application", "--workers=4", "--threads=2", "--timeout=120"]

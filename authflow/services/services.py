@@ -4,8 +4,6 @@ from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.models import User
 import time
-from django.core.cache import cache
-from accounts.utils.otp import generate_otp
 from django.utils import timezone
 import secrets
 import hashlib
@@ -45,28 +43,12 @@ def make_sub_token(user_id, device_id="dyukljhgf4567890", scopes=None, expires_i
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
-
 def issue_jwt_for_user(user: User):
     refresh = RefreshToken.for_user(user)
     return {
         "access": str(refresh.access_token),
         "refresh": str(refresh),
     }
-
-def send_otp(user_id):
-    unverified_id = ratelimit_id(user_id)
-    return send_main_otp(unverified_id)
-
-def verify_otp(otp_code): # very non forgiving and an attempt limit later for wrong inputs
-    otp_key = f"otp_lookup:{otp_code}"
-    print(otp_key)
-    verified_id = cache.get(otp_key)
-    print(verified_id)
-    if not verified_id:
-        return None  # invalid or expired
-
-    # cache.delete(otp_key)  # one-time use
-    return verified_id
 
 def start_time() -> float:
     start = time.perf_counter()
@@ -99,47 +81,6 @@ def generate_referral_code(length=8):
     alphabet = string.ascii_uppercase + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
-def send_email(email):
-    unverified_id = ratelimit_id(email)
-    if isinstance(unverified_id, dict):
-        return {"error": unverified_id['error']}
-
-    otp = send_main_otp(unverified_id)
-    if isinstance(otp, dict):
-        return {"error": otp['error']}
-    accepted = send_otp_email(unverified_id, otp)
-    return {"accepted": accepted}
-
-def ratelimit_id(unverified_id):
-    now = int(time.time())
-
-    # Rate limiting by user
-    rate_key = f"otp_rate:{unverified_id}"
-    attempts = cache.get(rate_key, [])
-    attempts = [t for t in attempts if now - t < settings.RATE_LIMIT_WINDOW]
-
-    if len(attempts) >= settings.MAX_OTP_SENDS:
-        return {"error": "Rate limit exceeded. Try again later."}
-
-    attempts.append(now)
-    cache.set(rate_key, attempts, timeout=settings.RATE_LIMIT_WINDOW)
-
-    return unverified_id
-
-def send_main_otp(unverified_id):
-    # Generate OTP and ensure uniqueness
-    for _ in range(5):  # try up to 5 times to avoid infinite loop
-        otp = generate_otp()
-        otp_key = f"otp_lookup:{otp}"
-        print(otp_key)
-        if not cache.get(otp_key):
-            cache.set(otp_key, unverified_id, timeout=settings.OTP_EXPIRY)
-            print(9)
-            break
-    else:
-        return {"error": "Could not generate unique OTP, try again."}
-
-    return otp
 
 def send_otp_email(email: str, code: str, minutes_valid: int = 5) -> int:
     expires_at = timezone.now() + timedelta(minutes=minutes_valid)

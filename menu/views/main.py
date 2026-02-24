@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.generics import GenericAPIView
-from ..serializers import ouput_serializers  as otS
+from ..serializers import OpS
 from ..models import (
     Menu, MenuItem,
     Business, Branch, BaseItemAvailability, Order,
@@ -31,7 +31,7 @@ class RestaurantView(APIView):
             "menus__categories__items__addon_groups__addons",
             "menus__categories__items__branch_availabilities",
         )
-        serializer = otS.BusinessSerializer(businesses, many=True)
+        serializer = OpS.BusinessSerializer(businesses, many=True)
         return Response(serializer.data)
 
 class TopBranchesView(APIView):
@@ -43,14 +43,14 @@ class TopBranchesView(APIView):
         ).filter(
             rating_count__gt=0
         ).order_by('-avg_rating', '-rating_count')[:10]
-        serializer = otS.TopBranchSerilazer(top_branches, many=True)
+        serializer = OpS.TopBranchSerilazer(top_branches, many=True)
         return Response({'data': serializer.data})
 
 class MenuView(APIView):
     def get(self, request, business_id):
         menus = Menu.objects.filter(business_id=business_id)\
                             .prefetch_related("categories__items")
-        serializer = otS.MenuSerializer(menus, many=True)
+        serializer = OpS.MenuSerializer(menus, many=True)
         return Response(serializer.data)
 
 # how to test searching 
@@ -64,7 +64,7 @@ class SearchMenuItems(APIView):# the search should show the restorunt the menu i
             Q(category__menu__business__business_name__icontains=query)
         ).select_related("category__menu__business")
 
-        serializer = otS.MenuItemSerializer(items, many=True)
+        serializer = OpS.MenuItemSerializer(items, many=True)
         return Response(serializer.data)
 
 # # we need to be able to get the a list of the menus, and the resturants, 
@@ -118,7 +118,7 @@ class HomePageView(APIView):
         branch_ids = [r.nearest_branch_id for r in businesses]
         branches_by_id = Branch.objects.in_bulk(branch_ids)
 
-        serializer = otS.BusinessSerializer(
+        serializer = OpS.BusinessSerializer(
             businesses,
             many=True,
             context={
@@ -145,7 +145,7 @@ class HomePageView(APIView):
             .order_by("-last_order_at")[:10]
         )
 
-        recent_serializer = otS.BusinessSerializer(
+        recent_serializer = OpS.BusinessSerializer(
             recent_businesses,
             many=True,
         )
@@ -164,7 +164,7 @@ class HomePageView(APIView):
             .order_by("-top_branch_sum", "-top_branch_count", "id")
         )
 
-        top_serializer = otS.BusinessSerializer(
+        top_serializer = OpS.BusinessSerializer(
             top_businesses,
             many=True,
         )

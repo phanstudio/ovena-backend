@@ -18,10 +18,10 @@ from django.contrib.gis.geos import Point
 from authflow.authentication import CustomCustomerAuth, CustomBAdminAuth
 from authflow.permissions import IsBusinessAdmin
 from addresses.utils import checkset_location
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.utils import extend_schema, inline_serializer # type: ignore
 from rest_framework import serializers as s
 
-from ..serializers import InS, OpS
+from accounts.serializers import InS, OpS
 
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -76,12 +76,11 @@ class Delete2AccountView(APIView):
 class DeleteAccountView(APIView): # will change to a soft delete
     permission_classes = [IsAuthenticated]
     def delete(self, request):
-        user = request.user
+        user:User = request.user
+        print(user.email)
         user.delete()
+        print(user.email)
         return Response({"detail": "User account deleted."}, status=status.HTTP_204_NO_CONTENT)
-
-
-
 
 class UpdateBranch(APIView):
     def patch(self, request, branch_id):
@@ -553,6 +552,7 @@ class RestaurantPaymentView(APIView):
     """
     authentication_classes = [CustomBAdminAuth]
     permission_classes = [IsBusinessAdmin]
+
     def get(self, request):
         user = request.user
         try:
@@ -591,105 +591,119 @@ class RestaurantPaymentView(APIView):
         return Response({"detail": "Payment info updated."})
 
 
-# from django.contrib.auth.hashers import check_password
+# Login views
+@extend_schema(
+    responses={
+        200: inline_serializer("DriverLoginResponse", fields={
+            "message": s.CharField(),
+            "access": s.CharField(),
+            "refresh": s.CharField(),
+        })
+    }
+)
+class DriverLoginView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = InS.DriverLoginSerializer
 
-# class DriverLoginView(APIView):
-#     permission_classes = [AllowAny]
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
 
-#     def post(self, request):
-#         phone_number = request.data.get("phone_number")
-#         password = request.data.get("password")
+        user = User.objects.filter(
+            phone_number=vd["phone_number"],
+            role="driver"
+        ).first()
+        
+        driver_profile = getattr(user, "driver_profile", None)
+        if not driver_profile:
+            return Response(
+                {"error": "Driver profile missing"},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
-#         if not phone_number or not password:
-#             return Response(
-#                 {"error": "Phone number and password are required"},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
+        if not driver_profile.is_approved:
+            return Response(
+                {"error": "Account pending approval"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        if not user or not user.check_password(vd["password"]):
+            return Response(
+                {"error": "Invalid credentials"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
-#         user = User.objects.filter(
-#             phone_number=phone_number,
-#             role="driver"
-#         ).first()
+        token = issue_jwt_for_user(user)
+        return Response({
+            "message": "Logged in successfully",
+            "access": token["access"],
+            "refresh": token["refresh"],
+        })
 
-#         if not user or not user.check_password(password):
-#             return Response(
-#                 {"error": "Invalid credentials"},
-#                 status=status.HTTP_401_UNAUTHORIZED
-#             )
+@extend_schema(
+    responses={
+        200: inline_serializer("AdminLoginResponse", fields={
+            "message": s.CharField(),
+            "access": s.CharField(),
+            "refresh": s.CharField(),
+        })
+    }
+)
+class AdminLoginView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = InS.AdminLoginSerializer
 
-#         # optional but recommended
-#         if not getattr(user.driver_profile, "is_approved", False):
-#             return Response(
-#                 {"error": "Account pending approval"},
-#                 status=status.HTTP_403_FORBIDDEN
-#             )
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
 
-#         token = issue_jwt_for_user(user)
-#         return Response({
-#             "message": "Logged in successfully",
-#             "access": token["access"],
-#             "refresh": token["refresh"],
-#         })
+        user = User.objects.filter(
+            phone_number=vd["phone_number"],
+            role="businessadmin"
+        ).first()
+        if not user or not user.check_password(vd["password"]):
+            return Response(
+                {"error": "Invalid credentials"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
+        token = issue_jwt_for_user(user)
+        return Response({
+            "message": "Logged in successfully",
+            "access": token["access"],
+            "refresh": token["refresh"],
+        })
 
-# class AdminLoginView(APIView):
-#     permission_classes = [AllowAny]
+@extend_schema(
+    responses={200: inline_serializer("PasswordResetResponse", fields={
+        "message": s.CharField(),
+    })}
+)
+class PasswordResetView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = InS.PasswordResetSerializer
 
-#     def post(self, request):
-#         phone_number = request.data.get("phone_number")
-#         password = request.data.get("password")
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
 
-#         if not phone_number or not password:
-#             return Response(
-#                 {"error": "Phone number and password are required"},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
+        try:
+            identifier = verify(vd["otp_code"], vd["phone_number"])
+        except OTPInvalidError as e:
+            return Response({"error": str(e)}, status=400)
 
-#         user = User.objects.filter(
-#             phone_number=phone_number,
-#             role="businessadmin"
-#         ).first()
+        user = User.objects.filter(phone_number=identifier).first()
+        if not user:
+            return Response({"error": "User not found"}, status=404)
 
-#         if not user or not user.check_password(password):
-#             return Response(
-#                 {"error": "Invalid credentials"},
-#                 status=status.HTTP_401_UNAUTHORIZED
-#             )
+        user.set_password(vd["new_password"])
+        user.save(update_fields=["password"])
 
-#         token = issue_jwt_for_user(user)
-#         return Response({
-#             "message": "Logged in successfully",
-#             "access": token["access"],
-#             "refresh": token["refresh"],
-#         })
+        # force re-login on all devices
+        # if you store a token version on the user model you can invalidate all JWTs
+        # simplest approach: tell frontend to discard tokens and re-login
 
-
-# class PasswordResetView(APIView):
-#     permission_classes = [AllowAny]
-
-#     def post(self, request):
-#         phone_number = request.data.get("phone_number")
-#         otp_code = request.data.get("otp_code")
-#         new_password = request.data.get("new_password")
-
-#         if not all([phone_number, otp_code, new_password]):
-#             return Response({"error": "All fields required"}, status=400)
-
-#         try:
-#             identifier = verify(otp_code, phone_number)
-#         except OTPInvalidError as e:
-#             return Response({"error": str(e)}, status=400)
-
-#         user = User.objects.filter(phone_number=identifier).first()
-#         if not user:
-#             return Response({"error": "User not found"}, status=404)
-
-#         user.set_password(new_password)
-#         user.save(update_fields=["password"])
-
-#         # force re-login on all devices
-#         # if you store a token version on the user model you can invalidate all JWTs
-#         # simplest approach: tell frontend to discard tokens and re-login
-
-#         return Response({"message": "Password updated successfully"})
-    
+        return Response({"message": "Password updated successfully"})

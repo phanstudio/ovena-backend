@@ -22,7 +22,7 @@ class Business(models.Model):
     phone_number = models.CharField(max_length=20, blank=True, default="")
     business_image = models.ImageField(upload_to="business/images/", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    onboarding_complete = models.BooleanField(default=False)
+    onboarding_complete = models.BooleanField(default=False) # if this is not true then the resturant doesn't get shown
 
     def __str__(self):
         return self.business_name

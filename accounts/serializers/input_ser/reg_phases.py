@@ -1,5 +1,5 @@
 from rest_framework import serializers
-import pycountry
+import pycountry # type: ignore
     
 class RestaurantPhase1Serializer(serializers.Serializer):
     business_name = serializers.CharField(max_length=255)

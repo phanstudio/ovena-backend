@@ -158,7 +158,6 @@ class OTPManager:
             key = _lookup_key(code)
             # cache.add is atomic: only sets if key does not exist
             if cache.add(key, identifier, timeout=settings.OTP_EXPIRY):
-                print(key, code)
                 return code
         raise OTPGenerationError(
             "Could not generate a unique OTP after 5 attempts. Please try again."

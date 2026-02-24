@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from ..models import (
+from ...models import (
     Business, Menu, MenuCategory, MenuItem, VariantGroup,
     VariantOption, MenuItemAddonGroup, MenuItemAddon, Branch
 )

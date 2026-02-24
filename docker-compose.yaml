@@ -25,9 +25,9 @@ services:
     command: celery -A core worker -l info
     depends_on:
       - redis
+    entrypoint: []
     volumes:
       - .:/app
-      # - ./entrypoint.sh:/app/entrypoint.sh  # explicit re-mount
     environment:
       DJANGO_SETTINGS_MODULE: core.settings
       PYTHONUNBUFFERED: "1"

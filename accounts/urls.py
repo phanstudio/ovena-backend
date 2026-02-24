@@ -3,15 +3,16 @@ from .views import (
     VerifyOTPView, UserProfileView, DeleteAccountView, UpdateBranch, Delete2AccountView,
     OAuthExchangeView, RegisterRManager, RegisterCustomer, UpdateCustomer,
     jwt_views, SendEmailOTPView, VerifyEmailOTPView, RegisterBAdmin, SendPhoneOTPView,
-    RestaurantPhase2OnboardingView, RestaurantPhase1RegisterView
+    RestaurantPhase2OnboardingView, RestaurantPhase1RegisterView, 
+    PasswordResetView, AdminLoginView, DriverLoginView
 )
-from menu.views import RegisterMenusPhase3View
+from menu.views import RegisterMenusPhase3View, BatchGenerateUploadURLView
 
 token_urls = [
     path("rotate-token/", jwt_views.RotateTokenView.as_view(), name="rotate-token"),
     path("refresh/", jwt_views.RefreshTokenView.as_view(), name="refresh"),
     path("logout/", jwt_views.LogoutView.as_view(), name="logout"),
-    path("login/", jwt_views.LogInView.as_view(), name="login"),
+    # path("login/", jwt_views.LogInView.as_view(), name="login"),
 ]
 
 onboarding_urls = [
@@ -20,6 +21,13 @@ onboarding_urls = [
     path("phase1/", RestaurantPhase1RegisterView.as_view(), name="register-phase1"),
     path("phase2/", RestaurantPhase2OnboardingView.as_view(), name="register-phase2"),
     path("phase3/", RegisterMenusPhase3View.as_view(), name="register-menus-ob"),
+    path("batch-gen-url/", BatchGenerateUploadURLView.as_view(), name="batch-generate-url"),
+]
+
+account_urls = [
+    path("admin-login/", AdminLoginView.as_view(), name="admin-login"),
+    path("driver-login/", DriverLoginView.as_view(), name="admin-login"),
+    path("password-reset/", PasswordResetView.as_view(), name="password-reset"),
 ]
 
 urlpatterns = [
@@ -41,4 +49,5 @@ urlpatterns = [
     path("branches/<int:branch_id>/update/", UpdateBranch.as_view()),
     path("", include(token_urls)),
     path("onboard/", include(onboarding_urls)),
+    path("", include(account_urls)),
 ]

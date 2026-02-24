@@ -1,9 +1,8 @@
-from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
-from rest_framework import status
-from ..serializers import input_serializers as InS
-from ..models import (
+from rest_framework import status, serializers as s
+from menu.serializers import InS, OpS
+from menu.models import (
     Menu, MenuCategory, MenuItem, VariantGroup, VariantOption, 
     MenuItemAddonGroup, MenuItemAddon, BaseItem, BaseItemAvailability, 
 )
@@ -12,11 +11,7 @@ from authflow.authentication import CustomBAdminAuth
 from django.db import transaction
 from storages.backends.s3boto3 import S3Boto3Storage
 from ulid import ULID
-
-
-# assign pagent for unassigned branch;
-# the intail agent works like a agent;
-# assign branchs at create
+from drf_spectacular.utils import extend_schema, inline_serializer
 
 # edit permissions later
 # first in order split the json into section all the branches and all the categories and etc one by one 
@@ -30,7 +25,15 @@ def get_user_business(user):
         raise ValueError("no_business")
     return ba.business
 
-# still missing the image, i haven' tested images
+# still missing the image, i haven't tested images
+@extend_schema(
+    responses={201: inline_serializer("Phase3Response", fields={
+        "message": s.CharField(),
+        "business_name": s.CharField(),
+        "base_items_referenced": s.IntegerField(),
+        "menus": OpS.IDListSerializer(many=True),
+    })}
+)
 class RegisterMenusPhase3View(GenericAPIView):
     """
     Registers restaurant-level menu structure (Menu -> Categories -> Items -> Variants/Addons)
@@ -406,9 +409,13 @@ def verify_menu_registration(business, expected_menu_ids, expected_base_item_nam
 
     return errors
 
-class BatchGenerateUploadURLView(APIView):
+@extend_schema(
+    responses=OpS.BatchGenerateUploadURLResponseSerializer
+)
+class BatchGenerateUploadURLView(GenericAPIView):
     authentication_classes = [CustomBAdminAuth]
     permission_classes = [IsBusinessAdmin]
+    serializer_class = InS.BatchGenerateUploadURLRequestSerializer
 
     ALLOWED_TYPES = {
         "image/jpeg": "jpg",

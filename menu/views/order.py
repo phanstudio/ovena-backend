@@ -3,36 +3,37 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from rest_framework.generics import GenericAPIView
-from ..models import (
+from menu.models import (
     Order, OrderEvent, OrderItem, DriverProfile
 )
-from ..pagifications import StandardResultsSetPagination
+from menu.pagifications import StandardResultsSetPagination
 
 from accounts.models import LinkedStaff, User
 from authflow.decorators import subuser_authentication
 from authflow.authentication import CustomCustomerAuth, CustomDriverAuth
-from authflow.permissions import ScopePermission, ReadScopePermission
+from authflow.permissions import ScopePermission, ReadScopePermission, IsCustomer
 from authflow.services import verify_delivery_phrase
 
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.utils import timezone
 
-from ..websocket_utils import (
+from menu.websocket_utils import (
     notify_order_cancelled, notify_order_created, notify_order_ready, notify_order_confirmed, 
     notify_order_delivered, notify_order_picked_up
 )
-from ..tasks import check_branch_confirmation_timeout, find_and_assign_driver, check_payment_timeout
+from menu.tasks import check_branch_confirmation_timeout, find_and_assign_driver, check_payment_timeout
 import logging
-from ..payment_services import initialize_paystack_transaction
+from menu.payment_services import initialize_paystack_transaction
 from django.db import transaction
-from ..serializers import OrderCreateSerializer
+from menu.serializers import OrderCreateSerializer
 from django.db.models import Prefetch
 
 logger = logging.getLogger(__name__)
 
 class OrderView(APIView):
     authentication_classes = [CustomCustomerAuth]
+    # permission_classes = [IsCustomer]
 
     # def get_queryset(self, request):
     #     user = request.user
