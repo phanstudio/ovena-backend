@@ -20,9 +20,9 @@ class AuthLogic():
 
         # what is sub for
         info = serializer.validated_data['info']
-        info["referre_code"] = request.data.get('referre_code')
-        info["lat"] = request.data.get('lat')
-        info["long"] = request.data.get('long')
+        # info["referre_code"] = request.data.get('referre_code')
+        # info["lat"] = request.data.get('lat')
+        # info["long"] = request.data.get('long')
 
         user, info["created"] = User.objects.get_or_create(
             email=serializer.validated_data['email'],
@@ -58,7 +58,8 @@ class OAuthExchangeView(APIView):
     def post(self, request):
         s = OAuthCodeSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        provider = s.validated_data["provider"]
+        vd = s.validated_data
+        provider = vd["provider"]
         # we will need refrred by 
         user = None
         info = None
@@ -77,6 +78,12 @@ class OAuthExchangeView(APIView):
                     "detail": "provider should be google or apple", "error": "provider invalid"},
                       status=status.HTTP_400_BAD_REQUEST)
         
+        if isinstance(info, dict):
+            vdcopy = vd.copy()
+            vdcopy.pop("provider")
+            info.update(vdcopy)
+            print(info)
+        
         if user:
             pass # raise error
 
@@ -86,9 +93,10 @@ class OAuthExchangeView(APIView):
             data = {
                 "long": info["long"],
                 "lat": info["lat"],
-                # "birth_date": "april 2000 22",
+                "birth_date": info['birth_date'],
                 "name": f"{info["given_name"]} {info["family_name"]}",
-                "referre_code": info["referre_code"]
+                "referre_code": info["referre_code"],
+                "phone_number": info["phone_number"]
             }
             # picture info["picture"]
             serializer = CreateCustomerSerializer(

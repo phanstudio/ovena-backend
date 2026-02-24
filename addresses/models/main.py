@@ -15,7 +15,7 @@ class Address(gis_models.Model):
         srid=4326,  # WGS 84 (standard lat/lon)
         default=Point(0.0, 0.0, srid=4326)
     )
-    label = gis_models.CharField(max_length=50, blank=True, null=True)  # e.g. Home, Work
+    label = gis_models.CharField(max_length=50, blank=True, null=True, default="Home")  # e.g. Home, Work
     created_at = gis_models.DateTimeField(auto_now_add=True)
 
     class Meta:

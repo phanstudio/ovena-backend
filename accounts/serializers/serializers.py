@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.contrib.gis.geos import Point
-from google.oauth2 import id_token
-from google.auth.transport import requests
+from google.oauth2 import id_token # type: ignore
+from google.auth.transport import requests # type: ignore
 from django.conf import settings
 from rest_framework import serializers
 from ..models import (
@@ -14,8 +14,25 @@ from ..models import (
     PrimaryAgent
 )
 
+class AddressSerializer(serializers.ModelSerializer):
+    # optional: return lat/lon as simple numbers
+    lat = serializers.SerializerMethodField()
+    long = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Address
+        fields = ["id", "label", "address", "lat", "long", "created_at"]
+
+    def get_lat(self, obj):
+        return obj.location.y if obj.location else None  # y = latitude
+
+    def get_long(self, obj):
+        return obj.location.x if obj.location else None  # x = longitude
+
 class CustomerProfileSerializer(serializers.ModelSerializer):
     age = serializers.ReadOnlyField()  # uses the @property
+    default_address = AddressSerializer(read_only=True)
+    addresses = AddressSerializer(many=True, read_only=True)
     
     class Meta:
         model = CustomerProfile
@@ -64,6 +81,8 @@ class OAuthCodeSerializer(serializers.Serializer):
     referre_code = serializers.CharField(required=False, allow_blank=True)
     lat = serializers.FloatField(required=False)
     long = serializers.FloatField(required=False)
+    phone_number = serializers.CharField(required=False)
+    birth_date = serializers.DateField(required=False)
 
 class CreateCustomerSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True)

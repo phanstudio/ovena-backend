@@ -6,6 +6,8 @@ from authflow.services import issue_jwt_for_user, request_email_otp, request_pho
 from django.contrib.auth import get_user_model
 # from .account_views import RegisterCustomerSerializer
 
+# do we have dedcted endpoints for sending otp for the admin registration since it still send the otp forward.
+
 User = get_user_model()
 class SendPhoneOTPView(APIView):
     def post(self, request):

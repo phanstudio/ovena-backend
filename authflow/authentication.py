@@ -64,6 +64,7 @@ class CustomJWTAuthentication(BaseAuthentication): # any way to speed this up
 
         return None
 
+# doesn't password vary depending on the settings??
 class CustomJWtAuth(SimpleJWTAuth):
     def custom_get_user(self, user_id):
         return self.user_model.objects.get(

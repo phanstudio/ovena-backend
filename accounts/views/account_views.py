@@ -328,9 +328,9 @@ class UpdateCustomer(APIView):
             status=status.HTTP_200_OK,
         )
 
-
 @extend_schema(
-    responses=OpS.RegisterBAdminResponseSerializer
+    responses=OpS.RegisterBAdminResponseSerializer,
+    auth=[]
 )
 class RegisterBAdmin(GenericAPIView):
     serializer_class = InS.RegisterBAdminSerializer
@@ -590,7 +590,7 @@ class RestaurantPaymentView(APIView):
         )
         return Response({"detail": "Payment info updated."})
 
-
+# @extend_schema(auth=[])
 # Login views
 @extend_schema(
     responses={
@@ -599,7 +599,8 @@ class RestaurantPaymentView(APIView):
             "access": s.CharField(),
             "refresh": s.CharField(),
         })
-    }
+    },
+    auth=[]
 )
 class DriverLoginView(GenericAPIView):
     permission_classes = [AllowAny]
@@ -648,7 +649,8 @@ class DriverLoginView(GenericAPIView):
             "access": s.CharField(),
             "refresh": s.CharField(),
         })
-    }
+    },
+    auth=[]
 )
 class AdminLoginView(GenericAPIView):
     permission_classes = [AllowAny]
@@ -679,7 +681,8 @@ class AdminLoginView(GenericAPIView):
 @extend_schema(
     responses={200: inline_serializer("PasswordResetResponse", fields={
         "message": s.CharField(),
-    })}
+    })},
+    auth=[]
 )
 class PasswordResetView(GenericAPIView):
     permission_classes = [AllowAny]
