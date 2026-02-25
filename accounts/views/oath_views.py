@@ -79,9 +79,7 @@ class OAuthExchangeView(APIView):
                       status=status.HTTP_400_BAD_REQUEST)
         
         if isinstance(info, dict):
-            vdcopy = vd.copy()
-            vdcopy.pop("provider")
-            info.update(vdcopy)
+            info.update({k: v for k, v in vd.items() if k not in ("provider", "id_token")})
             print(info)
         
         if user:
@@ -90,14 +88,23 @@ class OAuthExchangeView(APIView):
         print(user, info)
         # send there location
         if info["created"]:
-            data = {
-                "long": info.get("long"),
-                "lat": info.get("lat"),
-                "birth_date": info.get("birth_date"),
-                "name": f"{info.get('given_name','')} {info.get('family_name','')}".strip(),
-                "referre_code": info.get("referre_code"),
-                "phone_number": info.get("phone_number"),
+            data:dict = {
+                # "long": info.get("long"),
+                # "lat": info.get("lat"),
+                # "birth_date": info.get("birth_date"),
+                # "name": f"{info.get('given_name','')} {info.get('family_name','')}".strip(),
+                # "referre_code": info.get("referre_code"),
+                # "phone_number": info.get("phone_number"),
             }
+            mainname:str = f"{info.get('given_name','')} {info.get('family_name','')}".strip()
+            data.update(info)
+            # {k: v for k, v in vd.items() if k not in ("provider", "id_token")}
+            # jl = data.copy()
+            # jl.update({k: v for k, v in info.items() if k not in ("given_name", "family_name")})
+            # print(jl)
+            
+            if mainname.replace(" ", "") != "":
+                data["name"] = mainname
             # picture info["picture"]
             serializer = CreateCustomerSerializer(
                 data=data,
@@ -113,5 +120,7 @@ class OAuthExchangeView(APIView):
             "user": UserSerializer(user).data,
             "tokens": tokens,
             "message": "OAUTH User creation successfully",
+            # "refresh": token["refresh"],
+            # "access": token["access"],
             "is_new_user": info["created"]
         })
