@@ -77,7 +77,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 class OAuthCodeSerializer(serializers.Serializer):
     provider = serializers.ChoiceField(choices=("google", "apple"))
-    id_token = serializers.CharField()
+    id_token = serializers.CharField()  # noqa: F811
     referre_code = serializers.CharField(required=False, allow_blank=True)
     lat = serializers.FloatField(required=False)
     long = serializers.FloatField(required=False)
@@ -340,6 +340,64 @@ class GoogleAuthSerializer(serializers.Serializer):
         data['sub'] = info['sub']
         data['info'] = info
         return data
+
+# class GoogleAuthSerializer(serializers.Serializer):
+#     """
+#     Validates a Google id_token and returns a normalised payload.
+#     Output shape: { email, given_name, family_name, picture, provider_id }
+#     """
+#     id_token = serializers.CharField()
+
+#     def validate(self, data):
+#         try:
+#             client_id = settings.OAUTH_PROVIDERS["google"]["CLIENT_ID"]
+#             claims = id_token.verify_oauth2_token(
+#                 data["id_token"],
+#                 requests.Request(),
+#                 client_id,
+#             )
+#         except Exception as exc:
+#             raise serializers.ValidationError(f"Invalid Google token: {exc}")
+
+#         return {
+#             "email":       claims["email"],
+#             "given_name":  claims.get("given_name", ""),
+#             "family_name": claims.get("family_name", ""),
+#             "picture":     claims.get("picture", ""),
+#             "provider_id": claims["sub"],
+#         }
+
+
+# class AppleAuthSerializer(serializers.Serializer):
+#     """
+#     Validates an Apple id_token and returns the same normalised payload shape
+#     as GoogleAuthSerializer so the view doesn't need to branch.
+#     Output shape: { email, given_name, family_name, picture, provider_id }
+#     """
+#     id_token = serializers.CharField()
+
+#     def validate(self, data):
+#         from accounts.utils.oath import verify_apple_token  # keep import local
+
+#         try:
+#             claims = verify_apple_token(data["id_token"])
+#         except Exception as exc:
+#             raise serializers.ValidationError(f"Invalid Apple token: {exc}")
+
+#         if not claims.get("email"):
+#             raise serializers.ValidationError(
+#                 "Apple token did not include an email address. "
+#                 "This usually means the user has hidden their email and this "
+#                 "is a repeat login — handle email lookup by 'sub' instead."
+#             )
+
+#         return {
+#             "email":       claims["email"],
+#             "given_name":  "",   # Apple only sends name on first login via their UI
+#             "family_name": "",
+#             "picture":     "",
+#             "provider_id": claims["sub"],
+#         }
 
 
 

@@ -20,10 +20,6 @@ class AuthLogic():
 
         # what is sub for
         info = serializer.validated_data['info']
-        # info["referre_code"] = request.data.get('referre_code')
-        # info["lat"] = request.data.get('lat')
-        # info["long"] = request.data.get('long')
-
         user, info["created"] = User.objects.get_or_create(
             email=serializer.validated_data['email'],
             defaults={'email': serializer.validated_data['email']}
@@ -40,11 +36,8 @@ class AuthLogic():
         apple_id = payload["sub"]
 
         print(payload)
-        info = {apple_id}
-        info["referre_code"] = request.data.get("referre_code")
-        info["lat"] = request.data.get("lat")
-        info["long"] = request.data.get("long")
-
+        info = {"sub": apple_id}
+        # info = {apple_id}
         user, info["created"] = User.objects.get_or_create(
             email=email,
             defaults={'email': email}
@@ -82,9 +75,6 @@ class OAuthExchangeView(APIView):
             info.update({k: v for k, v in vd.items() if k not in ("provider", "id_token")})
             print(info)
         
-        if user:
-            pass # raise error
-
         print(user, info)
         # send there location
         if info["created"]:
@@ -103,8 +93,10 @@ class OAuthExchangeView(APIView):
             # jl.update({k: v for k, v in info.items() if k not in ("given_name", "family_name")})
             # print(jl)
             
-            if mainname.replace(" ", "") != "":
+            if mainname.strip() != "":
                 data["name"] = mainname
+            # profile_data = {k: v for k, v in profile_data.items() if v is not None}
+
             # picture info["picture"]
             serializer = CreateCustomerSerializer(
                 data=data,
@@ -124,3 +116,4 @@ class OAuthExchangeView(APIView):
             # "access": token["access"],
             "is_new_user": info["created"]
         })
+
