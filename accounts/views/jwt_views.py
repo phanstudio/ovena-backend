@@ -62,31 +62,31 @@ class LogoutView(APIView):
         except Exception:
             return Response({"error": "Invalid token"}, status=400)
 
-# class LogInView(APIView): # can work with password
-#     # permission_classes = [IsAuthenticated]
+class LogInView(APIView): # can work with password
+    # permission_classes = [IsAuthenticated]
 
-#     def post(self, request):
-#         phone_number = request.data.get("phone_number")
-#         email = request.data.get("email")
+    def post(self, request):
+        phone_number = request.data.get("phone_number")
+        email = request.data.get("email")
 
-#         if not phone_number and not email:
-#             return Response({"error": "Phone number or email is required"}, status=400)
+        if not phone_number and not email:
+            return Response({"error": "Phone number or email is required"}, status=400)
 
-#         user = None
-#         if phone_number:
-#             # ✅ Create or get the user
-#             user = User.objects.filter(phone_number=phone_number).first()
-#         else:
-#             user = User.objects.filter(email=email).first()
+        user = None
+        if phone_number:
+            # ✅ Create or get the user
+            user = User.objects.filter(phone_number=phone_number).first()
+        else:
+            user = User.objects.filter(email=email).first()
       
-#         if not user:
-#             return Response({"error": f"User does not exist for: {phone_number if phone_number else email}"}, status=400)
+        if not user:
+            return Response({"error": f"User does not exist for: {phone_number if phone_number else email}"}, status=400)
 
-#         # ✅ Issue JWT tokens
-#         token = issue_jwt_for_user(user)
-#         return Response({
-#             "message": "User logged in successfully",
-#             "refresh": token["refresh"],
-#             "access": token["access"],
-#         }, status=200)
+        # ✅ Issue JWT tokens
+        token = issue_jwt_for_user(user)
+        return Response({
+            "message": "User logged in successfully",
+            "refresh": token["refresh"],
+            "access": token["access"],
+        }, status=200)
 

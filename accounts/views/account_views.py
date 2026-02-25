@@ -71,16 +71,14 @@ class Delete2AccountView(APIView):
     def delete(self, request):
         user_id = request.data.get("user_id")
         User.objects.filter(id=user_id).delete()
-        return Response({"detail": "User account deleted."}, status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 class DeleteAccountView(APIView): # will change to a soft delete
     permission_classes = [IsAuthenticated]
     def delete(self, request):
-        user:User = request.user
-        print(user.email)
+        user = request.user
         user.delete()
-        print(user.email)
-        return Response({"detail": "User account deleted."}, status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_204_NO_CONTENT) # remove the delete later
 
 class UpdateBranch(APIView):
     def patch(self, request, branch_id):

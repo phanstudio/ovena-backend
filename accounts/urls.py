@@ -12,7 +12,7 @@ token_urls = [
     path("rotate-token/", jwt_views.RotateTokenView.as_view(), name="rotate-token"),
     path("refresh/", jwt_views.RefreshTokenView.as_view(), name="refresh"),
     path("logout/", jwt_views.LogoutView.as_view(), name="logout"),
-    # path("login/", jwt_views.LogInView.as_view(), name="login"),
+    path("login/", jwt_views.LogInView.as_view(), name="login"),
 ]
 
 onboarding_urls = [
