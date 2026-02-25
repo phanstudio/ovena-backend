@@ -91,12 +91,12 @@ class OAuthExchangeView(APIView):
         # send there location
         if info["created"]:
             data = {
-                "long": info["long"],
-                "lat": info["lat"],
-                "birth_date": info['birth_date'],
-                "name": f"{info["given_name"]} {info["family_name"]}",
-                "referre_code": info["referre_code"],
-                "phone_number": info["phone_number"]
+                "long": info.get("long"),
+                "lat": info.get("lat"),
+                "birth_date": info.get("birth_date"),
+                "name": f"{info.get('given_name','')} {info.get('family_name','')}".strip(),
+                "referre_code": info.get("referre_code"),
+                "phone_number": info.get("phone_number"),
             }
             # picture info["picture"]
             serializer = CreateCustomerSerializer(
@@ -113,7 +113,5 @@ class OAuthExchangeView(APIView):
             "user": UserSerializer(user).data,
             "tokens": tokens,
             "message": "OAUTH User creation successfully",
-            # "refresh": token["refresh"],
-            # "access": token["access"],
             "is_new_user": info["created"]
         })
