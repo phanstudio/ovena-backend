@@ -4,7 +4,7 @@ from .account_views import (
     UserProfileView, DeleteAccountView, UpdateBranch, Delete2AccountView, # noqa: F401
     UpdateCustomer, RegisterBAdmin, RestaurantPhase1RegisterView, # noqa: F401
     RestaurantPhase2OnboardingView, PasswordResetView, AdminLoginView, # noqa: F401
-    DriverLoginView, # noqa: F401
+    DriverLoginView, BuisnnessOnboardingStatusView # noqa: F401
 )
 from .oath_views import OAuthExchangeView # noqa: F401
 import accounts.views.jwt_views  # noqa: F401

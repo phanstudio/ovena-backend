@@ -10,7 +10,7 @@ from accounts.serializers import (
 )
 from accounts.models import(
     User, Business, Branch, DriverProfile, PrimaryAgent, 
-    BusinessAdmin, BusinessPayoutAccount, BranchOperatingHours, BusinessCerd
+    BusinessAdmin, BusinessPayoutAccount, BranchOperatingHours, BusinessCerd, BusinessOnboardStatus
 )
 from django.db import transaction, IntegrityError
 from authflow.services import create_token, issue_jwt_for_user, verify, OTPInvalidError, request_phone_otp
@@ -326,6 +326,30 @@ class UpdateCustomer(APIView):
             status=status.HTTP_200_OK,
         )
 
+# edge case of going back
+@extend_schema(
+    responses=OpS.OnboardResponseSerializer,
+)
+class BuisnnessOnboardingStatusView(APIView):
+    permission_classes= [IsBusinessAdmin]
+    def get(self, request):
+        Bstatus:BusinessOnboardStatus = BusinessOnboardStatus.objects.filter(admin=request.user.business_admin).first()
+        
+        if not Bstatus:
+            data = {
+                "admin_id": request.user.id,
+                "onboarding_step": 0,
+                "is_onboarding_complete": False,
+            }
+        else:
+            data = {
+            "admin_id": Bstatus.admin.id,
+            "onboarding_step": Bstatus.onboarding_step,
+            "is_onboarding_complete": Bstatus.is_onboarding_complete,
+        }
+        response_data = OpS.OnboardResponseSerializer(data)
+        return Response(response_data.data, status=status.HTTP_200_OK)
+
 @extend_schema(
     responses=OpS.RegisterBAdminResponseSerializer,
     auth=[]
@@ -385,7 +409,6 @@ class RestaurantPhase1RegisterView(GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
-
         user = request.user
 
         with transaction.atomic():
@@ -403,7 +426,8 @@ class RestaurantPhase1RegisterView(GenericAPIView):
             user.save()
 
             # Link admin to restaurant
-            BusinessAdmin.objects.create(business=restaurant, user=user)
+            business_admin = BusinessAdmin.objects.create(business=restaurant, user=user)
+            BusinessOnboardStatus.objects.create(admin=business_admin, onboarding_step= 1)
 
         return Response(
             {"detail": "Business registered. Proceed to onboarding.", "business_id": restaurant.id},
@@ -455,6 +479,9 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
             restaurant.onboarding_complete = True
             restaurant_cerds.save()
             restaurant.save()
+            BStatus:BusinessOnboardStatus = BusinessOnboardStatus.objects.get(admin=admin)
+            BStatus.onboarding_step = 2
+            BStatus.save()
 
             # Payment info
             payment_data = vd.get("payment", {})

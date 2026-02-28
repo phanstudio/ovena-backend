@@ -4,14 +4,14 @@ from .views import (
     OAuthExchangeView, RegisterRManager, RegisterCustomer, UpdateCustomer,
     jwt_views, SendEmailOTPView, VerifyEmailOTPView, RegisterBAdmin, SendPhoneOTPView,
     RestaurantPhase2OnboardingView, RestaurantPhase1RegisterView, 
-    PasswordResetView, AdminLoginView, DriverLoginView
+    PasswordResetView, AdminLoginView, DriverLoginView, BuisnnessOnboardingStatusView
 )
 from menu.views import RegisterMenusPhase3View, BatchGenerateUploadURLView
 
 token_urls = [
     path("rotate-token/", jwt_views.RotateTokenView.as_view(), name="rotate-token"),
     path("refresh/", jwt_views.RefreshTokenView.as_view(), name="refresh"),
-    path("logout/", jwt_views.LogoutView.as_view(), name="logout"),
+    path("logout/", jwt_views.LogoutView.as_view(), name="logout"), # for 
     path("login/", jwt_views.LogInView.as_view(), name="login"),
 ]
 
@@ -22,6 +22,7 @@ onboarding_urls = [
     path("phase2/", RestaurantPhase2OnboardingView.as_view(), name="register-phase2"),
     path("phase3/", RegisterMenusPhase3View.as_view(), name="register-menus-ob"),
     path("batch-gen-url/", BatchGenerateUploadURLView.as_view(), name="batch-generate-url"),
+    path("status/", BuisnnessOnboardingStatusView.as_view(), name="buisness-onboard-status"),
 ]
 
 account_urls = [

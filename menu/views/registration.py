@@ -6,12 +6,13 @@ from menu.models import (
     Menu, MenuCategory, MenuItem, VariantGroup, VariantOption, 
     MenuItemAddonGroup, MenuItemAddon, BaseItem, BaseItemAvailability, 
 )
+from accounts.models import BusinessOnboardStatus
 from authflow.permissions import IsBusinessAdmin
 from authflow.authentication import CustomBAdminAuth
 from django.db import transaction
-from storages.backends.s3boto3 import S3Boto3Storage
-from ulid import ULID
-from drf_spectacular.utils import extend_schema, inline_serializer
+from storages.backends.s3boto3 import S3Boto3Storage # type: ignore
+from ulid import ULID # type: ignore
+from drf_spectacular.utils import extend_schema, inline_serializer # type: ignore
 
 # edit permissions later
 # first in order split the json into section all the branches and all the categories and etc one by one 
@@ -47,8 +48,9 @@ class RegisterMenusPhase3View(GenericAPIView):
     permission_classes=[IsBusinessAdmin]
     serializer_class=InS.MenuSerializer
     def post(self, request):
+        user = request.user
         try:
-            business = get_user_business(request.user)
+            business = get_user_business(user)
         except ValueError as e:
             if str(e) == "not_business_admin":
                 return Response({"detail": "User is not business admin"}, status=403)
@@ -116,6 +118,10 @@ class RegisterMenusPhase3View(GenericAPIView):
         # cprint(defaults_by_name)
 
         with transaction.atomic():
+            BStatus:BusinessOnboardStatus = BusinessOnboardStatus.objects.get(admin=user.business_admin)
+            BStatus.onboarding_step = 3
+            BStatus.is_onboarding_complete = True
+            BStatus.save()
             # =========================================================
             # 1) BASE ITEMS (restaurant-scoped): fetch existing, bulk_create missing
             # =========================================================

@@ -91,44 +91,6 @@ class CustomerProfile(ProfileBase): # create a simple view to change the defualt
             user__orders__status="delivered"
         ).distinct().count()
 
-# driver related
-class DriverProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='driver_profile')
-    
-    # Availability
-    is_online = models.BooleanField(default=False)
-    is_available = models.BooleanField(default=False)  # Online but not on delivery
-    current_order = models.ForeignKey('menu.Order', on_delete=models.SET_NULL, null=True, blank=True, related_name='current_driver')
-    
-    # Stats
-    total_deliveries = models.IntegerField(default=0)
-    rating = models.DecimalField(max_digits=3, decimal_places=2, default=5.0)
-    
-    # Tracking
-    last_location_update = models.DateTimeField(blank=True, null=True)
-    
-    # Vehicle info
-    vehicle_type = models.CharField(max_length=50, blank=True, null=True)  # bike, car, etc.
-    vehicle_number = models.CharField(max_length=50, blank=True, null=True)
-
-    rating_sum = models.IntegerField(default=0)          # total stars
-    rating_count = models.PositiveIntegerField(default=0)
-    avg_rating = models.FloatField(default=0.0, db_index=True)  # optional but convenient
-    
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    def __str__(self):
-        return f"Driver: {self.user.name}"
-    
-# for verification, every driver must have cred
-class DriverCred(models.Model): # does the referral system work with drivers
-    user = models.OneToOneField(DriverProfile, on_delete=models.CASCADE, related_name="driver_profile")
-    nin = models.CharField(max_length=50)
-    driver_license = models.CharField(max_length=50)
-    plate_number = models.CharField(max_length=20)
-    vehicle_type = models.CharField(max_length=50)
-    photo = models.ImageField(upload_to="drivers/photos/")
-
 class PrimaryAgent(models.Model): # only one primary users, so the branch should be a one to one
     branch = models.OneToOneField(Branch, on_delete=models.CASCADE, related_name="primary_agent")
     user = models.OneToOneField(User, on_delete=models.CASCADE)
