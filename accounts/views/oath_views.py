@@ -73,9 +73,8 @@ class OAuthExchangeView(APIView):
         
         if isinstance(info, dict):
             info.update({k: v for k, v in vd.items() if k not in ("provider", "id_token", "email")})
-            # print(info)
+            print(info)
         
-        # print(user, info)
         # send there location
         if info["created"]:
             data:dict = {
