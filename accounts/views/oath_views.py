@@ -68,7 +68,7 @@ class OAuthExchangeView(APIView):
                       status=status.HTTP_400_BAD_REQUEST)
         
         if isinstance(info, dict):
-            info.update({k: v for k, v in vd.items() if k not in ("provider", "id_token")})
+            info.update({k: v for k, v in vd.items() if k not in ("provider", "id_token", "email")})
 
         # send there location
         if info["created"]:
