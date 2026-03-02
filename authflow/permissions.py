@@ -1,4 +1,5 @@
 from rest_framework import permissions
+from accounts.services.roles import has_role, PROFILE_CUSTOMER, PROFILE_BUSINESS_ADMIN, PROFILE_DRIVER
 
 class ScopePermission(permissions.BasePermission):
     """
@@ -25,14 +26,15 @@ class ReadScopePermission(ScopePermission):
         )
 
 
-class IsCustomer(permissions.BasePermission):
+class IsCustomer(permissions.BasePermission): 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == "customer"
+        return request.user.is_authenticated and has_role(request, PROFILE_CUSTOMER)
 
 class IsDriver(permissions.BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == "driver"
+        return request.user.is_authenticated and has_role(request, PROFILE_DRIVER)
 
 class IsBusinessAdmin(permissions.BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == "businessadmin"
+        return request.user.is_authenticated and has_role(request, PROFILE_BUSINESS_ADMIN)
+

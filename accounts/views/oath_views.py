@@ -25,7 +25,7 @@ class AuthLogic():
             defaults={'email': serializer.validated_data['email']}
         )
         
-        return {"user": user, "info": info}
+        return (user, info)
     
     @staticmethod
     def apple(request):
@@ -43,7 +43,7 @@ class AuthLogic():
             defaults={'email': email}
         )
         
-        return {"user": user, "info": info}
+        return (user, info)
 
 class OAuthExchangeView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -59,13 +59,9 @@ class OAuthExchangeView(APIView):
 
         match provider:
             case "google":
-                user_data = AuthLogic.google(request)
-                user = user_data["user"]
-                info = user_data["info"]
+                user, info = AuthLogic.google(request)
             case "apple":
-                user_data = AuthLogic.apple(request)
-                user = user_data["user"]
-                info = user_data["info"]
+                user, info = AuthLogic.apple(request)
             case _:
                 return Response({
                     "detail": "provider should be google or apple", "error": "provider invalid"},
@@ -73,9 +69,7 @@ class OAuthExchangeView(APIView):
         
         if isinstance(info, dict):
             info.update({k: v for k, v in vd.items() if k not in ("provider", "id_token")})
-            print(info)
-        
-        print(user, info)
+
         # send there location
         if info["created"]:
             data:dict = {
@@ -88,7 +82,6 @@ class OAuthExchangeView(APIView):
             }
             mainname:str = f"{info.get('given_name','')} {info.get('family_name','')}".strip()
             data.update(info)
-            # {k: v for k, v in vd.items() if k not in ("provider", "id_token")}
             # jl = data.copy()
             # jl.update({k: v for k, v in info.items() if k not in ("given_name", "family_name")})
             # print(jl)
@@ -112,8 +105,6 @@ class OAuthExchangeView(APIView):
             "user": UserSerializer(user).data,
             "tokens": tokens,
             "message": "OAUTH User creation successfully",
-            # "refresh": token["refresh"],
-            # "access": token["access"],
             "is_new_user": info["created"]
         })
 

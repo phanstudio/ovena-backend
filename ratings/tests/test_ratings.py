@@ -1,6 +1,6 @@
 import pytest
 
-from accounts.models import User, CustomerProfile, DriverProfile, Restaurant, Branch
+from accounts.models import User, CustomerProfile, DriverProfile, Branch, Business
 from menu.models import Order
 from ratings.models import DriverRating, BranchRating
 from ratings.services import RatingService
@@ -11,9 +11,9 @@ pytestmark = pytest.mark.django_db(transaction=True)
 
 @pytest.fixture
 def restaurant():
-    return Restaurant.objects.create(
-        company_name="Testaurant",
-        bn_number="1234567-000",
+    return Business.objects.create(
+        business_name="Testaurant",
+        # bn_number="1234567-000",
     )
 
 

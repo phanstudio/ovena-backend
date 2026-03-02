@@ -15,7 +15,7 @@ class CouponService(): # does this affect the order or the order item the valid 
             return False
 
         # scope check (order-level)
-        if coupon.scope == "restaurant" and order.branch.business_id != coupon.business_id:
+        if coupon.scope == "business" and order.branch.business_id != coupon.business_id:
             return False
 
         # item-level

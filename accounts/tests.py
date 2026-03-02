@@ -1,7 +1,7 @@
 import json
 import pytest
 from rest_framework.test import APIClient
-# from accounts.models import Business
+# from accounts.models import business
 from django.urls import reverse
 from authflow.services import start_time, calculate_time
 from addresses.utils.gis_point import make_point
@@ -13,37 +13,31 @@ from accounts.models import (
 
 # @pytest.fixture
 # def restaurant_payload():
-#     """Load raw Business JSON from file."""
+#     """Load raw business JSON from file."""
 #     data_path = Path(__file__).parent / "data" / "new_payload.json"#"resturant_payload.json" # restaurant_payload
 #     with data_path.open() as f:
 #         return json.load(f)
 
 @pytest.fixture
-def Business(db):
-    """Create a Business in the DB (without menus)."""
+def business(db):
+    """Create a business in the DB (without menus)."""
     return Business.objects.create(
         business_name="Burger Planet",
-        bn_number="5678903-209"
+        # bn_number="5678903-209"
     )
-
-
 
 @pytest.fixture
 def registered_branch(db):
-    """Create Business + register its menus via API."""
-    Business = Business.objects.create(
+    """Create business + register its menus via API."""
+    business = Business.objects.create(
         business_name="Burger Planet",
-        bn_number="5678903-209"
-    )
-    addresss = Address.objects.create(
-        address="10 Downing St",
-        location=make_point(-0.1278, 51.5074),
+        # bn_number="5678903-209"
     )
     branch = Branch.objects.create(
-        phone_number = "08140147868",
+        # phone_number = "08140147868",
         name="Ikeja branch",
-        Business=Business,
-        location=addresss
+        business=business,
+        location=make_point(-0.1278, 51.5074)
     )
 
     return branch  # DB object, now with menus

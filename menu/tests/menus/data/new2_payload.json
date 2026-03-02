@@ -11,15 +11,15 @@
             "items": [
               {
                 "custom_name": "Cheeseburger",
-                "price": "4.50",
-                "base_item": { "name": "Cheeseburger", "description": "Classic burger", "price": "4.50" },
+                "price": "450",
+                "base_item": { "name": "Cheeseburger", "description": "Classic burger", "price": "5000" },
                 "variant_groups": [
                   {
                     "name": "Size",
                     "is_required": true,
                     "options": [
                       { "name": "Single", "price_diff": "0.00" },
-                      { "name": "Double", "price_diff": "1.50" }
+                      { "name": "Double", "price_diff": "150" }
                     ]
                   },
                   {

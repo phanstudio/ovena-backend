@@ -1,10 +1,22 @@
 from django.db import models
 from .main import User
 from django.conf import settings
+from .profile import ProfileBase
 
 # driver related
-class DriverProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='driver_profile')
+class DriverProfile(ProfileBase):
+    profilebase_ptr = models.OneToOneField(
+        ProfileBase,
+        on_delete=models.CASCADE,
+        parent_link=True,
+        related_name="driver_profile"
+    )
+    # base_profile = models.OneToOneField(
+    #     ProfileBase,
+    #     on_delete=models.CASCADE,
+    #     related_name="driver_profile",
+    # )
+    # user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='driver_profile')
     
     # Personal info
     birth_date = models.DateField(null=True, blank=True) # should this be moveed to creds
@@ -40,7 +52,7 @@ class DriverProfile(models.Model):
     rating_count = models.PositiveIntegerField(default=0)
     avg_rating = models.FloatField(default=0.0, db_index=True)  # optional but convenient
     
-    created_at = models.DateTimeField(auto_now_add=True)
+    # created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return f"Driver: {self.full_name or (self.user.email or self.user.phone_number)}"
@@ -48,6 +60,14 @@ class DriverProfile(models.Model):
     @property
     def full_name(self):
         return (self.first_name + " " + self.last_name).strip()
+    
+    def save(self, *args, **kwargs):
+        if not self.pk:
+            self.profile_type = ProfileBase.PROFILE_DRIVER
+        else:
+            if self.profile_type != ProfileBase.PROFILE_DRIVER:
+                raise ValueError("Cannot change profile_type on DriverProfile")
+        super().save(*args, **kwargs)
     
 # for verification, every driver must have cred
 class DriverCred(models.Model): # does the referral system work with drivers

@@ -7,6 +7,7 @@ from .views import (
     PasswordResetView, AdminLoginView, DriverLoginView, BuisnnessOnboardingStatusView
 )
 from menu.views import RegisterMenusPhase3View, BatchGenerateUploadURLView
+from .views import driver_reg_views
 
 token_urls = [
     path("rotate-token/", jwt_views.RotateTokenView.as_view(), name="rotate-token"),
@@ -31,6 +32,19 @@ account_urls = [
     path("password-reset/", PasswordResetView.as_view(), name="password-reset"),
 ]
 
+
+driver_onboarding_urls = [
+    # Progress overview — call this on app open to know where driver left off
+    path("status/", driver_reg_views.OnboardingStatusView.as_view(), name="onboarding-status"),
+
+    # Phase endpoints — all PUT, idempotent, re-editable until submitted
+    path("phase/1/", driver_reg_views.OnboardingPhase1View.as_view(), name="onboarding-phase-1"),
+    path("phase/2/", driver_reg_views.OnboardingPhase2View.as_view(), name="onboarding-phase-2"),
+    path("phase/3/", driver_reg_views.OnboardingPhase3View.as_view(), name="onboarding-phase-3"),
+    path("phase/4/", driver_reg_views.OnboardingPhase4View.as_view(), name="onboarding-phase-4"),
+]
+
+
 urlpatterns = [
     path("send-otp/", SendPhoneOTPView.as_view(), name="send-otp"),
     path("verify-otp/", VerifyOTPView.as_view(), name="verify-otp"),
@@ -50,5 +64,6 @@ urlpatterns = [
     path("branches/<int:branch_id>/update/", UpdateBranch.as_view()),
     path("", include(token_urls)),
     path("onboard/", include(onboarding_urls)),
+    path("onboard/driver/", include(driver_onboarding_urls)),
     path("", include(account_urls)),
 ]

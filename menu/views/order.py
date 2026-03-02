@@ -28,6 +28,7 @@ from menu.payment_services import initialize_paystack_transaction
 from django.db import transaction
 from menu.serializers import OrderCreateSerializer
 from django.db.models import Prefetch
+from referrals.services import convert_referral_once
 
 logger = logging.getLogger(__name__)
 
@@ -650,6 +651,13 @@ class DriverOrderView(GenericAPIView):
         driver.current_order = None
         driver.total_deliveries += 1
         driver.save(update_fields=['is_available', 'current_order', 'total_deliveries'])
+
+        # Conversion criteria:
+        # - referee customer converts on first delivered order
+        # - referee driver converts on first completed delivery
+        convert_referral_once(referee_profile=order.orderer)
+        if driver:
+            convert_referral_once(referee_profile=driver)
 
         # Log event
         OrderEvent.objects.create(
