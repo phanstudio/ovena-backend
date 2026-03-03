@@ -21,8 +21,8 @@ class AuthLogic():
         # what is sub for
         info = serializer.validated_data['info']
         user, info["created"] = User.objects.get_or_create(
-            email=serializer.validated_data['email'],
-            defaults={'email': serializer.validated_data['email']}
+            email=info['email'],
+            defaults={'email': info['email']}
         )
         
         return (user, info)
@@ -70,6 +70,8 @@ class OAuthExchangeView(APIView):
         if isinstance(info, dict):
             info.update({k: v for k, v in vd.items() if k not in ("provider", "id_token", "email")})
 
+        {'iss': 'azp':'aud':'sub': '105101312692861695693', 'email': 'pbassey30@gmail.com', 'email_verified': True, 'name': 'Priestly Bassey', 'picture':  'given_name':  'family_name':  'iat':  'exp': 'created': False}
+
         # send there location
         if info["created"]:
             data:dict = {
@@ -98,9 +100,9 @@ class OAuthExchangeView(APIView):
             serializer.is_valid(raise_exception=True)
             serializer.save()
 
-        # this might be a probelm we might ask for the refresh token to destroy or create a  access if that process is not done
+        # this might be a probelm we might ask for the refresh token to 
+        # destroy or create a access if that process is not done
         tokens = issue_jwt_for_user(user) 
-        
         return Response({
             "user": UserSerializer(user).data,
             "tokens": tokens,
