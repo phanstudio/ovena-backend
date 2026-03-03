@@ -73,7 +73,7 @@ class OAuthExchangeView(APIView):
         
         if isinstance(info, dict):
             info.update({k: v for k, v in vd.items() if k not in ("provider", "id_token", "email")})
-            print(info)
+            print(info, "\n\n")
         
         # send there location
         if info["created"]:
@@ -94,6 +94,7 @@ class OAuthExchangeView(APIView):
             
             if mainname.strip() != "":
                 data["name"] = mainname
+            print(data)
             # profile_data = {k: v for k, v in profile_data.items() if v is not None}
 
             # picture info["picture"]
