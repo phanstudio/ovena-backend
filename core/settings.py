@@ -31,7 +31,6 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 
-
 # APPS
 # ------------------------------------------------------------------------------
 DJANGO_APPS = [
@@ -45,6 +44,7 @@ DJANGO_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.gis',
 ]
+
 THIRD_PARTY_APPS = [
     # "allauth",
     # "allauth.account",
@@ -69,6 +69,7 @@ LOCAL_APPS = [
     'authflow',
     'ratings',
     'coupons_discount',
+    'referrals',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

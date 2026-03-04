@@ -3,6 +3,7 @@ import datetime
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.models import User
+from accounts.services.roles import get_user_roles
 import time
 from django.utils import timezone
 import secrets
@@ -43,8 +44,11 @@ def make_sub_token(user_id, device_id="dyukljhgf4567890", scopes=None, expires_i
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
-def issue_jwt_for_user(user: User):
+def issue_jwt_for_user(user: User, *, active_profile: str | None = None):
     refresh = RefreshToken.for_user(user)
+    refresh.access_token["roles"] = sorted(get_user_roles(user))
+    if active_profile:
+        refresh.access_token["active_profile"] = active_profile
     return {
         "access": str(refresh.access_token),
         "refresh": str(refresh),

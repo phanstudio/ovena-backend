@@ -17,6 +17,7 @@ from authflow.services import create_token, issue_jwt_for_user, verify, OTPInval
 from django.contrib.gis.geos import Point
 from authflow.authentication import CustomCustomerAuth, CustomBAdminAuth
 from authflow.permissions import IsBusinessAdmin
+from accounts.services.roles import has_role, get_user_roles
 from addresses.utils import checkset_location
 from drf_spectacular.utils import extend_schema, inline_serializer # type: ignore
 from rest_framework import serializers as s
@@ -28,33 +29,47 @@ class UserProfileView(APIView):
 
     def get(self, request):
         user = request.user
+        requested_type = request.query_params.get("profile_type")
+        user_roles = sorted(get_user_roles(user))
 
-        if user.role == "customer": # repating can be a single function
+        if requested_type == "customer":
             profile = getattr(user, "customer_profile", None)
             if not profile:
                 return Response({"detail": "Customer profile not found."}, status=status.HTTP_404_NOT_FOUND)
             serializer = CustomerProfileSerializer(profile)
-
-        elif user.role == "driver":
+            active_profile_type = "customer"
+        elif requested_type == "driver":
             profile = getattr(user, "driver_profile", None)
             if not profile:
                 return Response({"detail": "Driver profile not found."}, status=status.HTTP_404_NOT_FOUND)
             serializer = DriverProfileSerializer(profile)
-            # might add the resturant owners
-        elif user.role == "businessadmin":
+            active_profile_type = "driver"
+        elif requested_type == "businessadmin":
             profile = getattr(user, "business_admin", None)
             if not profile:
                 return Response({"detail": "Business Admin profile not found."}, status=status.HTTP_404_NOT_FOUND)
             serializer = BuisnessAdminProfileSerializer(profile)
-            # might add the resturant owners
-        elif user.role == "buisnessstaff":
-            profile = getattr(user, "primary_agent", None)
+            active_profile_type = "businessadmin"
+        elif requested_type in ("businessstaff", "buisnessstaff"):
+            profile = getattr(user, "primaryagent", None)
             if not profile:
                 return Response({"detail": "Primary Agent profile not found."}, status=status.HTTP_404_NOT_FOUND)
             serializer = PrimaryAgentProfileSerializer(profile)
-            # might add the resturant owners
+            active_profile_type = "businessstaff"
+        elif hasattr(user, "customer_profile"):
+            serializer = CustomerProfileSerializer(user.customer_profile)
+            active_profile_type = "customer"
+        elif hasattr(user, "driver_profile"):
+            serializer = DriverProfileSerializer(user.driver_profile)
+            active_profile_type = "driver"
+        elif hasattr(user, "business_admin"):
+            serializer = BuisnessAdminProfileSerializer(user.business_admin)
+            active_profile_type = "businessadmin"
+        elif getattr(user, "primaryagent", None):
+            serializer = PrimaryAgentProfileSerializer(user.primaryagent)
+            active_profile_type = "businessstaff"
         else:
-            return Response({"detail": "Invalid role."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "No profile found for this user."}, status=status.HTTP_404_NOT_FOUND)
 
         return Response({
             "user": {
@@ -63,6 +78,8 @@ class UserProfileView(APIView):
                 "phone_number": user.phone_number,
                 "name": user.name,
                 "role": user.role,
+                "roles": user_roles,
+                "active_profile_type": active_profile_type,
             },
             "profile": serializer.data,
         })
@@ -636,10 +653,12 @@ class DriverLoginView(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
-        user = User.objects.filter(
-            phone_number=vd["phone_number"],
-            role="driver"
-        ).first()
+        user = User.objects.filter(phone_number=vd["phone_number"]).first()
+        if not user:
+            return Response(
+                {"error": "Invalid credentials"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
         
         driver_profile = getattr(user, "driver_profile", None)
         if not driver_profile:
@@ -686,10 +705,17 @@ class AdminLoginView(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
-        user = User.objects.filter(
-            phone_number=vd["phone_number"],
-            role="businessadmin"
-        ).first()
+        user = User.objects.filter(phone_number=vd["phone_number"]).first()
+        if not user:
+            return Response(
+                {"error": "Invalid credentials"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        if not has_role(user, "businessadmin") or not hasattr(user, "business_admin"):
+            return Response(
+                {"error": "Not a business admin account"},
+                status=status.HTTP_403_FORBIDDEN
+            )
         if not user or not user.check_password(vd["password"]):
             return Response(
                 {"error": "Invalid credentials"},

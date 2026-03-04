@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 from django.contrib.gis.db import models as gis_models
 from django.db import models
 from authflow.storage_backends import PrivateStorage
+from accounts.services.roles import get_user_roles, has_role as role_checker
 
 # if what we are check gets big i'm thing of having a separte model for cert inke in driver but only if it gets out of hand
 # and a main branch option, on creation of jwt for the resturant create add it to the token
@@ -178,7 +179,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     role = models.CharField(max_length=20, choices=[
         ("customer", "Customer"),
         ("driver", "Driver"),
-        ("buisnessstaff", "BuisnessStaff"), # will be changed to buisness staff
+        ("businessstaff", "BusinessStaff"),
+        ("buisnessstaff", "BuisnessStaff (Legacy)"),
         ("businessadmin", "BusinessAdmin"),
     ], default="customer")
 
@@ -193,3 +195,20 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email or self.phone_number
+
+    @property
+    def derived_roles(self):
+        return get_user_roles(self)
+
+    def has_role(self, role: str) -> bool:
+        return role_checker(self, role)
+
+    @property
+    def customer_profile(self):
+        base = self.profile_bases.filter(profile_type="customer").first()
+        return getattr(base, "customer_profile", None)
+
+    @property
+    def driver_profile(self):
+        base = self.profile_bases.filter(profile_type="driver").first()
+        return getattr(base, "driver_profile", None)

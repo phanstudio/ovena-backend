@@ -2,11 +2,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from accounts.serializers import UserSerializer, OAuthCodeSerializer
-# from accounts.models import User
 from ..utils.oath import verify_apple_token
 from authflow.services import issue_jwt_for_user
 from django.contrib.auth import get_user_model
-from ..serializers import GoogleAuthSerializer, CreateCustomerSerializer
+from django.db import transaction
+from rest_framework.exceptions import ValidationError
+from accounts.serializers import GoogleAuthSerializer, CreateCustomerSerializer
 User = get_user_model()
 
 class AuthLogic():
@@ -21,11 +22,11 @@ class AuthLogic():
         # what is sub for
         info = serializer.validated_data['info']
         user, info["created"] = User.objects.get_or_create(
-            email=serializer.validated_data['email'],
-            defaults={'email': serializer.validated_data['email']}
+            email=info['email'],
+            defaults={'email': info['email']}
         )
         
-        return {"user": user, "info": info}
+        return (user, info)
     
     @staticmethod
     def apple(request):
@@ -43,11 +44,12 @@ class AuthLogic():
             defaults={'email': email}
         )
         
-        return {"user": user, "info": info}
+        return (user, info)
 
 class OAuthExchangeView(APIView):
     permission_classes = [permissions.AllowAny]
 
+    @transaction.atomic
     def post(self, request):
         s = OAuthCodeSerializer(data=request.data)
         s.is_valid(raise_exception=True)
@@ -59,35 +61,34 @@ class OAuthExchangeView(APIView):
 
         match provider:
             case "google":
-                user_data = AuthLogic.google(request)
-                user = user_data["user"]
-                info = user_data["info"]
+                user, info = AuthLogic.google(request)
             case "apple":
-                user_data = AuthLogic.apple(request)
-                user = user_data["user"]
-                info = user_data["info"]
+                user, info = AuthLogic.apple(request)
             case _:
                 return Response({
                     "detail": "provider should be google or apple", "error": "provider invalid"},
                       status=status.HTTP_400_BAD_REQUEST)
         
-        if isinstance(info, dict):
-            info.update({k: v for k, v in vd.items() if k not in ("provider", "id_token", "email")})
-            print(info, "\n\n")
-        
+        if not isinstance(info, dict):
+            raise ValidationError("Invalid OAuth response")
+        info = {**info, **vd}
+
         # send there location
         if info["created"]:
-            data:dict = {
-                # "long": info.get("long"),
-                # "lat": info.get("lat"),
-                # "birth_date": info.get("birth_date"),
-                # "name": f"{info.get('given_name','')} {info.get('family_name','')}".strip(),
-                # "referre_code": info.get("referre_code"),
-                # "phone_number": info.get("phone_number"),
-            }
             mainname:str = f"{info.get('given_name','')} {info.get('family_name','')}".strip()
-            data.update(info)
-            # {k: v for k, v in vd.items() if k not in ("provider", "id_token")}
+            allowed_fields = {
+                # "given_name",
+                # "family_name",
+                "picture",
+                "phone_number",
+                "referre_code",
+                "birth_date",
+                "lat",
+                "long",
+            }
+
+            data:dict = {k: v for k, v in info.items() if k in allowed_fields}
+
             # jl = data.copy()
             # jl.update({k: v for k, v in info.items() if k not in ("given_name", "family_name")})
             # print(jl)
@@ -95,7 +96,6 @@ class OAuthExchangeView(APIView):
             if mainname.strip() != "":
                 data["name"] = mainname
             print(data)
-            # profile_data = {k: v for k, v in profile_data.items() if v is not None}
 
             # picture info["picture"]
             serializer = CreateCustomerSerializer(
@@ -105,15 +105,12 @@ class OAuthExchangeView(APIView):
             serializer.is_valid(raise_exception=True)
             serializer.save()
 
-        # this might be a probelm we might ask for the refresh token to destroy or create a  access if that process is not done
+        # this might be a probelm we might ask for the refresh token to 
+        # destroy or create a access if that process is not done
         tokens = issue_jwt_for_user(user) 
-        
         return Response({
             "user": UserSerializer(user).data,
             "tokens": tokens,
             "message": "OAUTH User creation successfully",
-            # "refresh": token["refresh"],
-            # "access": token["access"],
             "is_new_user": info["created"]
         })
-

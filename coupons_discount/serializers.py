@@ -74,8 +74,8 @@ class CouponCreateUpdateSerializer(serializers.ModelSerializer):
         valid_until = attrs.get("valid_until", getattr(self.instance, "valid_until", None))
 
         # Scope rules
-        if scope == "restaurant" and not business:
-            raise serializers.ValidationError({"business": "Business is required when scope=restaurant."})
+        if scope == "business" and not business:
+            raise serializers.ValidationError({"business": "Business is required when scope=business."})
         if scope == "global":
             attrs["business"] = None
 
@@ -104,7 +104,7 @@ class CouponCreateUpdateSerializer(serializers.ModelSerializer):
         if valid_from and valid_until and valid_until < valid_from:
             raise serializers.ValidationError({"valid_until": "valid_until must be >= valid_from."})
 
-        if coupon_type == "BxGy" and scope == "restaurant" and business:
+        if coupon_type == "BxGy" and scope == "business" and business:
             buy_business = getattr(getattr(getattr(buy_item, "category", None), "menu", None), "business", None)
             get_business = getattr(getattr(getattr(get_item, "category", None), "menu", None), "business", None)
             if buy_business and buy_business != business:

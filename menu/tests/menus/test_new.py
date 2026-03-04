@@ -1,19 +1,16 @@
-import json
 import pytest
-# from pathlib import Path
 from rest_framework.test import APIClient
-from menu.models import Order
 from django.urls import reverse
 from rest_framework_simplejwt.tokens import RefreshToken
 from authflow.services import make_sub_token
 
 @pytest.mark.django_db
-def test_restorder_listview(orders_taken, resturant_manager, registered_restaurant):
+def test_restorder_listview(orders_taken, resturant_vendor, registered_restaurant):
     """Searching by description should return items."""
-    user, *_ = resturant_manager
+    user, *_ = resturant_vendor
     client = APIClient()
     client = authenticate(client, user)
-    url = reverse("Business-order")
+    url = reverse("restaurant-order")
 
     response = client.get(url)
     assert response.status_code == 200

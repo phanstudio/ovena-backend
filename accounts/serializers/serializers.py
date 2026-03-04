@@ -4,6 +4,7 @@ from google.oauth2 import id_token # type: ignore
 from google.auth.transport import requests # type: ignore
 from django.conf import settings
 from rest_framework import serializers
+from django.core.exceptions import ValidationError as DjangoValidationError
 from ..models import (
     CustomerProfile,
     DriverProfile,
@@ -13,6 +14,7 @@ from ..models import (
     BusinessAdmin,
     PrimaryAgent
 )
+from referrals.services import apply_referral_code, ensure_profile_base
 
 class AddressSerializer(serializers.ModelSerializer):
     # optional: return lat/lon as simple numbers
@@ -97,7 +99,7 @@ class CreateCustomerSerializer(serializers.Serializer):
         user = self.context["user"]
 
         # thanks to CustomCustomerAuth
-        if hasattr(user, "customer_profile"):
+        if user.customer_profile:#hasattr(user, "customer_profile"):
             raise serializers.ValidationError(
                 "Customer profile already exists."
             )
@@ -122,12 +124,6 @@ class CreateCustomerSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     {"phone_number": "Phone number already in use."}
                 )
-
-        referre_code = data.get("referre_code")
-        if referre_code and len(referre_code) > 0:
-            data["referred_by"] = CustomerProfile.objects.filter(
-                referral_code=referre_code
-            ).first()
 
         return data
     
@@ -160,11 +156,19 @@ class CreateCustomerSerializer(serializers.Serializer):
             user=user,
             birth_date=validated_data.get("birth_date"),
             default_address=location,
-            referred_by=validated_data.get("referred_by"),
         )
+        ensure_profile_base(profile)
 
         if location:
             profile.addresses.add(location)
+
+        referre_code = validated_data.get("referre_code")
+        if referre_code:
+            try:
+                apply_referral_code(profile=profile, code=referre_code)
+            except DjangoValidationError as exc:
+                msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+                raise serializers.ValidationError({"referre_code": msg})
 
         return profile
 

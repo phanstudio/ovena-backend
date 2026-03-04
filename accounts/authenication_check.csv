@@ -1,0 +1,8 @@
+role        , login                         , logout , registration                 , view-details, update          , delete         , password-recovery,
+customer    , "verify-otp/ oauth/exchange/" , logout/, "verify-otp/ oauth/exchange/", profile/    , customer/update/, profile/delete/, none             ,
+driver      , driver-login/                 , logout/, none                         , profile/    , none            , profile/delete/, password-reset/  ,
+business Adm, admin-login/                  , logout/, admin/                       , profile/    , none            , profile/delete/, password-reset/  ,
+
+"rotate the token" geting access token with rotate-token/,,,,
+
+

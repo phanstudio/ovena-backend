@@ -17,13 +17,13 @@ def authenticate(client, user):
 
 @pytest.fixture
 def order_context(db):
-    business = Business.objects.create(business_name="Order Test Rest", bn_number="BN-ORDER-001")
-    branch = Branch.objects.create(Business=business, name="Main Branch", is_active=True, is_accepting_orders=True)
+    business = Business.objects.create(business_name="Order Test Rest", )#bn_number="BN-ORDER-001")
+    branch = Branch.objects.create(business=business, name="Main Branch", is_active=True, is_accepting_orders=True)
 
-    menu = Menu.objects.create(Business=business, name="Main")
+    menu = Menu.objects.create(business=business, name="Main")
     category = MenuCategory.objects.create(menu=menu, name="Meals", sort_order=1)
     base_item = BaseItem.objects.create(
-        Business=business,
+        business=business,
         name="High Value Meal",
         default_price=Decimal("6000.00"),
     )

@@ -7,16 +7,22 @@ from .main import User, Branch, Business
 # profile
 class ProfileBase(models.Model):
     """
-    Shared fields + common behaviors for any profile.
+    Shared referral identity for any profile type.
     """
+    PROFILE_CUSTOMER = "customer"
+    PROFILE_DRIVER = "driver"
+    PROFILE_TYPE_CHOICES = [
+        (PROFILE_CUSTOMER, "Customer"),
+        (PROFILE_DRIVER, "Driver"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="profile_bases")
+    profile_type = models.CharField(max_length=20, choices=PROFILE_TYPE_CHOICES, db_index=True)
     referral_code = models.CharField(max_length=20, unique=True, null=True, blank=True, db_index=True)
-    referred_by = models.ForeignKey(
-        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="referrals"
-    )
     created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        abstract = True
+    def __str__(self):
+        return f"{self.user_id}:{self.profile_type}"
     
     def _generate_referral_code(self) -> str:
         return generate_referral_code(8)
@@ -59,21 +65,33 @@ class ProfileBase(models.Model):
 
         raise RuntimeError("Could not generate a unique referral code after multiple attempts.")
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "profile_type"],
+                name="uniq_profilebase_user_type",
+            )
+        ]
+
 class CustomerProfile(ProfileBase): # create a simple view to change the defualt address
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="customer_profile")
+    profilebase_ptr = models.OneToOneField(
+        ProfileBase,
+        on_delete=models.CASCADE,
+        parent_link=True,
+        related_name="customer_profile"
+    )
     birth_date = models.DateField(null=True, blank=True)
     addresses = models.ManyToManyField(Address, related_name="customers", blank=True)
     default_address = models.ForeignKey(Address, on_delete=models.SET_NULL, null=True, blank=True, related_name="default_for_customers")# set normally but change if requested
 
-    # def save(self, *args, **kwargs):
-    #     # Generate referral code once (safe against collisions)
-    #     if not self.referral_code:
-    #         while True:
-    #             code = generate_referral_code(8)
-    #             if not CustomerProfile.objects.filter(referral_code=code).exists():
-    #                 self.referral_code = code
-    #                 break
-    #     super().save(*args, **kwargs)
+    def save(self, *args, **kwargs):
+        if not self.pk:
+            self.profile_type = ProfileBase.PROFILE_CUSTOMER
+        else:
+            if self.profile_type != ProfileBase.PROFILE_CUSTOMER:
+                raise ValueError("Cannot change profile_type on CustomerProfile")
+        # print(self.profile_type)
+        super().save(*args, **kwargs)
 
     @property
     def age(self):
@@ -86,10 +104,7 @@ class CustomerProfile(ProfileBase): # create a simple view to change the defualt
 
     @property
     def successful_referrals(self):
-        return CustomerProfile.objects.filter(
-            referred_by=self,
-            user__orders__status="delivered"
-        ).distinct().count()
+        return 0
 
 class PrimaryAgent(models.Model): # only one primary users, so the branch should be a one to one
     branch = models.OneToOneField(Branch, on_delete=models.CASCADE, related_name="primary_agent")

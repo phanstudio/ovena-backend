@@ -16,7 +16,7 @@ class Coupons(models.Model): # are coupons for the entire order or a single orde
 
     SCOPE_CHOICES = [
         ("global", "Platform-wide"),
-        ("restaurant", "Restaurant-only"),
+        ("business", "Business-only"),
     ]
     DISCOUNT_CHOICES = [("percent", "Percent"), ("amount", "Fixed-amount")]
 
@@ -35,7 +35,7 @@ class Coupons(models.Model): # are coupons for the entire order or a single orde
     buy_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, null=True, blank=True, related_name="buy_coupons")
     get_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, null=True, blank=True, related_name="get_coupons")
 
-    scope = models.CharField(max_length=20, choices=SCOPE_CHOICES, default="restaurant")
+    scope = models.CharField(max_length=20, choices=SCOPE_CHOICES, default="business")
     business = models.ForeignKey(Business, on_delete=models.CASCADE, null=True, blank=True, related_name="coupons")
 
     discount_type = models.CharField(max_length=10, choices=DISCOUNT_CHOICES, default="percent")

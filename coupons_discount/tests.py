@@ -15,16 +15,16 @@ from .serializers import CouponCreateUpdateSerializer, CouponSerializer, CouponW
 
 
 @pytest.fixture
-def Business(db):
-    return Business.objects.create(business_name="Test Business", bn_number="BN-123")
+def Business_object(db):
+    return Business.objects.create(business_name="Test business")#, bn_number="BN-123")
 
 
 @pytest.fixture
-def menu_item(db, Business):
-    menu = Menu.objects.create(Business=Business, name="Main")
+def menu_item(db, Business_object):
+    menu = Menu.objects.create(business=Business_object, name="Main")
     category = MenuCategory.objects.create(menu=menu, name="Burgers")
     base_item = BaseItem.objects.create(
-        Business=Business,
+        business=Business_object,
         name="Burger Base",
         default_price=10,
     )
@@ -36,16 +36,16 @@ def menu_item(db, Business):
     )
 
 @pytest.fixture
-def menu_items(db, Business):
-    menu = Menu.objects.create(Business=Business, name="Main")
+def menu_items(db, Business_object):
+    menu = Menu.objects.create(business=Business_object, name="Main")
     category = MenuCategory.objects.create(menu=menu, name="Burgers")
     base_buy = BaseItem.objects.create(
-        Business=Business,
+        business=Business_object,
         name="Buy Item",
         default_price=10,
     )
     base_get = BaseItem.objects.create(
-        Business=Business,
+        business=Business_object,
         name="Get Item",
         default_price=6,
     )
@@ -71,7 +71,7 @@ def create_coupon(**kwargs):
         "description": "",
         "coupon_type": "delivery",
         "scope": "global",
-        "Business": None,
+        "business": None,
         "discount_type": "percent",
         "discount_value": 10,
         "valid_from": now - timedelta(days=1),
@@ -103,13 +103,13 @@ def test_coupon_urls_include_public_and_admin():
 
 
 @pytest.mark.django_db
-def test_coupon_create_serializer_rejects_invalid_date_order(Business):
+def test_coupon_create_serializer_rejects_invalid_date_order(Business_object):
     now = timezone.now()
     data = {
         "code": "DATE-001",
         "coupon_type": "delivery",
-        "scope": "Business",
-        "Business": Business.id,
+        "scope": "business",
+        "business": Business_object.id,
         "discount_type": "percent",
         "discount_value": 10,
         "valid_from": now,
@@ -122,13 +122,13 @@ def test_coupon_create_serializer_rejects_invalid_date_order(Business):
 
 
 @pytest.mark.django_db
-def test_coupon_create_serializer_global_clears_restaurant(Business):
+def test_coupon_create_serializer_global_clears_restaurant(Business_object):
     now = timezone.now()
     data = {
         "code": "GLOBAL-001",
         "coupon_type": "delivery",
         "scope": "global",
-        "Business": Business.id,
+        "business": Business_object.id,
         "discount_type": "percent",
         "discount_value": 10,
         "valid_from": now,
@@ -137,7 +137,7 @@ def test_coupon_create_serializer_global_clears_restaurant(Business):
     }
     serializer = CouponCreateUpdateSerializer(data=data)
     assert serializer.is_valid(), serializer.errors
-    assert serializer.validated_data["Business"] is None
+    assert serializer.validated_data["business"] is None
 
 
 @pytest.mark.django_db
@@ -187,10 +187,10 @@ def test_coupon_wheel_spin_picks_eligible_coupon():
 
 
 @pytest.mark.django_db
-def test_apply_bxgy_coupon_to_order(menu_items, Business):
+def test_apply_bxgy_coupon_to_order(menu_items, Business_object):
     buy_item, get_item = menu_items
 
-    branch = Branch.objects.create(Business=Business, name="Main Branch")
+    branch = Branch.objects.create(business=Business_object, name="Main Branch")
     user = User.objects.create(email="buyer@example.com", name="Buyer")
     customer_profile = CustomerProfile.objects.create(user=user)
 
@@ -223,8 +223,8 @@ def test_apply_bxgy_coupon_to_order(menu_items, Business):
         get_amount=1,
         buy_item=buy_item,
         get_item=get_item,
-        scope="Business",
-        Business=Business,
+        scope="business",
+        business=Business_object,
     )
 
     applied = CouponService.apply_coupon_to_order(coupon, order)

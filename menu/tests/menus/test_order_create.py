@@ -15,20 +15,26 @@ def test_order_create_with_items(registered_restaurant, user1):
 
     branch = registered_restaurant
     menu_item = (
-        branch.Business.menus.first()
+        branch.business.menus.first()
         .categories.first()
         .items.first()
+    )
+    variant_option = (
+        menu_item.variant_groups.first()
+        .options.first()
     )
 
     payload = {
         "branch_id": branch.id,
         "items": [
-            {"menu_item_id": menu_item.id, "quantity": 2},
+            {"menu_item_id": menu_item.id, "quantity": 2, 
+             "variant_option_ids": [variant_option.id]},
         ],
     }
 
     url = reverse("order")
     response = client.post(url, payload, format="json")
+    print(response.json())
     assert response.status_code == 201
 
     order_id = response.data["order_id"]
@@ -49,9 +55,14 @@ def test_order_create_with_delivery_coupon(registered_restaurant, user1):
 
     branch = registered_restaurant
     menu_item = (
-        branch.Business.menus.first()
+        branch.business.menus.first()
         .categories.first()
         .items.first()
+    )
+
+    variant_option = (
+        menu_item.variant_groups.first()
+        .options.first()
     )
 
     now = timezone.now()
@@ -59,8 +70,8 @@ def test_order_create_with_delivery_coupon(registered_restaurant, user1):
         code="DELIV-001",
         description="Free delivery",
         coupon_type="delivery",
-        scope="Business",
-        Business=branch.Business,
+        scope="business",
+        business=branch.business,
         discount_type="percent",
         discount_value=0,
         valid_from=now - timedelta(days=1),
@@ -72,18 +83,21 @@ def test_order_create_with_delivery_coupon(registered_restaurant, user1):
         "branch_id": branch.id,
         "coupon_code": coupon.code,
         "items": [
-            {"menu_item_id": menu_item.id, "quantity": 1},
+            {"menu_item_id": menu_item.id, "quantity": 2, 
+             "variant_option_ids": [variant_option.id]},
         ],
     }
 
     url = reverse("order")
     response = client.post(url, payload, format="json")
+    print(response.json())
     assert response.status_code == 201
 
     order_id = response.data["order_id"]
     from menu.models import Order
 
     order = Order.objects.get(id=order_id)
+    print(order.coupons)
     assert order.coupons_id == coupon.id
     coupon.refresh_from_db()
     assert coupon.uses_count == 1
