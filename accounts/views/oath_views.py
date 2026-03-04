@@ -2,11 +2,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
 from accounts.serializers import UserSerializer, OAuthCodeSerializer
-# from accounts.models import User
 from ..utils.oath import verify_apple_token
 from authflow.services import issue_jwt_for_user
 from django.contrib.auth import get_user_model
-from ..serializers import GoogleAuthSerializer, CreateCustomerSerializer
+from django.db import transaction
+from rest_framework.exceptions import ValidationError
+from accounts.serializers import GoogleAuthSerializer, CreateCustomerSerializer
 User = get_user_model()
 
 class AuthLogic():
@@ -48,6 +49,7 @@ class AuthLogic():
 class OAuthExchangeView(APIView):
     permission_classes = [permissions.AllowAny]
 
+    @transaction.atomic
     def post(self, request):
         s = OAuthCodeSerializer(data=request.data)
         s.is_valid(raise_exception=True)
@@ -67,30 +69,33 @@ class OAuthExchangeView(APIView):
                     "detail": "provider should be google or apple", "error": "provider invalid"},
                       status=status.HTTP_400_BAD_REQUEST)
         
-        if isinstance(info, dict):
-            info.update({k: v for k, v in vd.items() if k not in ("provider", "id_token", "email")})
-
-        {'iss': 'azp':'aud':'sub': '105101312692861695693', 'email': 'pbassey30@gmail.com', 'email_verified': True, 'name': 'Priestly Bassey', 'picture':  'given_name':  'family_name':  'iat':  'exp': 'created': False}
+        if not isinstance(info, dict):
+            raise ValidationError("Invalid OAuth response")
+        info = {**info, **vd}
 
         # send there location
         if info["created"]:
-            data:dict = {
-                # "long": info.get("long"),
-                # "lat": info.get("lat"),
-                # "birth_date": info.get("birth_date"),
-                # "name": f"{info.get('given_name','')} {info.get('family_name','')}".strip(),
-                # "referre_code": info.get("referre_code"),
-                # "phone_number": info.get("phone_number"),
-            }
             mainname:str = f"{info.get('given_name','')} {info.get('family_name','')}".strip()
-            data.update(info)
+            allowed_fields = {
+                # "given_name",
+                # "family_name",
+                "picture",
+                "phone_number",
+                "referre_code",
+                "birth_date",
+                "lat",
+                "long",
+            }
+
+            data:dict = {k: v for k, v in info.items() if k in allowed_fields}
+
             # jl = data.copy()
             # jl.update({k: v for k, v in info.items() if k not in ("given_name", "family_name")})
             # print(jl)
             
             if mainname.strip() != "":
                 data["name"] = mainname
-            # profile_data = {k: v for k, v in profile_data.items() if v is not None}
+            print(data)
 
             # picture info["picture"]
             serializer = CreateCustomerSerializer(
@@ -109,4 +114,3 @@ class OAuthExchangeView(APIView):
             "message": "OAUTH User creation successfully",
             "is_new_user": info["created"]
         })
-

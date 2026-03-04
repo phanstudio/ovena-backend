@@ -99,7 +99,7 @@ class CreateCustomerSerializer(serializers.Serializer):
         user = self.context["user"]
 
         # thanks to CustomCustomerAuth
-        if hasattr(user, "customer_profile"):
+        if user.customer_profile:#hasattr(user, "customer_profile"):
             raise serializers.ValidationError(
                 "Customer profile already exists."
             )
