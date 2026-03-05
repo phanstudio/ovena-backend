@@ -1,7 +1,6 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.contrib.gis.db import models as gis_models
 from django.db import models
-from authflow.storage_backends import PrivateStorage
 from accounts.services.roles import get_user_roles, has_role as role_checker
 
 # if what we are check gets big i'm thing of having a separte model for cert inke in driver but only if it gets out of hand
@@ -31,53 +30,6 @@ class Business(models.Model):
     @property
     def company_name(self):
         return self.business_name
-
-class BusinessCerd(models.Model):
-    BUSINESS_TYPE_CHOICES = [
-        ("LLC", "Limited Liability Company"),
-        ("C", "Corporations"),
-        ("P", "Partnerships "),
-        ("SP", "Sole Proprietorships"),
-    ]
-
-    class DocType(models.TextChoices):
-        CAC = "cac", "CAC Document"
-        TAX = "tax", "Tax Document"
-        ID = "id", "ID Document"
-        OTHER = "other", "Other"
-    
-    business = models.OneToOneField(Business, on_delete=models.CASCADE, related_name="cerd")
-    business_type = models.CharField(max_length=120, choices=BUSINESS_TYPE_CHOICES, default="restaurant")
-    doc_type = models.CharField(max_length=20, choices=DocType.choices, default=DocType.OTHER)
-    business_doc = models.FileField(
-        upload_to="business/docs/",
-        storage=PrivateStorage(),  # private bucket
-        blank=True,
-        null=True
-    )
-
-    # KYC / registration (optional at initial step)
-    registered_business_name = models.CharField(max_length=255, null=True, blank=True) # well also remove to another model
-    tax_identification_number = models.CharField(max_length=100, null=True, blank=True) # should be the last 4 bdigits for safety
-    rc_number = models.CharField(max_length=100, null=True, blank=True)
-    bn_number = models.CharField(max_length=100, blank=True, default="")
-
-    def __str__(self):
-        return self.registered_business_name
-
-class BusinessPayoutAccount(models.Model):
-    business = models.OneToOneField(Business, on_delete=models.CASCADE, related_name="payout")
-
-    bank_name = models.CharField(max_length=120)
-    account_number = models.CharField(max_length=30)
-    account_name = models.CharField(max_length=120)
-
-    # Safer than storing BVN raw:
-    # bvn_last4 = models.CharField(max_length=4, null=True, blank=True)
-    bvn = models.CharField(max_length=4, null=True, blank=True)
-    bvn_verification_ref = models.CharField(max_length=120, null=True, blank=True)
-
-    created_at = models.DateTimeField(auto_now_add=True)
 
 # recheck if indexing is possible on foreign keys and checking can work?
 # this branch is not connected to any restorant why

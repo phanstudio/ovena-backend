@@ -48,6 +48,8 @@ django-storages[boto3]
 boto3
 pycountry
 python-ulid
+argon2-cffi 
+bcrypt
 
 # drf-spectacular[sidecar]
 drf-spectacular 

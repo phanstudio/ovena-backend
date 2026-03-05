@@ -1,5 +1,4 @@
 from django.db import models
-from .main import User
 from django.conf import settings
 from .profile import ProfileBase
 
@@ -11,13 +10,7 @@ class DriverProfile(ProfileBase):
         parent_link=True,
         related_name="driver_profile"
     )
-    # base_profile = models.OneToOneField(
-    #     ProfileBase,
-    #     on_delete=models.CASCADE,
-    #     related_name="driver_profile",
-    # )
-    # user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='driver_profile')
-    
+
     # Personal info
     birth_date = models.DateField(null=True, blank=True) # should this be moveed to creds
     first_name = models.CharField(max_length=80, blank=True)

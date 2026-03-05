@@ -21,7 +21,6 @@ from accounts.services.roles import has_role, get_user_roles
 from addresses.utils import checkset_location
 from drf_spectacular.utils import extend_schema, inline_serializer # type: ignore
 from rest_framework import serializers as s
-
 from accounts.serializers import InS, OpS
 
 class UserProfileView(APIView):
@@ -384,19 +383,26 @@ class RegisterBAdmin(GenericAPIView):
             identifier = verify(vd["otp_code"], vd["phone_number"])
         except OTPInvalidError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
+        
         try:
-            user = User.objects.create(
-                name=vd["full_name"],
-                phone_number=identifier,
-                role="businessadmin"
-            )
-        except IntegrityError as e:
-            if "unique" in str(e).lower():
-                return Response(
-                    {"error": "Username or phonenumber already taken"},
-                    status=status.HTTP_400_BAD_REQUEST,
+            with transaction.atomic():
+                user = User.objects.create(
+                    name=vd["full_name"],
+                    phone_number=identifier,
+                    role="businessadmin"
                 )
+                business_admin = BusinessAdmin.objects.create(user=user)
+                BusinessOnboardStatus.objects.create(admin=business_admin, onboarding_step= 0)
+        except IntegrityError as e:
+            return Response(
+                {"error": f"Registration failed due to a database constraint. Registration failed: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            return Response(
+                {"detail": f"Registration failed: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         token = issue_jwt_for_user(user)
 
@@ -420,6 +426,7 @@ class RestaurantPhase1RegisterView(GenericAPIView):
     Creates: Business (bare), User (restaurantadmin role), BusinessAdmin link.
     No auth required — this is signup.
     """
+    authentication_classes = [CustomBAdminAuth]
     permission_classes = [IsBusinessAdmin]
     serializer_class = InS.RestaurantPhase1Serializer
     def post(self, request):
@@ -443,8 +450,10 @@ class RestaurantPhase1RegisterView(GenericAPIView):
             user.save()
 
             # Link admin to restaurant
-            business_admin = BusinessAdmin.objects.create(business=restaurant, user=user)
-            BusinessOnboardStatus.objects.create(admin=business_admin, onboarding_step= 1)
+            business_admin = BusinessAdmin.objects.get(user=user)
+            business_admin.business = restaurant
+            business_admin.save()
+            BusinessOnboardStatus.objects.filter(admin=business_admin).update(onboarding_step=1)
 
         return Response(
             {"detail": "Business registered. Proceed to onboarding.", "business_id": restaurant.id},
