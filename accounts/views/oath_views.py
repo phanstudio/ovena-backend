@@ -1,13 +1,16 @@
-from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
-from accounts.serializers import UserSerializer, OAuthCodeSerializer
+from accounts.serializers import OAuthCodeSerializer
 from ..utils.oath import verify_apple_token
 from authflow.services import issue_jwt_for_user
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 from accounts.serializers import GoogleAuthSerializer, CreateCustomerSerializer
+from rest_framework.generics import GenericAPIView
+from drf_spectacular.utils import extend_schema, inline_serializer # type: ignore
+from rest_framework import serializers as s
+
 User = get_user_model()
 
 class AuthLogic():
@@ -46,12 +49,21 @@ class AuthLogic():
         
         return (user, info)
 
-class OAuthExchangeView(APIView):
+@extend_schema(
+    responses={201: inline_serializer("Phase2Response", fields={
+        "message": s.CharField(),
+        "is_new_user": s.BooleanField(),
+        "refresh": s.CharField(),
+        "access": s.CharField(),
+    })}
+)
+class OAuthExchangeView(GenericAPIView):
     permission_classes = [permissions.AllowAny]
+    serializer_class = OAuthCodeSerializer
 
     @transaction.atomic
     def post(self, request):
-        s = OAuthCodeSerializer(data=request.data)
+        s = self.get_serializer(data=request.data)
         s.is_valid(raise_exception=True)
         vd = s.validated_data
         provider = vd["provider"]
@@ -71,31 +83,18 @@ class OAuthExchangeView(APIView):
         
         if not isinstance(info, dict):
             raise ValidationError("Invalid OAuth response")
-        info = {**info, **vd}
 
         # send there location
         if info["created"]:
             mainname:str = f"{info.get('given_name','')} {info.get('family_name','')}".strip()
             allowed_fields = {
-                # "given_name",
-                # "family_name",
                 "picture",
-                "phone_number",
-                "referre_code",
-                "birth_date",
-                "lat",
-                "long",
             }
 
             data:dict = {k: v for k, v in info.items() if k in allowed_fields}
-
-            # jl = data.copy()
-            # jl.update({k: v for k, v in info.items() if k not in ("given_name", "family_name")})
-            # print(jl)
-            
+           
             if mainname.strip() != "":
                 data["name"] = mainname
-            print(data)
 
             # picture info["picture"]
             serializer = CreateCustomerSerializer(
@@ -107,10 +106,10 @@ class OAuthExchangeView(APIView):
 
         # this might be a probelm we might ask for the refresh token to 
         # destroy or create a access if that process is not done
-        tokens = issue_jwt_for_user(user) 
+        token = issue_jwt_for_user(user) 
         return Response({
-            "user": UserSerializer(user).data,
-            "tokens": tokens,
+            "refresh": token["refresh"],
+            "access": token["access"],
             "message": "OAUTH User creation successfully",
             "is_new_user": info["created"]
         })
