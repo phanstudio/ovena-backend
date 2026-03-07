@@ -24,9 +24,17 @@ class AuthLogic():
 
         # what is sub for
         info = serializer.validated_data['info']
+        mainname:str = f"{info.get('given_name','')} {info.get('family_name','')}".strip()
+        data = {
+            'email': info['email']
+        }
+        
+        if mainname != "":
+            data["name"] = mainname
+        
         user, info["created"] = User.objects.get_or_create(
             email=info['email'],
-            defaults={'email': info['email']}
+            defaults=data
         )
         
         return (user, info)
@@ -83,26 +91,6 @@ class OAuthExchangeView(GenericAPIView):
         
         if not isinstance(info, dict):
             raise ValidationError("Invalid OAuth response")
-
-        # send there location
-        if info["created"]:
-            mainname:str = f"{info.get('given_name','')} {info.get('family_name','')}".strip()
-            allowed_fields = {
-                "picture",
-            }
-
-            data:dict = {k: v for k, v in info.items() if k in allowed_fields}
-           
-            if mainname.strip() != "":
-                data["name"] = mainname
-
-            # picture info["picture"]
-            serializer = CreateCustomerSerializer(
-                data=data,
-                context={"user": user}
-            )
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
 
         # this might be a probelm we might ask for the refresh token to 
         # destroy or create a access if that process is not done
