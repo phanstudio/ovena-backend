@@ -89,6 +89,7 @@ class CreateCustomerSerializer(serializers.Serializer):
     long = serializers.FloatField(required=False)
     birth_date = serializers.DateField(required=False)
     referre_code = serializers.CharField(required=False, allow_blank=True)
+    profile_pic = serializers.CharField(required=False, allow_blank=True) # add profle pics.
 
     def validate(self, data):
         user = self.context["user"]
@@ -249,6 +250,7 @@ class UpdateCustomerSerializer(serializers.Serializer):
     lat = serializers.FloatField(required=False)
     long = serializers.FloatField(required=False)
     birth_date = serializers.DateField(required=False)
+    profile_pic = serializers.CharField(required=False, allow_blank=True) # add profle pics.
 
     def validate(self, data):
         user = self.context["user"]
