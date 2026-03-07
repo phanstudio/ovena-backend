@@ -3,12 +3,13 @@ from django.shortcuts import get_object_or_404
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.generics import GenericAPIView
 
 from accounts.models import (
-    DriverProfile, DriverCred, DriverAvailability,
+    DriverProfile, DriverCred, DriverAvailability, User,
     DriverDocument, DriverBankAccount, DriverOnboardingSubmission, DriverVerification,
 )
 from accounts.serializers import (
@@ -22,7 +23,10 @@ from accounts.utils.driver_verification import (
     verify_nin_mono, verify_bvn_mono, verify_bank_account_paystack,
 )
 from referrals.services import apply_referral_code, ensure_profile_base
-
+from drf_spectacular.utils import extend_schema # type: ignore
+from django.db import transaction#, IntegrityError
+from accounts.serializers import OpS
+from authflow.services import issue_jwt_for_user
 
 def _get_or_create_submission(profile: DriverProfile) -> DriverOnboardingSubmission:
     """Always work against the latest non-approved/non-rejected submission."""
@@ -78,6 +82,9 @@ def _guard_submitted(submission: DriverOnboardingSubmission, response_on_fail):
 
 # ─── Status ───────────────────────────────────────────────────────────────────
 
+@extend_schema(
+    responses=OnboardingStatusOutputSerializer,
+)
 class OnboardingStatusView(APIView):
     """
     GET /onboarding/status/
@@ -109,28 +116,30 @@ class OnboardingStatusView(APIView):
 
 # ─── Phase 1 — Personal Info ──────────────────────────────────────────────────
 
-class OnboardingPhase1View(APIView):
+class OnboardingPhase1View(GenericAPIView):
     """
     PUT /onboarding/phase/1/
     Saves personal info, contact details, and next-of-kin.
     Driver can re-submit to update until final submission.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
+    serializer_class = OnboardingPhase1InputSerializer
 
     def put(self, request):
-        profile, _ = DriverProfile.objects.get_or_create(user=request.user)
-        submission = _get_or_create_submission(profile)
-
-        guard = _guard_submitted(submission, None)
-        if guard:
-            return guard
-
-        serializer = OnboardingPhase1InputSerializer(
+        serializer = self.get_serializer(
             data=request.data,
             context={"driver_user_id": request.user.pk},
         )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+
+        user = User.objects.get_or_create(email=data["email"])
+        profile, _ = DriverProfile.objects.get_or_create(user=request.user)
+        submission = _get_or_create_submission(profile)
+
+        guard = _guard_submitted(submission, None)
+        if guard:
+            return guard        
 
         # ── Persist to DriverProfile ──
         profile.first_name = data["first_name"]
@@ -145,6 +154,7 @@ class OnboardingPhase1View(APIView):
         user.phone_number = data["phone_number"]
         user.email = data["email"]
         user.name = f"{data['first_name']} {data['last_name']}"
+        user.set_password(data["password"])
         user.save(update_fields=["phone_number", "email", "name"])
 
         # ── Persist next-of-kin to DriverCred ──
@@ -192,7 +202,7 @@ class OnboardingPhase1View(APIView):
 
 # ─── Phase 2 — Identity & Vehicle ─────────────────────────────────────────────
 
-class OnboardingPhase2View(APIView):
+class OnboardingPhase2View(GenericAPIView):
     """
     PUT /onboarding/phase/2/
     Saves driver's license image, NIN/BVN (verified via Mono),
@@ -201,6 +211,7 @@ class OnboardingPhase2View(APIView):
     """
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+    serializer_class = OnboardingPhase2InputSerializer
 
     def put(self, request):
         profile = get_object_or_404(DriverProfile, user=request.user)
@@ -217,7 +228,8 @@ class OnboardingPhase2View(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = OnboardingPhase2InputSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
+        # OnboardingPhase2InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
@@ -302,7 +314,7 @@ class OnboardingPhase2View(APIView):
 
 # ─── Phase 3 — Availability, Compliance & Delivery Bag ───────────────────────
 
-class OnboardingPhase3View(APIView):
+class OnboardingPhase3View(GenericAPIView):
     """
     PUT /onboarding/phase/3/
     Saves availability schedule, compliance Q&A, and delivery bag photo.
@@ -310,6 +322,7 @@ class OnboardingPhase3View(APIView):
     """
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+    serializer_class = OnboardingPhase3InputSerializer
 
     def put(self, request):
         profile = get_object_or_404(DriverProfile, user=request.user)
@@ -326,7 +339,8 @@ class OnboardingPhase3View(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = OnboardingPhase3InputSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
+        # OnboardingPhase3InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
@@ -374,7 +388,7 @@ class OnboardingPhase3View(APIView):
 
 # ─── Phase 4 — Bank Account & Selfie ─────────────────────────────────────────
 
-class OnboardingPhase4View(APIView):
+class OnboardingPhase4View(GenericAPIView):
     """
     PUT /onboarding/phase/4/
     Saves bank account (verified via Paystack) and verified selfie.
@@ -383,6 +397,7 @@ class OnboardingPhase4View(APIView):
     """
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+    serializer_class = OnboardingPhase4InputSerializer
 
     def put(self, request):
         profile = get_object_or_404(DriverProfile, user=request.user)
@@ -399,7 +414,8 @@ class OnboardingPhase4View(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = OnboardingPhase4InputSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
+        # OnboardingPhase4InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 

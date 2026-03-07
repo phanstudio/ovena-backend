@@ -30,6 +30,7 @@ class OnboardingPhase1InputSerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=80)
     last_name = serializers.CharField(max_length=80)
     phone_number = serializers.CharField(max_length=18)
+    password = serializers.CharField()
     email = serializers.EmailField()
     gender = serializers.ChoiceField(choices=["male", "female", "other", "na"])
     birth_date = serializers.DateField()
