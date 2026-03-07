@@ -17,7 +17,8 @@ class MyReferralStatusSerializer(serializers.Serializer):
     pending_referrals = serializers.IntegerField()
 
 class ReferralItemSerializer(serializers.ModelSerializer):
-    referee_user_id = serializers.IntegerField(source="referee_user_id", read_only=True)
+    # referee_user_id = serializers.IntegerField(source="referee_user_id", read_only=True)
+    referee_user_id = serializers.IntegerField()
 
     class Meta:
         model = ProfileReferral
