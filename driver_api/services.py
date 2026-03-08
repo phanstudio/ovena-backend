@@ -6,12 +6,14 @@ from datetime import timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-import requests
 from django.conf import settings
 from django.db import transaction
 from django.db.models import DecimalField, Q, Sum
 from django.db.models.functions import Coalesce, TruncDay, TruncWeek
 from django.utils import timezone
+
+from payments.integrations.paystack.client import PaystackClient
+from payments.observability.metrics import increment
 
 from accounts.models import DriverBankAccount, DriverProfile
 from driver_api.models import (
@@ -22,6 +24,7 @@ from driver_api.models import (
     SupportTicket,
 )
 from menu.models import Order
+from driver_api.unified_bridge import process_driver_withdrawal_with_payments
 
 
 MIN_WITHDRAWAL = Decimal("1000.00")
@@ -174,15 +177,10 @@ def evaluate_withdrawal_eligibility(driver: DriverProfile, amount: Decimal | Non
     )
 
 
-def _paystack_headers():
-    return {
-        "Authorization": f"Bearer {getattr(settings, 'PAYSTACK_SECRET_KEY', '')}",
-        "Content-Type": "application/json",
-    }
+paystack_client = PaystackClient()
 
 
 def _ensure_transfer_recipient(bank_account: DriverBankAccount):
-    url = "https://api.paystack.co/transferrecipient"
     payload = {
         "type": "nuban",
         "name": bank_account.account_name,
@@ -190,26 +188,18 @@ def _ensure_transfer_recipient(bank_account: DriverBankAccount):
         "bank_code": bank_account.bank_code,
         "currency": "NGN",
     }
-    response = requests.post(url, json=payload, headers=_paystack_headers(), timeout=20)
-    data = response.json()
-    if response.status_code not in (200, 201) or not data.get("status"):
-        raise ValueError(data.get("message") or "Could not create transfer recipient")
-    recipient = data.get("data", {})
+    recipient = paystack_client.create_transfer_recipient(payload).get("data", {})
     return recipient.get("recipient_code", "")
 
 
 def _initiate_transfer(recipient_code: str, amount: Decimal, reason: str):
-    url = "https://api.paystack.co/transfer"
     payload = {
         "source": "balance",
         "amount": int(amount * 100),
         "recipient": recipient_code,
         "reason": reason,
     }
-    response = requests.post(url, json=payload, headers=_paystack_headers(), timeout=20)
-    data = response.json()
-    if response.status_code not in (200, 201) or not data.get("status"):
-        raise ValueError(data.get("message") or "Transfer request failed")
+    data = paystack_client.initiate_transfer(payload)
     transfer_data = data.get("data", {})
     return transfer_data.get("reference", ""), data
 
@@ -275,37 +265,11 @@ def create_withdrawal_request(driver: DriverProfile, amount: Decimal, idempotenc
 
 
 def process_withdrawal_request(withdrawal: DriverWithdrawalRequest):
-    if withdrawal.status != DriverWithdrawalRequest.STATUS_APPROVED:
-        return withdrawal
-
-    bank = getattr(withdrawal.driver, "bank_account", None)
-    if not bank or not bank.is_verified:
-        withdrawal.mark_failed("Driver bank account is not verified", manual=True)
-        return withdrawal
-
-    try:
-        withdrawal.status = DriverWithdrawalRequest.STATUS_PROCESSING
-        withdrawal.processed_at = timezone.now()
-        withdrawal.save(update_fields=["status", "processed_at", "updated_at"])
-
-        recipient_code = _ensure_transfer_recipient(bank)
-        transfer_ref, payload = _initiate_transfer(
-            recipient_code=recipient_code,
-            amount=withdrawal.amount,
-            reason=f"Driver withdrawal #{withdrawal.id}",
-        )
-        withdrawal.transfer_ref = transfer_ref or f"fallback-{uuid4().hex[:12]}"
-        withdrawal.review_snapshot = {**withdrawal.review_snapshot, "transfer_init_payload": payload}
-        withdrawal.save(update_fields=["transfer_ref", "review_snapshot", "updated_at"])
-        return withdrawal
-    except Exception as exc:
-        withdrawal.retry_count += 1
-        manual = withdrawal.retry_count >= MAX_RETRY_COUNT
-        withdrawal.mark_failed(str(exc), manual=manual)
-        if not manual:
-            withdrawal.status = DriverWithdrawalRequest.STATUS_APPROVED
-            withdrawal.save(update_fields=["status", "retry_count", "updated_at"])
-        return withdrawal
+    return process_driver_withdrawal_with_payments(
+        withdrawal=withdrawal,
+        ensure_recipient_fn=_ensure_transfer_recipient,
+        max_retry_count=MAX_RETRY_COUNT,
+    )
 
 
 @transaction.atomic
@@ -349,6 +313,9 @@ def mark_withdrawal_paid(withdrawal: DriverWithdrawalRequest):
 @transaction.atomic
 def mark_withdrawal_failed(withdrawal: DriverWithdrawalRequest, reason: str, manual: bool = False):
     withdrawal.mark_failed(reason=reason, manual=manual)
+    increment("driver.withdrawal.failed_total", tags={"manual": str(bool(manual)).lower()})
+    if manual:
+        increment("driver.withdrawal.manual_review_total")
     DriverLedgerEntry.objects.create(
         driver=withdrawal.driver,
         entry_type=DriverLedgerEntry.TYPE_RELEASE,
@@ -452,3 +419,9 @@ def parse_range(range_key: str, from_date=None, to_date=None):
         end = timezone.make_aware(datetime.combine(to_date, datetime.max.time()))
         return start, end
     return now - timedelta(days=30), now
+
+
+
+
+
+

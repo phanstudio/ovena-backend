@@ -28,7 +28,15 @@ def retry_pending_withdrawals():
 
 
 def reconcile_paystack_webhook(transfer_reference: str, transfer_status: str, reason: str = ""):
-    withdrawal = DriverWithdrawalRequest.objects.filter(transfer_ref=transfer_reference).select_related("driver").first()
+    withdrawal = (
+        DriverWithdrawalRequest.objects.filter(payment_withdrawal__paystack_transfer_ref=transfer_reference)
+        .select_related("driver")
+        .first()
+        or DriverWithdrawalRequest.objects.filter(transfer_ref=transfer_reference).select_related("driver").first()
+        or DriverWithdrawalRequest.objects.filter(review_snapshot__payment_withdrawal_id=transfer_reference)
+        .select_related("driver")
+        .first()
+    )
     if not withdrawal:
         return None
     if transfer_status == "success":
@@ -36,4 +44,3 @@ def reconcile_paystack_webhook(transfer_reference: str, transfer_status: str, re
     elif transfer_status in {"failed", "reversed"}:
         mark_withdrawal_failed(withdrawal, reason=reason or "Paystack marked transfer as failed", manual=False)
     return withdrawal
-

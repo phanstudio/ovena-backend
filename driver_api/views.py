@@ -1,6 +1,3 @@
-import hashlib
-import hmac
-import json
 
 from django.conf import settings
 from django.db import transaction
@@ -51,7 +48,8 @@ from driver_api.services import (
     performance_metrics,
     sync_wallet_from_ledger,
 )
-from driver_api.tasks import process_withdrawal, reconcile_paystack_webhook
+from driver_api.tasks import process_withdrawal
+from payments.webhooks.paystack import handle_paystack_webhook
 
 
 class BaseDriverAPIView(APIView):
@@ -421,33 +419,13 @@ class PaystackWithdrawalWebhookView(APIView):
     permission_classes = []
 
     def post(self, request):
-        signature = request.headers.get("x-paystack-signature")
-        payload_bytes = request.body or b""
-        secret = getattr(settings, "PAYSTACK_SECRET_KEY", "") or ""
-        expected = hmac.new(
-            key=secret.encode("utf-8"),
-            msg=payload_bytes,
-            digestmod=hashlib.sha512,
-        ).hexdigest()
-        if not signature or signature != expected:
-            return Response({"detail": "Invalid webhook signature"}, status=status.HTTP_401_UNAUTHORIZED)
-
-        try:
-            body = json.loads(payload_bytes.decode("utf-8"))
-        except Exception:
-            return Response({"detail": "Invalid JSON"}, status=status.HTTP_400_BAD_REQUEST)
-
-        event = body.get("event")
-        data = body.get("data", {})
-        if event != "transfer.success" and event != "transfer.failed":
-            return Response({"detail": "Ignored event"}, status=status.HTTP_200_OK)
-
-        transfer_reference = data.get("reference", "")
-        transfer_status = data.get("status", "failed")
-        reason = data.get("failure_reason", "")
-        reconcile_paystack_webhook(
-            transfer_reference=transfer_reference,
-            transfer_status=transfer_status,
-            reason=reason,
+        status_code, detail = handle_paystack_webhook(
+            payload_bytes=request.body or b"",
+            signature=request.headers.get("x-paystack-signature", ""),
+            parsed_body=request.data,
+            transfer_only=True,
+            request_id=request.headers.get("X-Request-ID", ""),
         )
-        return Response({"detail": "Webhook processed"}, status=status.HTTP_200_OK)
+        return Response({"detail": detail}, status=status_code)
+
+

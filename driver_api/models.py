@@ -86,6 +86,7 @@ class DriverWithdrawalRequest(models.Model):
     idempotency_key = models.CharField(max_length=128)
     review_snapshot = models.JSONField(default=dict, blank=True)
     transfer_ref = models.CharField(max_length=120, blank=True, default="")
+    payment_withdrawal = models.OneToOneField("payments.Withdrawal", on_delete=models.SET_NULL, null=True, blank=True, related_name="driver_withdrawal")
     failure_reason = models.TextField(blank=True, default="")
     retry_count = models.PositiveSmallIntegerField(default=0)
     needs_manual_review = models.BooleanField(default=False)
@@ -233,4 +234,6 @@ class SupportTicketMessage(models.Model):
 
     class Meta:
         ordering = ["created_at"]
+
+
 

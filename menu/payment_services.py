@@ -1,15 +1,23 @@
-from paystackapi.paystack import Paystack
 from django.conf import settings
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 
-def initialize_paystack_transaction(amount, email):
-    paystack = Paystack(secret_key=settings.PAYSTACK_SECRET_KEY)
+from payments.integrations.paystack.client import PaystackClient
 
-    return paystack.transaction.initialize(
-        amount=round(amount * 100),  # amount in kobo (5000 = ₦50.00)
-        email=check_email_with_default(email),
-    )
+
+paystack_client = PaystackClient()
+
+
+def initialize_paystack_transaction(amount, email):
+    """
+    Initialize a Paystack transaction using the unified PaystackClient.
+    """
+    payload = {
+        "amount": round(amount * 100),  # amount in kobo (5000 = ₦50.00)
+        "email": check_email_with_default(email),
+    }
+    return paystack_client.initialize_transaction(payload)
+
 
 def check_email_with_default(email: str) -> str:
     try:

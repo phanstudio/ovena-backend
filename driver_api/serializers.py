@@ -184,6 +184,7 @@ class WithdrawalRequestSerializer(serializers.ModelSerializer):
             "idempotency_key",
             "review_snapshot",
             "transfer_ref",
+            "payment_withdrawal",
             "failure_reason",
             "retry_count",
             "needs_manual_review",
@@ -212,4 +213,6 @@ class AnalysisPerformanceQuerySerializer(serializers.Serializer):
 def mark_notifications_read(queryset):
     now = timezone.now()
     return queryset.filter(is_read=False).update(is_read=True, read_at=now)
+
+
 

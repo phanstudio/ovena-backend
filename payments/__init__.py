@@ -1,0 +1,1 @@
+"""Shared payment infrastructure package."""
