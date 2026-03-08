@@ -134,7 +134,8 @@ class LinkedStaff(models.Model):
 class BusinessAdmin(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="business_admin")
     business = models.OneToOneField(Business, on_delete=models.CASCADE, related_name="admin", null=True, blank=True)
-
+    # we can change to null later else might be an issue
+    
     def __str__(self):
         return f"{self.user.name} admin @ {self.business.business_name}"
 

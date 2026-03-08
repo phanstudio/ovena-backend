@@ -24,9 +24,6 @@ from accounts.utils.driver_verification import (
 )
 from referrals.services import apply_referral_code, ensure_profile_base
 from drf_spectacular.utils import extend_schema # type: ignore
-from django.db import transaction#, IntegrityError
-from accounts.serializers import OpS
-from authflow.services import issue_jwt_for_user
 
 def _get_or_create_submission(profile: DriverProfile) -> DriverOnboardingSubmission:
     """Always work against the latest non-approved/non-rejected submission."""

@@ -66,6 +66,7 @@ LOCAL_APPS = [
     'accounts',
     'addresses',
     'menu',
+    # 'driver_api',
     'authflow',
     'ratings',
     'coupons_discount',

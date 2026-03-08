@@ -59,3 +59,7 @@ drivers have passwords
 
 work on the other views particulally the standalones
 remove stand alone ensure profile
+
+will be checking the notifiaction system and how it pairs with the websockets in the resturant how the entire sytem is digested for the drivers.
+
+Cu la ticketj needas al usas websocketjn au another system mi hearis about system en firebase au en google
