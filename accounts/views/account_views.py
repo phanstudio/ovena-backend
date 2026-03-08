@@ -307,7 +307,6 @@ class RegisterDrivers(APIView): # what is the flow for drivers
             )
 
 class RegisterCustomer(APIView):
-    authentication_classes = [CustomCustomerAuth]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
