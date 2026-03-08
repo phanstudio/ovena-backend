@@ -27,7 +27,7 @@ class EligibleCouponsListView(generics.ListAPIView):
       ?coupon_type=delivery|itemdiscount|...
     """
     serializer_class = CouponSerializer
-    permission_classes = [permissions.IsAdminUser] 
+    permission_classes = [permissions.IsAuthenticated] 
 
     def get_queryset(self):
         qs = Coupons.objects.filter(eligible_coupon_q()).select_related("business", "category", "item")
@@ -118,7 +118,7 @@ class CouponCreateView(generics.CreateAPIView):
     """
     POST /api/admin/coupons/
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = CouponCreateUpdateSerializer
     queryset = Coupons.objects.all()
 
@@ -126,7 +126,7 @@ class CouponUpdateView(generics.UpdateAPIView):
     """
     PATCH/PUT /api/admin/coupons/<id>/
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = CouponCreateUpdateSerializer
     queryset = Coupons.objects.all()
 
@@ -145,7 +145,7 @@ class CouponWheelSetterView(generics.UpdateAPIView):
       - coupon_ids: [1,2,3]
       - is_active: true/false  (if true, will deactivate other wheels)
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = CouponWheelSetSerializer
     queryset = CouponWheel.objects.all()
 
@@ -164,6 +164,6 @@ class CouponWheelCreateView(generics.CreateAPIView):
     """
     POST /api/admin/coupon-wheels/
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = CouponWheelSetSerializer
     queryset = CouponWheel.objects.all()
