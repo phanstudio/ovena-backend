@@ -72,6 +72,8 @@ class OnboardingPhase1OutputSerializer(serializers.Serializer):
     next_of_kin_name = serializers.CharField()
     next_of_kin_phone = serializers.CharField()
     next_of_kin_address = serializers.CharField()
+    access = serializers.CharField()
+    refresh = serializers.CharField()
 
 
 # ─── Phase 2 ──────────────────────────────────────────────────────────────────

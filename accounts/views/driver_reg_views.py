@@ -7,6 +7,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView
+from authflow.services import issue_jwt_for_user
 
 from accounts.models import (
     DriverProfile, DriverCred, DriverAvailability, User,
@@ -156,6 +157,7 @@ class OnboardingPhase1View(GenericAPIView):
         user.name = f"{data['first_name']} {data['last_name']}"
         user.set_password(data["password"])
         user.save(update_fields=["phone_number", "email", "name"])
+        token = issue_jwt_for_user(user)
 
         # ── Persist next-of-kin to DriverCred ──
         cred, _ = DriverCred.objects.get_or_create(user=profile)
@@ -195,6 +197,8 @@ class OnboardingPhase1View(GenericAPIView):
         out = {
             "phase": 1,
             "status": "saved",
+            "refresh": token["refresh"],
+            "access": token["access"],
             **answers["phase_1"],
         }
         return Response(OnboardingPhase1OutputSerializer(out).data)
