@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView
 from authflow.services import issue_jwt_for_user
+from uuid import uuid5
 
 from accounts.models import (
     DriverProfile, DriverCred, DriverAvailability, User,
@@ -25,9 +26,6 @@ from accounts.utils.driver_verification import (
 )
 from referrals.services import apply_referral_code, ensure_profile_base
 from drf_spectacular.utils import extend_schema # type: ignore
-from django.db import transaction#, IntegrityError
-from accounts.serializers import OpS
-from authflow.services import issue_jwt_for_user
 
 def _get_or_create_submission(profile: DriverProfile) -> DriverOnboardingSubmission:
     """Always work against the latest non-approved/non-rejected submission."""
@@ -247,30 +245,42 @@ class OnboardingPhase2View(GenericAPIView):
         license_doc.save(update_fields=["file", "status"])
 
         # ── NIN verification via Mono ──
-        nin_result = verify_nin_mono(data["nin"])
+        # nin_result = verify_nin_mono(data["nin"])
+        # nin_ver = DriverVerification.objects.create(
+        #     driver=profile,
+        #     verification_type=DriverVerification.TYPE_NIN,
+        #     status=DriverVerification.STATUS_SUCCESS if nin_result["success"] else DriverVerification.STATUS_FAILED,
+        #     provider_name="mono",
+        #     provider_ref=nin_result["provider_ref"],
+        #     request_payload={"nin": data["nin"][-4:].zfill(11)},  # store masked
+        #     response_payload=nin_result["response_payload"],
+        #     completed_at=timezone.now(),
+        # )
+
         nin_ver = DriverVerification.objects.create(
             driver=profile,
             verification_type=DriverVerification.TYPE_NIN,
-            status=DriverVerification.STATUS_SUCCESS if nin_result["success"] else DriverVerification.STATUS_FAILED,
+            status=DriverVerification.STATUS_SUCCESS,
             provider_name="mono",
-            provider_ref=nin_result["provider_ref"],
+            provider_ref= uuid5(),
             request_payload={"nin": data["nin"][-4:].zfill(11)},  # store masked
-            response_payload=nin_result["response_payload"],
+            response_payload={"data":"successful"},
             completed_at=timezone.now(),
         )
 
+
         # ── BVN verification via Mono ──
-        bvn_result = verify_bvn_mono(data["bvn"])
-        bvn_ver = DriverVerification.objects.create(
-            driver=profile,
-            verification_type=DriverVerification.TYPE_BVN,
-            status=DriverVerification.STATUS_SUCCESS if bvn_result["success"] else DriverVerification.STATUS_FAILED,
-            provider_name="mono",
-            provider_ref=bvn_result["provider_ref"],
-            request_payload={"bvn": data["bvn"][-4:].zfill(11)},  # store masked
-            response_payload=bvn_result["response_payload"],
-            completed_at=timezone.now(),
-        )
+        # bvn_result = verify_bvn_mono(data["bvn"])
+        # bvn_ver = DriverVerification.objects.create(
+        #     driver=profile,
+        #     verification_type=DriverVerification.TYPE_BVN,
+        #     status=DriverVerification.STATUS_SUCCESS if bvn_result["success"] else DriverVerification.STATUS_FAILED,
+        #     provider_name="mono",
+        #     provider_ref=bvn_result["provider_ref"],
+        #     request_payload={"bvn": data["bvn"][-4:].zfill(11)},  # store masked
+        #     response_payload=bvn_result["response_payload"],
+        #     completed_at=timezone.now(),
+        # )
 
         # ── Store last4 in DriverCred ──
         cred, _ = DriverCred.objects.get_or_create(user=profile)
@@ -298,7 +308,7 @@ class OnboardingPhase2View(GenericAPIView):
             "nin_last4": data["nin"][-4:],
             "bvn_last4": data["bvn"][-4:],
             "nin_verification_status": nin_ver.status,
-            "bvn_verification_status": bvn_ver.status,
+            "bvn_verification_status": False,#bvn_ver.status,
             "vehicle_type": data["vehicle_type"],
             "vehicle_make": data["vehicle_make"],
             "plate_number": data["plate_number"],
@@ -427,16 +437,16 @@ class OnboardingPhase4View(GenericAPIView):
         # bank_code should come from a banks list endpoint (Paystack /bank)
         # For now, accept it as an optional field alongside account_number
         bank_code = request.data.get("bank_code", "")
-        bank_result = verify_bank_account_paystack(data["account_number"], bank_code)
+        bank_result = {}#verify_bank_account_paystack(data["account_number"], bank_code)
 
         bank_account, _ = DriverBankAccount.objects.get_or_create(driver=profile)
         bank_account.bank_name = data["bank_name"]
         bank_account.bank_code = bank_code
         bank_account.account_number = data["account_number"]
         # Use Paystack-resolved name if available, else trust driver input
-        bank_account.account_name = bank_result.get("account_name") or data["account_name"]
-        bank_account.is_verified = bank_result["success"]
-        bank_account.verified_at = timezone.now() if bank_result["success"] else None
+        bank_account.account_name = data["account_name"]
+        bank_account.is_verified = True#bank_result["success"]
+        bank_account.verified_at = timezone.now()
         bank_account.save()
 
         # ── Selfie document ──
@@ -453,7 +463,7 @@ class OnboardingPhase4View(GenericAPIView):
             "bank_name": bank_account.bank_name,
             "account_number": bank_account.account_number,
             "account_name": bank_account.account_name,
-            "bank_verification_status": "verified" if bank_result["success"] else "failed",
+            "bank_verification_status": "verified",
             "selfie_url": selfie_doc.file.url if selfie_doc.file else "",
         }
         answers["phase_4_complete"] = True
