@@ -125,7 +125,7 @@ class OnboardingPhase1View(GenericAPIView):
     serializer_class = OnboardingPhase1InputSerializer
 
     def put(self, request):
-        user = User.objects.get_or_create(email=request.data["email"])
+        user, _ = User.objects.get_or_create(email=request.data["email"])
         serializer = self.get_serializer(
             data=request.data,
             context={"driver_user_id": user.pk},
