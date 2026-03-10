@@ -149,12 +149,11 @@ class OnboardingPhase1View(GenericAPIView):
         profile.save(update_fields=["first_name", "last_name", "gender", "birth_date", "residential_address"])
 
         # ── Persist to User ──
-        user = request.user
         user.phone_number = data["phone_number"]
         user.email = data["email"]
         user.name = f"{data['first_name']} {data['last_name']}"
         user.set_password(data["password"])
-        user.save(update_fields=["phone_number", "email", "name"])
+        user.save(update_fields=["phone_number", "email", "name", "password"])
         token = issue_jwt_for_user(user)
 
         # ── Persist next-of-kin to DriverCred ──
