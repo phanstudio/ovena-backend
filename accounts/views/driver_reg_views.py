@@ -125,15 +125,15 @@ class OnboardingPhase1View(GenericAPIView):
     serializer_class = OnboardingPhase1InputSerializer
 
     def put(self, request):
+        user = User.objects.get_or_create(email=request.data["email"])
         serializer = self.get_serializer(
             data=request.data,
-            context={"driver_user_id": request.user.pk},
+            context={"driver_user_id": user.pk},
         )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        user = User.objects.get_or_create(email=data["email"])
-        profile, _ = DriverProfile.objects.get_or_create(user=request.user)
+        profile, _ = DriverProfile.objects.get_or_create(user=user)
         submission = _get_or_create_submission(profile)
 
         guard = _guard_submitted(submission, None)
