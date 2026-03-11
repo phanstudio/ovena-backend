@@ -378,10 +378,12 @@ class RegisterBAdmin(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
-        try:
-            identifier = verify(vd["otp_code"], vd["phone_number"])
-        except OTPInvalidError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        # try:
+        #     identifier = verify(vd["otp_code"], vd["phone_number"])
+        # except OTPInvalidError as e:
+        #     return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        identifier = vd["phone_number"]
         
         try:
             with transaction.atomic():
