@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+import json
 
 # from accounts.models import (
 #     DriverProfile, DriverCred, DriverAvailability,
@@ -130,6 +131,25 @@ class OnboardingPhase3InputSerializer(serializers.Serializer):
     compliance_answers = serializers.DictField(child=serializers.CharField(allow_blank=True))
     delivery_bag = serializers.ImageField()
 
+    def to_internal_value(self, data):
+        # Convert QueryDict to plain dict (lists → single values)
+        if hasattr(data, 'dict'):
+            data = data.dict()  # QueryDict → plain dict, takes last value for each key
+        
+        if isinstance(data.get("availability"), str):
+            try:
+                data["availability"] = json.loads(data["availability"])
+            except (json.JSONDecodeError, TypeError):
+                raise serializers.ValidationError({"availability": "Must be valid JSON."})
+
+        if isinstance(data.get("compliance_answers"), str):
+            try:
+                data["compliance_answers"] = json.loads(data["compliance_answers"])
+            except (json.JSONDecodeError, TypeError):
+                raise serializers.ValidationError({"compliance_answers": "Must be valid JSON."})
+
+        return super().to_internal_value(data)
+    
     def validate_compliance_answers(self, value):
         # required = [
         #     "have_you_worked_as_delivery_rider",

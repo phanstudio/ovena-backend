@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView
 from authflow.services import issue_jwt_for_user
-from uuid import uuid5
+from ulid import ULID # type: ignore
 
 from accounts.models import (
     DriverProfile, DriverCred, DriverAvailability, User,
@@ -261,7 +261,7 @@ class OnboardingPhase2View(GenericAPIView):
             verification_type=DriverVerification.TYPE_NIN,
             status=DriverVerification.STATUS_SUCCESS,
             provider_name="mono",
-            provider_ref= uuid5(),
+            provider_ref= ULID(),
             request_payload={"nin": data["nin"][-4:].zfill(11)},  # store masked
             response_payload={"data":"successful"},
             completed_at=timezone.now(),
