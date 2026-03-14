@@ -10,7 +10,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from payments.integrations.paystack.client import PaystackClient
-from payments.models import User, Withdrawal
+from payments.models import User, UserAccount, Withdrawal
 from payments.observability.metrics import increment
 from payments.services.split_calculator import _create_ledger_entry, get_ledger_balance
 
@@ -96,8 +96,10 @@ def evaluate_eligibility(user: User, amount_kobo: int) -> WithdrawalDecision:
     if last_complete and last_complete.completed_at:
         cooldown_ok = (now - last_complete.completed_at) >= timedelta(hours=WITHDRAWAL_COOLDOWN_HOURS)
 
+    # Provider details are stored on the payment-specific UserAccount extension.
+    account = UserAccount.objects.filter(user=user).first()
     checks = {
-        "recipient_ready": bool(user.paystack_recipient_code),
+        "recipient_ready": bool(account and account.paystack_recipient_code),
         "role_eligible": True,
         "minimum_amount": amount_kobo >= minimum,
         "sufficient_balance": available >= amount_kobo,
@@ -160,13 +162,17 @@ def create_withdrawal_request(
         notes="Hold for withdrawal request",
     )
 
+    # Snapshot the payout recipient details from the UserAccount (if present).
+    account = UserAccount.objects.filter(user=user).first()
+    recipient_code = account.paystack_recipient_code if account else ""
+
     withdrawal = Withdrawal.objects.create(
         user=user,
         amount=amount_kobo,
         status="pending_batch",
         strategy=strategy_value,
         idempotency_key=idempotency_key,
-        paystack_recipient_code=user.paystack_recipient_code,
+        paystack_recipient_code=recipient_code,
         ledger_entry=hold_entry,
     )
     logger.info(
@@ -214,7 +220,9 @@ def execute_realtime(withdrawal: Withdrawal):
         "recipient": withdrawal.paystack_recipient_code,
         "reason": f"Withdrawal {withdrawal.id}",
     }
+    print(payload)
     result = paystack_client.initiate_transfer(payload).get("data", {})
+    print(result)
 
     withdrawal.paystack_transfer_ref = result.get("reference") or withdrawal.paystack_transfer_ref
     withdrawal.paystack_transfer_code = result.get("transfer_code", "")

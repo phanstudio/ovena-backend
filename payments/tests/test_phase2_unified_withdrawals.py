@@ -9,7 +9,7 @@ These tests verify that:
 import pytest
 from rest_framework.test import APIRequestFactory, force_authenticate
 
-from payments.models import PaymentIdempotencyKey, User, Withdrawal
+from payments.models import PaymentIdempotencyKey, User, UserAccount, Withdrawal
 from payments.payouts import services as payout_services
 from payments.views import request_withdrawal_view
 from payments.services.split_calculator import _create_ledger_entry
@@ -19,7 +19,8 @@ from payments.services.split_calculator import _create_ledger_entry
 def test_create_withdrawal_request_unified_service(monkeypatch):
     """Baseline: a withdrawal created through the unified payouts service is persisted with a hold entry."""
     monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
-    user = User.objects.create_user(username="w1", password="x", role="driver", paystack_recipient_code="RCP_123")
+    user = User.objects.create_user(email="w1@gmail.com", password="x", role="driver")
+    UserAccount.objects.create(user=user, paystack_recipient_code="RCP_123")
 
     _create_ledger_entry(user=user, sale=None, role=user.role, entry_type="credit", amount=300000, notes="seed")
 
@@ -37,7 +38,8 @@ def test_create_withdrawal_request_unified_service(monkeypatch):
 def test_create_withdrawal_request_idempotent(monkeypatch):
     """A second call with the same (user, idempotency key) should return the same withdrawal instead of duplicating."""
     monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
-    user = User.objects.create_user(username="w2", password="x", role="driver", paystack_recipient_code="RCP_123")
+    user = User.objects.create_user(email="w2@gmail.com", password="x", role="driver")
+    UserAccount.objects.create(user=user, paystack_recipient_code="RCP_123")
     _create_ledger_entry(user=user, sale=None, role=user.role, entry_type="credit", amount=300000, notes="seed")
 
     first, created_first = payout_services.create_withdrawal_request(
@@ -56,7 +58,8 @@ def test_create_withdrawal_request_idempotent(monkeypatch):
 def test_request_withdrawal_view_uses_unified_service_and_can_queue_realtime(monkeypatch):
     """Wallet API should call the unified service and enqueue realtime payouts asynchronously."""
     monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
-    user = User.objects.create_user(username="w3", password="x", role="driver", paystack_recipient_code="RCP_123")
+    user = User.objects.create_user(email="w3@gmail.com", password="x", role="driver")
+    UserAccount.objects.create(user=user, paystack_recipient_code="RCP_123")
     _create_ledger_entry(user=user, sale=None, role=user.role, entry_type="credit", amount=300000, notes="seed")
 
     queued = {"calls": 0}
@@ -64,7 +67,7 @@ def test_request_withdrawal_view_uses_unified_service_and_can_queue_realtime(mon
     def fake_delay(_withdrawal_id):
         queued["calls"] += 1
 
-    monkeypatch.setattr("files.views.process_withdrawal.delay", fake_delay)
+    monkeypatch.setattr("payments.views.process_withdrawal.delay", fake_delay)
 
     factory = APIRequestFactory()
     req = factory.post(
@@ -85,7 +88,7 @@ def test_request_withdrawal_view_uses_unified_service_and_can_queue_realtime(mon
 @pytest.mark.django_db
 def test_request_withdrawal_view_forwards_request_id_to_service(monkeypatch):
     """`X-Request-ID` and idempotency key from the API layer are forwarded into the core service for tracing."""
-    user = User.objects.create_user(username="w4", password="x", role="driver")
+    user = User.objects.create_user(email="w4@gmail.com", password="x", role="driver")
 
     captured = {}
 
@@ -102,7 +105,7 @@ def test_request_withdrawal_view_forwards_request_id_to_service(monkeypatch):
         captured["request_id"] = request_id
         return FakeWithdrawal(), True
 
-    monkeypatch.setattr("files.views.create_withdrawal_request", fake_create_withdrawal_request)
+    monkeypatch.setattr("payments.views.create_withdrawal_request", fake_create_withdrawal_request)
 
     factory = APIRequestFactory()
     req = factory.post(

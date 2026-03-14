@@ -21,7 +21,7 @@ def test_reconcile_includes_batch_and_realtime(monkeypatch):
     run_date = date.today() - timedelta(days=1)
     aware_dt = timezone.make_aware(datetime.combine(run_date, time(12, 0)))
 
-    user = User.objects.create_user(username="rec1", password="x", role="driver")
+    user = User.objects.create_user(email="rec1@gmail.com", password="x", role="driver")
 
     batch_w = Withdrawal.objects.create(
         user=user,
@@ -66,7 +66,7 @@ def test_reconcile_includes_batch_and_realtime(monkeypatch):
 def test_reconcile_classifies_severity_and_triggers_alert(monkeypatch):
     """When Paystack and local records diverge, mismatches are classified and surfaced via the alert callback."""
     run_date = date.today() - timedelta(days=1)
-    user = User.objects.create_user(username="rec2", password="x", role="driver")
+    user = User.objects.create_user(email="rec2@gmail.com", password="x", role="driver")
 
     Withdrawal.objects.create(
         user=user,

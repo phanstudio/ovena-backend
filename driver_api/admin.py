@@ -17,6 +17,7 @@ admin.site.register(DriverLedgerEntry)
 admin.site.register(DriverWithdrawalRequest)
 admin.site.register(DriverNotification)
 admin.site.register(SupportFAQCategory)
+# add faqa from here
 admin.site.register(SupportFAQItem)
 admin.site.register(SupportTicket)
 admin.site.register(SupportTicketMessage)

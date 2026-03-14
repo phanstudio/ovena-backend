@@ -11,6 +11,89 @@ from .websocket_utils import notify_payment_completed
 
 logger = logging.getLogger(__name__)
 
+# order objects?
+def order_update(data):
+    reference = data["reference"]
+    amount = data["amount"]  # in kobo
+    status_msg = data["status"]
+
+    logger.info(f"Payment webhook received: {reference} - {status_msg}")
+
+    try:
+        order = Order.objects.select_related('branch', 'orderer').get(
+            payment_reference=reference
+        )
+    except Order.DoesNotExist:
+        logger.error(f"Order not found for payment reference: {reference}")
+        return HttpResponse(status=404)
+
+    # Check if already processed
+    if order.status == "preparing":
+        logger.info(f"Payment already processed for order {order.id}")
+        return JsonResponse({"status": "already_processed"}, status=200)
+
+    # Update order status
+    if order.status in ["confirmed", "payment_pending"]:
+        old_status = order.status
+        order.status = "preparing"
+        order.payment_completed_at = timezone.now()
+        order.save(update_fields=["status", "payment_completed_at", "last_modified_at"])
+
+        # Log event
+        OrderEvent.objects.create(
+            order=order,
+            event_type='payment_completed',
+            actor_type='system',
+            old_status=old_status,
+            new_status='preparing',
+            metadata={
+                'reference': reference,
+                'amount': amount,
+                'payment_method': data.get('channel'),
+            }
+        )
+
+        # 🔥 Broadcast payment success via WebSocket
+        notify_payment_completed(order)
+
+        logger.info(f"✅ Order {order.id} (ref: {reference}) marked as preparing")
+
+        return "success"
+    ...
+
+def order_fail(data):
+    reference = data["reference"]
+
+    logger.warning(f"Payment failed: {reference}")
+
+    try:
+        order = Order.objects.get(payment_reference=reference)
+        
+        # Log event
+        OrderEvent.objects.create(
+            order=order,
+            event_type='payment_failed',
+            actor_type='system',
+            metadata={
+                'reference': reference,
+                'reason': data.get('gateway_response')
+            }
+        )
+
+        # Notify customer
+        from .websocket_utils import broadcast_to_order_group
+        broadcast_to_order_group(order.id, {
+            'type': 'order.payment_failed',
+            'message': 'Payment failed. Please try again.',
+            'reason': data.get('gateway_response')
+        })
+
+    except Order.DoesNotExist:
+        pass
+
+    return JsonResponse({"status": "payment_failed"}, status=200)
+    ...
+
 
 @csrf_exempt
 def paystack_webhook(request):
@@ -42,85 +125,14 @@ def paystack_webhook(request):
     # 4️⃣ Handle payment success
     if event_type == "charge.success":
         data = event["data"]
-        reference = data["reference"]
-        amount = data["amount"]  # in kobo
-        status_msg = data["status"]
-
-        logger.info(f"Payment webhook received: {reference} - {status_msg}")
-
-        try:
-            order = Order.objects.select_related('branch', 'orderer').get(
-                payment_reference=reference
-            )
-        except Order.DoesNotExist:
-            logger.error(f"Order not found for payment reference: {reference}")
-            return HttpResponse(status=404)
-
-        # Check if already processed
-        if order.status == "preparing":
-            logger.info(f"Payment already processed for order {order.id}")
-            return JsonResponse({"status": "already_processed"}, status=200)
-
-        # Update order status
-        if order.status in ["confirmed", "payment_pending"]:
-            old_status = order.status
-            order.status = "preparing"
-            order.payment_completed_at = timezone.now()
-            order.save(update_fields=["status", "payment_completed_at", "last_modified_at"])
-
-            # Log event
-            OrderEvent.objects.create(
-                order=order,
-                event_type='payment_completed',
-                actor_type='system',
-                old_status=old_status,
-                new_status='preparing',
-                metadata={
-                    'reference': reference,
-                    'amount': amount,
-                    'payment_method': data.get('channel'),
-                }
-            )
-
-            # 🔥 Broadcast payment success via WebSocket
-            notify_payment_completed(order)
-
-            logger.info(f"✅ Order {order.id} (ref: {reference}) marked as preparing")
-
+        success = order_update(data)
+        if success is not None:
             return JsonResponse({"status": "success"}, status=200)
 
     # 5️⃣ Handle payment failure
     elif event_type == "charge.failed":
         data = event["data"]
-        reference = data["reference"]
-
-        logger.warning(f"Payment failed: {reference}")
-
-        try:
-            order = Order.objects.get(payment_reference=reference)
-            
-            # Log event
-            OrderEvent.objects.create(
-                order=order,
-                event_type='payment_failed',
-                actor_type='system',
-                metadata={
-                    'reference': reference,
-                    'reason': data.get('gateway_response')
-                }
-            )
-
-            # Notify customer
-            from .websocket_utils import broadcast_to_order_group
-            broadcast_to_order_group(order.id, {
-                'type': 'order.payment_failed',
-                'message': 'Payment failed. Please try again.',
-                'reason': data.get('gateway_response')
-            })
-
-        except Order.DoesNotExist:
-            pass
-
+        order_fail(data)
         return JsonResponse({"status": "payment_failed"}, status=200)
 
     # Unknown event type

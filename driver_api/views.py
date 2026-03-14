@@ -57,7 +57,7 @@ class BaseDriverAPIView(APIView):
     permission_classes = [IsDriver]
 
     def get_driver(self, request) -> DriverProfile:
-        profile = getattr(request.user, "driver_profile", None)
+        profile = request.user.driver_profile#getattr(request.user, "driver_profile", None)
         if not profile:
             profile = get_object_or_404(DriverProfile, user=request.user)
         return profile
@@ -114,14 +114,17 @@ class DriverProfileView(BaseDriverAPIView):
         payload = {
             "first_name": driver.first_name,
             "last_name": driver.last_name,
-            "gender": driver.gender,
-            "birth_date": driver.birth_date,
-            "residential_address": driver.residential_address,
-            "phone_number": request.user.phone_number or "",
-            "email": request.user.email or "",
+            "gender": driver.gender, 
+            "birth_date": driver.birth_date, # mfr
+            "residential_address": driver.residential_address, # mfr
+            "phone_number": request.user.phone_number or "", # mfr
+            "email": request.user.email or "", # mfr
             "vehicle_make": driver.vehicle_make or "",
             "vehicle_type": driver.vehicle_type or "",
-            "vehicle_number": driver.vehicle_number or "",
+            "vehicle_number": driver.vehicle_number or "", # mark for removal
+            # add sincee joined
+            # succesdelivery percent
+            # number of deliveries
         }
         return Response({"detail": "Driver profile fetched", "data": payload})
 

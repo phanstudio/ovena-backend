@@ -10,10 +10,10 @@ from payments.integrations.paystack.errors import PaystackAPIError, PaystackRequ
 
 class PaystackClient:
     """
-    Wrapper around the official/third‑party `paystackapi` client.
+    Wrapper around the official/third-party `paystackapi` client.
 
     This keeps a single integration point (`PaystackClient`) while delegating
-    request/response handling to the battle‑tested SDK.
+    request/response handling to the battle-tested SDK.
     """
 
     def __init__(self, secret_key: str | None = None, timeout: int = 20):

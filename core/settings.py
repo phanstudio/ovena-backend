@@ -62,15 +62,15 @@ THIRD_PARTY_APPS = [
 ]
 
 LOCAL_APPS = [
-    # "ovena.users",
     'accounts',
     'addresses',
     'menu',
-    # 'driver_api',
+    'driver_api',
     'authflow',
     'ratings',
     'coupons_discount',
     'referrals',
+    'payments'
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -130,8 +130,12 @@ BRANCH_CONFIRMATION_TIMEOUT = 300  # minutes
 PAYMENT_TIMEOUT = 300  # minutes
 
 # paystack
-PAYSTACK_SECRET_KEY = env("PAYSTACK_SERECT_KEY") # correct change later
+PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY") # correct change later
+LEDGER_HASH_SALT    = env("LEDGER_HASH_SALT") # all of these failed even with no salt
 
+MIN_WITHDRAWAL_DRIVER   = 100000   # ₦1,000 in kobo # same here
+MIN_WITHDRAWAL_BUSINESS = 200000   # ₦2,000 in kobo
+MIN_WITHDRAWAL_REFERRAL = 50000    # ₦500 in kobo
 
 DRIVER_SEARCH_RADIUS_KM = [5, 10, 15]
 DRIVER_LOCATION_STALE_THRESHOLD = 60*60#60 # seconds

@@ -14,6 +14,7 @@ from django.utils.dateparse import parse_datetime
 from payments.models import PaystackWebhookLog, Sale, Withdrawal
 from payments.observability.metrics import increment, observe_ms
 from payments.payouts.services import mark_withdrawal_failed, mark_withdrawal_paid
+from menu.payment_views import order_update, order_fail
 
 logger = logging.getLogger(__name__)
 
@@ -91,12 +92,18 @@ def process_event(body: dict[str, Any]) -> None:
     data = body.get("data", {})
 
     if event == "charge.success":
+        order_update(data)
         ref = data.get("reference")
         sale = Sale.objects.filter(paystack_reference=ref).first()
         if sale:
             sale.status = "in_escrow"
             sale.save(update_fields=["status", "updated_at"])
         return
+    
+    elif event == "charge.failed":
+        data = event["data"]
+        order_fail(data)
+        return 
 
     if event in TRANSFER_EVENTS:
         reference = data.get("reference", "")

@@ -9,7 +9,7 @@ These tests ensure that:
 
 import pytest
 
-from payments.models import User, Withdrawal
+from payments.models import User, UserAccount, Withdrawal
 from payments.payouts.services import create_withdrawal_request, execute_batch, execute_realtime
 from payments.services.split_calculator import _create_ledger_entry
 
@@ -18,7 +18,8 @@ from payments.services.split_calculator import _create_ledger_entry
 def test_create_withdrawal_persists_strategy(monkeypatch):
     """Chosen payout strategy (batch vs realtime) should be stored on the Withdrawal row."""
     monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
-    user = User.objects.create_user(username="s1", password="x", role="driver", paystack_recipient_code="RCP_1")
+    user = User.objects.create_user(email="s1@gmail.com", password="x", role="driver")
+    UserAccount.objects.create(user=user, paystack_recipient_code="RCP_1")
     _create_ledger_entry(user=user, sale=None, role=user.role, entry_type="credit", amount=500000, notes="seed")
 
     withdrawal, created = create_withdrawal_request(
@@ -36,7 +37,8 @@ def test_create_withdrawal_persists_strategy(monkeypatch):
 def test_execute_realtime_sets_transfer_refs(monkeypatch):
     """Realtime executor should attach Paystack transfer reference and code for later reconciliation."""
     monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
-    user = User.objects.create_user(username="s2", password="x", role="driver", paystack_recipient_code="RCP_2")
+    user = User.objects.create_user(email="s2@gmail.com", password="x", role="driver")
+    UserAccount.objects.create(user=user, paystack_recipient_code="RCP_2")
     _create_ledger_entry(user=user, sale=None, role=user.role, entry_type="credit", amount=500000, notes="seed")
 
     withdrawal, _ = create_withdrawal_request(
@@ -63,7 +65,8 @@ def test_execute_realtime_sets_transfer_refs(monkeypatch):
 def test_execute_batch_processes_only_batch_strategy(monkeypatch):
     """Batch executor must only process `batch` withdrawals and leave realtime ones untouched."""
     monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
-    user = User.objects.create_user(username="s3", password="x", role="driver", paystack_recipient_code="RCP_3")
+    user = User.objects.create_user(email="s3@gmail.com", password="x", role="driver")
+    UserAccount.objects.create(user=user, paystack_recipient_code="RCP_3")
     _create_ledger_entry(user=user, sale=None, role=user.role, entry_type="credit", amount=900000, notes="seed")
 
     batch_w, _ = create_withdrawal_request(
@@ -104,7 +107,8 @@ def test_execute_batch_processes_only_batch_strategy(monkeypatch):
 def test_mark_withdrawal_paid_and_failed_emit_metrics(monkeypatch):
     """Marking withdrawals paid/failed should emit success/failed metrics tagged by strategy."""
     monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
-    user = User.objects.create_user(username="s4", password="x", role="driver", paystack_recipient_code="RCP_4")
+    user = User.objects.create_user(email="s4@gmail.com", password="x", role="driver")
+    UserAccount.objects.create(user=user, paystack_recipient_code="RCP_4")
     _create_ledger_entry(user=user, sale=None, role=user.role, entry_type="credit", amount=500000, notes="seed")
 
     withdrawal, _ = create_withdrawal_request(

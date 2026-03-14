@@ -8,11 +8,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.conf import settings
 import jwt
 from urllib.parse import parse_qs
-
-
 import asyncio
-
-
 
 @database_sync_to_async
 def get_user_from_token(token):
@@ -250,10 +246,7 @@ def get_user_from_token(token):
     #         return AnonymousUser()
 
 
-# orders/ws_middleware.py
-from channels.middleware import BaseMiddleware
-from django.contrib.auth.models import AnonymousUser
-from urllib.parse import parse_qs
+
 
 class TokenAuthMiddleware(BaseMiddleware):
     """

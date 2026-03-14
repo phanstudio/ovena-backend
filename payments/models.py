@@ -2,36 +2,31 @@ import hashlib
 import os
 import uuid
 
-from django.contrib.auth.models import AbstractUser
+# from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
+from accounts.models import User
 
 
-class User(AbstractUser):
-    ROLES = [
-        ("user", "User"),
-        ("driver", "Driver"),
-        ("business_owner", "Business Owner"),
-        ("referral", "Referral"),
-        ("admin", "Admin"),
-    ]
+class UserAccount(models.Model):
+    """
+    Payment-specific extension of the core accounts.User model.
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    role = models.CharField(max_length=50, choices=ROLES, default="user")
-    phone = models.CharField(max_length=20, blank=True)
+    Holds provider-specific payout details so we don't have to put
+    Paystack/bank fields directly on the main User table.
+    """
 
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="payment_account")
     paystack_recipient_code = models.CharField(max_length=100, blank=True)
     bank_account_number = models.CharField(max_length=20, blank=True)
     bank_code = models.CharField(max_length=10, blank=True)
     bank_account_name = models.CharField(max_length=255, blank=True)
 
-    referred_by = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="referrals")
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.username} ({self.role})"
+        return f"{self.bank_account_name} ({self.bank_code})"
 
 
 class PlatformConfig(models.Model):

@@ -25,7 +25,7 @@ import payments.webhooks.paystack as paystack_webhooks
 def test_idempotent_request_replay_returns_saved_response(monkeypatch):
     """Same initialize-sale request + idempotency key must reuse the first stored response."""
     factory = APIRequestFactory()
-    user = User.objects.create_user(username="u1", password="x")
+    user = User.objects.create_user(email="u1@gmail.com", password="x")
 
     call_count = {"n": 0}
 
@@ -57,7 +57,7 @@ def test_idempotent_request_replay_returns_saved_response(monkeypatch):
 def test_idempotency_conflict_on_payload_mismatch(monkeypatch):
     """Re-using an idempotency key with a different payload should be rejected to avoid ambiguity."""
     factory = APIRequestFactory()
-    user = User.objects.create_user(username="u2", password="x")
+    user = User.objects.create_user(email="u2@gmail.com", password="x")
 
     monkeypatch.setattr(payment_views, "initialize_sale", lambda **kwargs: {"sale_id": "s2"})
 
@@ -104,10 +104,10 @@ def test_webhook_replay_dedup(monkeypatch):
     raw = json.dumps(payload).encode("utf-8")
     signature = hmac.new(b"sk_test_secret", raw, hashlib.sha512).hexdigest()
 
-    req1 = factory.post("/api/webhooks/paystack/", payload, format="json", HTTP_X_PAYSTACK_SIGNATURE=signature)
+    req1 = factory.post("/api/webhooks/paystack/",raw,content_type="application/json",HTTP_X_PAYSTACK_SIGNATURE=signature)
     res1 = payment_views.paystack_webhook_view(req1)
 
-    req2 = factory.post("/api/webhooks/paystack/", payload, format="json", HTTP_X_PAYSTACK_SIGNATURE=signature)
+    req2 = factory.post("/api/webhooks/paystack/",raw,content_type="application/json",HTTP_X_PAYSTACK_SIGNATURE=signature)
     res2 = payment_views.paystack_webhook_view(req2)
 
     assert res1.status_code == 200
@@ -135,7 +135,7 @@ def test_webhook_processed_and_error_transitions(monkeypatch):
 
     monkeypatch.setattr(paystack_webhooks, "process_event", fail_once)
 
-    req1 = factory.post("/api/webhooks/paystack/", payload, format="json", HTTP_X_PAYSTACK_SIGNATURE=signature)
+    req1 = factory.post("/api/webhooks/paystack/",raw,content_type="application/json",HTTP_X_PAYSTACK_SIGNATURE=signature)
     res1 = payment_views.paystack_webhook_view(req1)
 
     log = PaystackWebhookLog.objects.get(event_id="999")
@@ -144,7 +144,7 @@ def test_webhook_processed_and_error_transitions(monkeypatch):
     assert "boom" in log.error_reason
 
     monkeypatch.setattr(paystack_webhooks, "process_event", lambda _body: None)
-    req2 = factory.post("/api/webhooks/paystack/", payload, format="json", HTTP_X_PAYSTACK_SIGNATURE=signature)
+    req2 = factory.post("/api/webhooks/paystack/",raw,content_type="application/json",HTTP_X_PAYSTACK_SIGNATURE=signature)
     res2 = payment_views.paystack_webhook_view(req2)
 
     log.refresh_from_db()
