@@ -226,6 +226,7 @@ class RegisterRManager(APIView):
             )
 
         main_token = create_token(user, role="main", expires_in=3600)
+        print(main_token)
 
         return Response(
             {
