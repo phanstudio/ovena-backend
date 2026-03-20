@@ -1,10 +1,15 @@
 from decimal import Decimal
 from django.db import transaction
 from rest_framework import serializers
-from accounts.models import Branch
+from accounts.models import Branch, User, ProfileBase
 from ..models import Coupons, BaseItemAvailability, MenuItem, MenuItemAddon, VariantOption, Order, OrderItem
 from ..services import CouponService
 from authflow.services import generate_passphrase, hash_phrase
+from addresses.utils import get_distance_km_from_2points
+from django.db.models import Prefetch
+
+PRICE_PER_KM = 1000
+MINIMUM_PRICE_KM = 100#1000
 
 MIN_ORDER_SUBTOTAL = Decimal("5000.00")
 
@@ -25,7 +30,7 @@ class OrderCreateSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         request = self.context["request"]
-        user = self.context["user"]
+        # user = self.context["user"]
         branch_id = attrs["branch_id"]
         items = attrs.get("items") or []
 
@@ -40,6 +45,12 @@ class OrderCreateSerializer(serializers.Serializer):
         if not branch.is_accepting_orders:
             raise serializers.ValidationError({"branch_id": "This restaurant is not accepting orders right now."})
         attrs["branch"] = branch
+        
+        user = User.objects.prefetch_related(Prefetch("profile_bases",
+            queryset=ProfileBase.objects.select_related(
+                "customer_profile__default_address"
+        ))).get(id=request.user.id)
+        attrs["distance_km"] = get_distance_km_from_2points(user.customer_profile.default_address.location, branch.location)
 
         # 3) Coupon validation (basic)
         coupon = None
@@ -180,6 +191,7 @@ class OrderCreateSerializer(serializers.Serializer):
         branch = validated_data["branch"]
         coupon = validated_data.get("coupon")
         items = validated_data["items"]
+        distance_km = validated_data.get("distance_km", 0)
 
         phrase = generate_passphrase()
 
@@ -190,6 +202,7 @@ class OrderCreateSerializer(serializers.Serializer):
             coupons=coupon,
             delivery_secret_hash=hash_phrase(phrase),
             status="pending",
+            delivery_price=max(distance_km*PRICE_PER_KM, MINIMUM_PRICE_KM)
         )
 
         # Create OrderItems in bulk

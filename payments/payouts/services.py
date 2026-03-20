@@ -29,6 +29,10 @@ WITHDRAWAL_COOLDOWN_HOURS = int(getattr(settings, "WITHDRAWAL_COOLDOWN_HOURS", 2
 STRATEGY_BATCH = Withdrawal.STRATEGY_BATCH
 STRATEGY_REALTIME = Withdrawal.STRATEGY_REALTIME
 
+LEDGER_ROLE_ALIASES = {
+    "businessadmin": "business_owner",
+}
+
 
 @dataclass
 class WithdrawalDecision:
@@ -39,6 +43,10 @@ class WithdrawalDecision:
 
 
 paystack_client = PaystackClient()
+
+
+def _ledger_role_for_user(user: User) -> str:
+    return LEDGER_ROLE_ALIASES.get(user.role, user.role)
 
 
 def _pending_total(user) -> int:
@@ -58,7 +66,7 @@ def get_balance_summary(user_id):
     balance = get_ledger_balance(user)
     pending = _pending_total(user)
     available = balance - pending
-    minimum = MINIMUM_BY_ROLE.get(user.role, 0)
+    minimum = MINIMUM_BY_ROLE.get(_ledger_role_for_user(user), 0)
     return {
         "total_balance_kobo": balance,
         "pending_withdrawal_kobo": pending,
@@ -73,7 +81,8 @@ def get_balance_summary(user_id):
 
 
 def evaluate_eligibility(user: User, amount_kobo: int) -> WithdrawalDecision:
-    minimum = MINIMUM_BY_ROLE.get(user.role)
+    ledger_role = _ledger_role_for_user(user)
+    minimum = MINIMUM_BY_ROLE.get(ledger_role)
     if minimum is None:
         return WithdrawalDecision(False, {"role_eligible": False}, 0, 0)
 
@@ -156,7 +165,7 @@ def create_withdrawal_request(
     hold_entry = _create_ledger_entry(
         user=user,
         sale=None,
-        role=user.role,
+        role=_ledger_role_for_user(user),
         entry_type="debit",
         amount=-amount_kobo,
         notes="Hold for withdrawal request",
@@ -220,9 +229,7 @@ def execute_realtime(withdrawal: Withdrawal):
         "recipient": withdrawal.paystack_recipient_code,
         "reason": f"Withdrawal {withdrawal.id}",
     }
-    print(payload)
     result = paystack_client.initiate_transfer(payload).get("data", {})
-    print(result)
 
     withdrawal.paystack_transfer_ref = result.get("reference") or withdrawal.paystack_transfer_ref
     withdrawal.paystack_transfer_code = result.get("transfer_code", "")
@@ -321,7 +328,7 @@ def mark_withdrawal_failed(withdrawal: Withdrawal, reason: str):
     _create_ledger_entry(
         user=withdrawal.user,
         sale=None,
-        role=withdrawal.user.role,
+        role=_ledger_role_for_user(withdrawal.user),
         entry_type="credit",
         amount=withdrawal.amount,
         notes=f"Release hold for failed withdrawal {withdrawal.id}",
@@ -339,5 +346,4 @@ def mark_withdrawal_failed(withdrawal: Withdrawal, reason: str):
         },
     )
     return withdrawal
-
 

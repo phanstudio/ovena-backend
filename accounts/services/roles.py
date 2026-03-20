@@ -46,7 +46,6 @@ def get_user_roles(user) -> Set[str]:
 
     return roles
 
-
 def has_role_all(user, role: str) -> bool:
     normalized_target = _normalize_role(role)
     return normalized_target in get_user_roles(user)

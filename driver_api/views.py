@@ -3,12 +3,12 @@ from django.conf import settings
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.generics import GenericAPIView, ListAPIView
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema # type: ignore
 
 from accounts.models import DriverAvailability, DriverProfile
 from authflow.authentication import CustomDriverAuth
@@ -48,7 +48,7 @@ from driver_api.services import (
     performance_metrics,
     sync_wallet_from_ledger,
 )
-from driver_api.tasks import process_withdrawal
+from driver_api.tasks import process_withdrawal, process_withdrawal_request
 from payments.webhooks.paystack import handle_paystack_webhook
 
 
@@ -211,6 +211,7 @@ class DriverFAQListView(BaseDriverAPIView):
 class SupportTicketListCreateView(BaseDriverAPIView):
     pagination_class = DriverLimitOffsetPagination
 
+    @extend_schema(responses=TicketListSerializer)
     def get(self, request):
         driver = self.get_driver(request)
         qs = SupportTicket.objects.filter(driver=driver).order_by("-created_at")
@@ -219,6 +220,7 @@ class SupportTicketListCreateView(BaseDriverAPIView):
         ser = TicketListSerializer(page, many=True)
         return paginator.get_paginated_response({"detail": "Support tickets", "data": ser.data})
 
+    @extend_schema(request=TicketCreateSerializer, responses=TicketDetailSerializer)
     def post(self, request):
         driver = self.get_driver(request)
         serializer = TicketCreateSerializer(data=request.data)
@@ -372,7 +374,12 @@ class DriverWithdrawListCreateView(BaseDriverAPIView):
             idempotency_key=idempotency_key,
         )
         if created and withdrawal.status == DriverWithdrawalRequest.STATUS_APPROVED:
-            process_withdrawal.delay(withdrawal.id)
+            # process_withdrawal.delay(withdrawal.id)
+            withdrawal = DriverWithdrawalRequest.objects.filter(id=withdrawal.id).select_related("driver").first()
+            if not withdrawal:
+                print("missing")
+            process_withdrawal_request(withdrawal)
+            print(withdrawal.status)
 
         status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
         return Response(
@@ -390,7 +397,10 @@ class DriverWithdrawDetailView(BaseDriverAPIView):
         withdrawal = get_object_or_404(DriverWithdrawalRequest, id=withdrawal_id, driver=driver)
         return Response({"detail": "Withdrawal detail", "data": WithdrawalRequestSerializer(withdrawal).data})
 
-
+@extend_schema(
+    parameters=[AnalysisPerformanceQuerySerializer],
+    responses=dict
+)
 class DriverAnalysisPerformanceView(BaseDriverAPIView):
     def get(self, request):
         driver = self.get_driver(request)

@@ -1,11 +1,10 @@
 import hashlib
 import os
 import uuid
-
-# from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
 from accounts.models import User
+from authflow.services.model import ULIDField
 
 
 class UserAccount(models.Model):
@@ -74,6 +73,7 @@ class Sale(models.Model):
         ("disputed", "Disputed"),
     ]
 
+    # id = ULIDField(primary_key=True, editable=False)
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     reference = models.CharField(max_length=100, unique=True)
     paystack_reference = models.CharField(max_length=100, unique=True, null=True, blank=True)

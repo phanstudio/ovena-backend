@@ -7,6 +7,7 @@ from accounts.models import (
     DriverProfile
 )
 from coupons_discount.models import Coupons
+from payments.models import Sale
 
 
 # ===== UPDATE EXISTING MODELS =====
@@ -39,7 +40,7 @@ class Order(models.Model): # do we add a coupon snap shot or not also a discount
     grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     
     # Payment
-    payment = models.OneToOneField('Payment', on_delete=models.CASCADE, related_name="order", null=True, blank=True)
+    sale = models.OneToOneField(Sale, on_delete=models.CASCADE, related_name="sale", null=True, blank=True)
     payment_reference = models.CharField(max_length=200, blank=True, null=True)
     payment_initialized_at = models.DateTimeField(blank=True, null=True)
     payment_completed_at = models.DateTimeField(blank=True, null=True)

@@ -195,7 +195,7 @@ class CustomprimJWTAuth(CustomJWtAuth):
         if active_profile:
             token["active_profile"] = active_profile
 
-        if has_role(user, "businessstaff") and getattr(user, "primaryagent", None) is not None:
+        if getattr(user, "primaryagent", None) is not None:
             token["scopes"] = {"*"}
         return (user, token)
 

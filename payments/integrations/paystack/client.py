@@ -42,16 +42,18 @@ class PaystackClient:
         return self._call(self._client.transaction.initialize, payload)
 
     def refund(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._call(self._client.transaction.refund, payload)
+        # self._client.transaction.refund # fix refund
+        return self._call(self._client.refund.create, payload)
 
     def create_transfer_recipient(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._call(self._client.transferrecipient.create, payload)
+        return self._call(self._client.transferRecipient.create, payload)
 
     def initiate_transfer(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._call(self._client.transfer.initiate, payload)
 
     def bulk_transfer(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._call(self._client.transfer.bulk, payload)
+        # self._client.transfer.bulk # was here before
+        return self._call(self._client.transfer.initiate_bulk_transfer, payload)
 
     def fetch_transfer(self, transfer_code: str) -> dict[str, Any]:
         return self._call(self._client.transfer.verify, {"reference": transfer_code})

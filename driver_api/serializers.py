@@ -197,8 +197,8 @@ class WithdrawalRequestSerializer(serializers.ModelSerializer):
 
 class AnalysisPerformanceQuerySerializer(serializers.Serializer):
     range = serializers.ChoiceField(choices=["7d", "30d", "90d", "custom"], required=False, default="30d")
-    from_date = serializers.DateField(required=False)
-    to_date = serializers.DateField(required=False)
+    from_date = serializers.DateField(required=False, allow_null=True)
+    to_date = serializers.DateField(required=False, allow_null=True)
     granularity = serializers.ChoiceField(choices=["day", "week"], required=False, default="day")
 
     def validate(self, attrs):

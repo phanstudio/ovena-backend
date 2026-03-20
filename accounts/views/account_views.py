@@ -9,19 +9,23 @@ from accounts.serializers import (
     BuisnessAdminProfileSerializer, PrimaryAgentProfileSerializer
 )
 from accounts.models import(
-    User, Business, Branch, DriverProfile, PrimaryAgent, 
+    User, Business, Branch, PrimaryAgent, 
     BusinessAdmin, BusinessPayoutAccount, BranchOperatingHours, BusinessCerd, BusinessOnboardStatus
 )
 from django.db import transaction, IntegrityError
-from authflow.services import create_token, issue_jwt_for_user, verify, OTPInvalidError, request_phone_otp
+from authflow.services import (
+    create_token, issue_jwt_for_user, verify, OTPInvalidError, request_phone_otp
+)
 from django.contrib.gis.geos import Point
 from authflow.authentication import CustomCustomerAuth, CustomBAdminAuth
 from authflow.permissions import IsBusinessAdmin
-from accounts.services.roles import has_role, get_user_roles
+from accounts.services.roles import get_user_roles
+from accounts.services.profiles import PROFILE_BUSINESS_ADMIN, get_profile
 from addresses.utils import checkset_location
 from drf_spectacular.utils import extend_schema, inline_serializer # type: ignore
 from rest_framework import serializers as s
 from accounts.serializers import InS, OpS
+
 
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -31,30 +35,27 @@ class UserProfileView(APIView):
         requested_type = request.query_params.get("profile_type")
         user_roles = sorted(get_user_roles(user))
 
+        active_profile_type = requested_type
         if requested_type == "customer":
             profile = getattr(user, "customer_profile", None)
             if not profile:
                 return Response({"detail": "Customer profile not found."}, status=status.HTTP_404_NOT_FOUND)
             serializer = CustomerProfileSerializer(profile)
-            active_profile_type = "customer"
         elif requested_type == "driver":
             profile = getattr(user, "driver_profile", None)
             if not profile:
                 return Response({"detail": "Driver profile not found."}, status=status.HTTP_404_NOT_FOUND)
             serializer = DriverProfileSerializer(profile)
-            active_profile_type = "driver"
         elif requested_type == "businessadmin":
             profile = getattr(user, "business_admin", None)
             if not profile:
                 return Response({"detail": "Business Admin profile not found."}, status=status.HTTP_404_NOT_FOUND)
             serializer = BuisnessAdminProfileSerializer(profile)
-            active_profile_type = "businessadmin"
         elif requested_type in ("businessstaff", "buisnessstaff"):
             profile = getattr(user, "primaryagent", None)
             if not profile:
                 return Response({"detail": "Primary Agent profile not found."}, status=status.HTTP_404_NOT_FOUND)
             serializer = PrimaryAgentProfileSerializer(profile)
-            active_profile_type = "businessstaff"
         elif hasattr(user, "customer_profile"):
             serializer = CustomerProfileSerializer(user.customer_profile)
             active_profile_type = "customer"
@@ -201,6 +202,7 @@ class RegisterRManager(APIView):
         username = request.data.get("username")
         email = request.data.get("email")
         branch_id = request.data.get("branch_id")
+        phone_number = request.data.get("phone_number")
 
         if not username or not branch_id:
             return Response(
@@ -210,18 +212,12 @@ class RegisterRManager(APIView):
 
         try:
             with transaction.atomic():
-                user = User.objects.create(name=username, email=email)
+                user = User.objects.create(name=username, email=email, phone_number=phone_number)
                 PrimaryAgent.objects.create(user=user, branch_id=branch_id)
 
-        except IntegrityError as e:
-            # Handle specific uniqueness violations
-            # if "unique" in str(e).lower():
-            #     return Response(
-            #         {"error": "Username or branch already taken"},
-            #         status=status.HTTP_400_BAD_REQUEST,
-            #     )
+        except IntegrityError as _:
             return Response(
-                {"error": "Branch not found or was removed during creation"},
+                {"error": "Username or branch already taken"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -240,72 +236,6 @@ class RegisterRManager(APIView):
 
 
 # regular register
-class RegisterDrivers(APIView): # what is the flow for drivers
-    permission_classes = [IsAuthenticated]
-    # review the drives credentials after a few days
-    def post(self, request):
-        phone = request.data.get("phone_number")
-        email = request.data.get("email")
-        nin = request.data.get("nin")
-        plate_number = request.data.get("plate_number")
-        vehicle_type = request.data.get("vehicle_type")
-        photo = request.data.get("photo")
-        name = request.data.get("name")
-
-        try:
-            # as a driver phone numbr is manditory
-            with transaction.atomic():
-
-                if email:
-                    user = User.objects.filter(email=email).first()
-                if phone:
-                    if not user:
-                        user = User.objects.filter(phone_number=phone).first()
-                    else:
-                        user.phone_number = phone
-                        user.save(update_fields=["phone_number"])
-                else:
-                    pass
-                
-                if name:
-                    user.name = name
-                    user.save(update_fields=["name"])
-
-                # get or create profile
-                profile, created = DriverProfile.objects.get_or_create(
-                    user=user,
-                    defaults={
-                        "nin": nin,
-                        "plate_number": plate_number,
-                        "vehicle_type": vehicle_type,
-                        "photo":photo,
-                    },
-                )
-
-                if not created:
-                    updates = {}
-                    if nin:
-                        updates["nin"] = nin # create a service to validate the nin
-                    if plate_number:
-                        updates["plate_number"] = plate_number # create a service to validate the plate number
-                    if vehicle_type:
-                        updates["vehicle_type"] = vehicle_type # create a service to validate the vehicle type
-                    if photo:
-                        updates["photo"] = photo # create a service to validate info through the photo and the info provided
-                    
-                    if updates:
-                        for field, value in updates.items():
-                            setattr(profile, field, value)
-                        profile.save(update_fields=list(updates.keys()))
-
-            return Response({"detail": "successful"}, status=status.HTTP_201_CREATED)
-
-        except Exception as e:
-            return Response(
-                {"detail": f"registration failed: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
 class RegisterCustomer(APIView):
     # authentication_classes = [CustomCustomerAuth]
     permission_classes = [IsAuthenticated]
@@ -516,11 +446,13 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
                     business=restaurant,
                     defaults={
                         "bank_name": payment_data["bank"],
+                        "bank_code": payment_data.get("bank_code", ""),
                         "account_number": payment_data["account_number"],
                         "account_name": payment_data["account_name"],
                         "bvn": payment_data["bvn"][-4:],
                     },
                 )
+            
             
             # Branches + operating hours
             branches_data = vd.get("branches", [])
@@ -612,7 +544,7 @@ class RestaurantPaymentView(APIView):
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
 
         try:
-            payment = admin.business.payment
+            payment = admin.business.payout
         except BusinessPayoutAccount.DoesNotExist:
             return Response({"detail": "No payment info set."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -631,9 +563,10 @@ class RestaurantPaymentView(APIView):
         vd = serializer.validated_data
 
         BusinessPayoutAccount.objects.update_or_create(
-            restaurant=admin.business,
+            business=admin.business,
             defaults={
                 "bank_name": vd["bank"],
+                "bank_code": vd.get("bank_code", ""),
                 "account_number": vd["account_number"],
                 "account_name": vd["account_name"],
                 "bvn": vd["bvn"],
@@ -641,7 +574,7 @@ class RestaurantPaymentView(APIView):
         )
         return Response({"detail": "Payment info updated."})
 
-# @extend_schema(auth=[])
+
 # Login views
 @extend_schema(
     responses={
@@ -720,7 +653,8 @@ class AdminLoginView(GenericAPIView):
                 {"error": "Invalid credentials"},
                 status=status.HTTP_401_UNAUTHORIZED
             )
-        if not has_role(user, "businessadmin") or not hasattr(user, "business_admin"):
+        buisness_admin_role = get_profile(user, PROFILE_BUSINESS_ADMIN)
+        if not buisness_admin_role:
             return Response(
                 {"error": "Not a business admin account"},
                 status=status.HTTP_403_FORBIDDEN

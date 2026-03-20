@@ -62,6 +62,10 @@ def process_driver_withdrawal_with_payments(withdrawal: DriverWithdrawalRequest,
         withdrawal.save(update_fields=["status", "processed_at", "updated_at"])
 
         recipient_code = ensure_recipient_fn(bank)
+        if not recipient_code:
+            withdrawal.mark_failed("Paystack recipient code missing", manual=True)
+            increment("driver.withdrawal.manual_review_total")
+            return withdrawal
         payment_withdrawal = _ensure_payments_withdrawal(withdrawal, recipient_code=recipient_code)
         execute_payments_realtime(payment_withdrawal)
 
@@ -85,5 +89,3 @@ def process_driver_withdrawal_with_payments(withdrawal: DriverWithdrawalRequest,
             withdrawal.status = DriverWithdrawalRequest.STATUS_APPROVED
             withdrawal.save(update_fields=["status", "retry_count", "updated_at"])
         return withdrawal
-
-

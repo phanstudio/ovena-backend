@@ -14,7 +14,7 @@ from django.utils.dateparse import parse_datetime
 from payments.models import PaystackWebhookLog, Sale, Withdrawal
 from payments.observability.metrics import increment, observe_ms
 from payments.payouts.services import mark_withdrawal_failed, mark_withdrawal_paid
-from menu.payment_views import order_update, order_fail
+from menu.payment_handlers import order_fail, order_update
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,6 @@ def process_event(body: dict[str, Any]) -> None:
         return
     
     elif event == "charge.failed":
-        data = event["data"]
         order_fail(data)
         return 
 

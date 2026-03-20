@@ -49,6 +49,7 @@ class BusinessPayoutAccount(models.Model):
     business = models.OneToOneField(Business, on_delete=models.CASCADE, related_name="payout")
 
     bank_name = models.CharField(max_length=120)
+    bank_code = models.CharField(max_length=20, blank=True, default="")
     account_number = models.CharField(max_length=30)
     account_name = models.CharField(max_length=120)
 

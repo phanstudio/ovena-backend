@@ -8,6 +8,8 @@ from django.utils import timezone
 from payments.models import Sale, User
 from payments.services.split_calculator import calculate_split, credit_all_parties, load_split_config, reverse_ledger_entries
 from payments.integrations.paystack.client import PaystackClient
+from referrals.services import referred_by
+
 
 paystack_client = PaystackClient()
 
@@ -22,10 +24,10 @@ def initialize_sale(payer_id, driver_id, business_owner_id, amount_kobo, metadat
     payer = User.objects.get(id=payer_id)
     driver = User.objects.get(id=driver_id) if driver_id else None
     business_owner = User.objects.get(id=business_owner_id)
-    referral_user = payer.referred_by
+    referral_user = referred_by(payer)#payer.referred_by
 
-    config = load_split_config()
-    split = calculate_split(amount_kobo, bool(referral_user), config)
+    config = load_split_config() #remove
+    split = calculate_split(amount_kobo, bool(referral_user), config, metadata=metadata or {})
 
     sale_ref = f"SALE_{uuid.uuid4().hex[:12].upper()}"
 
@@ -44,6 +46,16 @@ def initialize_sale(payer_id, driver_id, business_owner_id, amount_kobo, metadat
     }
     data = paystack_client.initialize_transaction(payload).get("data", {})
 
+    metadata_snapshot = {
+        **(metadata or {}),
+        "split_inputs": split.get("inputs", {}),
+        "split_policy": split.get("policy", {}),
+        "split_amounts": split.get("amounts", {}),
+        "split_total_kobo": split.get("total"),
+        "split_has_referral": split.get("has_referral"),
+        "split_mismatch_kobo": split.get("mismatch_kobo", 0),
+    }
+
     sale = Sale.objects.create(
         reference=sale_ref,
         paystack_reference=data.get("reference", sale_ref),
@@ -55,7 +67,7 @@ def initialize_sale(payer_id, driver_id, business_owner_id, amount_kobo, metadat
         total_amount=amount_kobo,
         status="pending",
         split_snapshot=split,
-        metadata=metadata or {},
+        metadata=metadata_snapshot,
     )
 
     return {
@@ -66,6 +78,8 @@ def initialize_sale(payer_id, driver_id, business_owner_id, amount_kobo, metadat
         "split_preview": {k: f"NGN {v/100:.2f}" for k, v in split["amounts"].items()},
     }
 
+def assign_driver(order, driver_id):
+    Sale.objects.filter(id=order.sale_id).update(driver_id=driver_id)
 
 @transaction.atomic
 def complete_service(sale_id):

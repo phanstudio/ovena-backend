@@ -6,6 +6,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import DriverBankAccount, DriverProfile, User
 from driver_api.models import DriverLedgerEntry, DriverWithdrawalRequest
+from driver_api.services import sync_wallet_from_ledger
+from payments.models import UserAccount
+from payments.payouts import services as payout_services
+from payments.services.split_calculator import _create_ledger_entry
 
 
 def auth_header_for(user):
@@ -161,3 +165,34 @@ def test_withdrawal_creation_triggers_background_processing_for_approved_request
     assert response.status_code == 201
     assert queued["count"] == 1
     assert queued["last_id"] == 1
+
+
+@pytest.mark.django_db
+def test_sync_wallet_prefers_payments_ledger_when_available(monkeypatch):
+    monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
+    user = User.objects.create(email="driver6@example.com", name="Driver Six", role="driver")
+    profile = DriverProfile.objects.create(user=user, first_name="Driver", last_name="Six")
+    UserAccount.objects.create(user=user, paystack_recipient_code="RCP_123")
+
+    DriverLedgerEntry.objects.create(
+        driver=profile,
+        entry_type=DriverLedgerEntry.TYPE_CREDIT,
+        amount="2000.00",
+        source_type="legacy_seed",
+        source_id="legacy-1",
+        status=DriverLedgerEntry.STATUS_POSTED,
+    )
+    _create_ledger_entry(user=user, sale=None, role="driver", entry_type="credit", amount=500000, notes="seed")
+
+    payout_services.create_withdrawal_request(
+        user_id=str(user.id),
+        amount_kobo=100000,
+        idempotency_key="idem-driver6",
+        strategy="realtime",
+    )
+
+    wallet = sync_wallet_from_ledger(profile)
+
+    assert wallet.current_balance == Decimal("5000.00")
+    assert wallet.pending_balance == Decimal("1000.00")
+    assert wallet.available_balance == Decimal("4000.00")

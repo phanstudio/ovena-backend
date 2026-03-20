@@ -7,12 +7,19 @@ from menu.websocket_utils import (
     get_order_group_name
 )
 from menu.models import Order, ChatMessage
-from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import AccessToken
 from django.contrib.auth.models import AnonymousUser
 import json
-from rest_framework_simplejwt.backends import TokenBackend
+import jwt
 from django.conf import settings
+from authflow.authentication import CustomJWtAuth
+from accounts.models import LinkedStaff, User
+from accounts.services.profiles import (
+    PROFILE_CUSTOMER,
+    PROFILE_DRIVER,
+    PROFILE_BUSINESS_STAFF,
+    get_profile,
+)
 
 
 class BaseConsumer(AsyncWebsocketConsumer):
@@ -20,67 +27,103 @@ class BaseConsumer(AsyncWebsocketConsumer):
     
     async def authenticate_user(self, token):
         """Authenticate user from JWT token"""
-        try:
-            # Decode JWT, decode the sub token or the main token?
-            decoded = AccessToken(token)
-            # print(decoded)
-            user_id = decoded['user_id']
-            
-            # Get user from database
-            User = get_user_model()
-            
-            @database_sync_to_async
-            def get_user():
-                try:
-                    # Use select_related to get profiles in one query
-                    return User.objects.select_related(
-                        'driver_profile',
-                        'primaryagent',
-                        'customer_profile'
-                    ).get(id=user_id)
-                except User.DoesNotExist:
-                    return AnonymousUser()
-            
-            return await get_user()
-        except Exception as e:
-           
-
-
-            backend = TokenBackend(
-                algorithm=settings.SIMPLE_JWT.get("ALGORITHM", "HS256"),
-                signing_key=settings.SECRET_KEY,
-            )
-
-            payload = backend.decode(token, verify=False)  # 🔥 THIS IS THE KEY
-
-            now = int(timezone.now().timestamp())
-            exp = payload.get("exp")
-
-            print("exp:", exp)
-            print("now:", now)
-            print("seconds left:", exp - now)
-
-
-            print(f"Authentication error: {e}")
+        if not token:
             return AnonymousUser()
+
+        token_type = self.scope.get("token_type")
+        raw_token = token.strip()
+        lowered = raw_token.lower()
+
+        if lowered.startswith("subbearer "):
+            token_type = "sub"
+            raw_token = raw_token[10:].strip()
+        else:
+            token_type = "bearer"
+
+        try:
+            if token_type == "sub":
+                return await self._authenticate_sub_token(raw_token)
+            return await self._authenticate_main_token(raw_token)
+        except Exception:
+            return AnonymousUser()
+
+    @database_sync_to_async
+    def _authenticate_main_token(self, token):
+        access = AccessToken(token)
+        auth = CustomJWtAuth()
+        return auth.get_user(access)
+
+    @database_sync_to_async
+    def _authenticate_sub_token(self, token):
+        try:
+            payload = jwt.decode(
+                token,
+                settings.SECRET_KEY,
+                algorithms=["HS256"],
+            )
+        except jwt.PyJWTError:
+            return AnonymousUser()
+
+        device_id = payload.get("device_id")
+        if not device_id:
+            return AnonymousUser()
+
+        account = (
+            LinkedStaff.objects
+            .select_related("created_by", "created_by__branch")
+            .filter(device_name=device_id)
+            .first()
+        )
+        if not account or account.revoked:
+            return AnonymousUser()
+
+        return account
     
     @database_sync_to_async
     def check_is_driver(self, user):
         """Check if user is a driver"""
-        return hasattr(user, 'driver_profile') and user.driver_profile is not None
+        if not isinstance(user, User):
+            return False
+        return get_profile(user, PROFILE_DRIVER) is not None
     
     @database_sync_to_async
     def check_is_branch_staff(self, user): # add for the resturant staffs
         """Check if user is branch staff"""
-        return hasattr(user, 'primaryagent') and user.primaryagent is not None
+        if isinstance(user, LinkedStaff):
+            return user.created_by is not None
+        if isinstance(user, User):
+            return get_profile(user, PROFILE_BUSINESS_STAFF) is not None
+        return False
     
     @database_sync_to_async
     def check_is_customer(self, user):
         """Check if user is a customer"""
-        return hasattr(user, 'customer_profile') and user.customer_profile is not None
+        if not isinstance(user, User):
+            return False
+        return get_profile(user, PROFILE_CUSTOMER) is not None
+
+    @database_sync_to_async
+    def get_driver_profile(self, user):
+        if not isinstance(user, User):
+            return None
+        return get_profile(user, PROFILE_DRIVER)
+
+    @database_sync_to_async
+    def get_customer_profile(self, user):
+        if not isinstance(user, User):
+            return None
+        return get_profile(user, PROFILE_CUSTOMER)
+
+    @database_sync_to_async
+    def get_branch_staff(self, user):
+        if isinstance(user, LinkedStaff):
+            return user.created_by
+        if isinstance(user, User):
+            return get_profile(user, PROFILE_BUSINESS_STAFF)
+        return None
 
 
-class BranchConsumer(BaseConsumer): # for now it only works for primary staff not linked staffes will update soon
+class BranchConsumer(BaseConsumer): # supports primary and linked staff
     """
     WebSocket consumer for branch staff
     Receives notifications about new orders and updates
@@ -99,17 +142,20 @@ class BranchConsumer(BaseConsumer): # for now it only works for primary staff no
         if not self.user or self.user.is_anonymous:
             await self.close(code=4001)
             return
-        
+
         # Verify user is branch staff
         is_branch_staff = await self.check_is_branch_staff(self.user)
         if not is_branch_staff:
             await self.close(code=4003)
             return
-        
-        self.branch_id = self.scope['url_route']['kwargs']['branch_id']
+
+        branch_staff = await self.get_branch_staff(self.user)
+        self.branch_id = branch_staff.branch_id
+        #self.scope['url_route']['kwargs']['branch_id']
         
         # Verify they belong to this branch
-        if self.user.primaryagent.branch_id != int(self.branch_id):
+        staff = await self.get_branch_staff(self.user)
+        if not staff or staff.branch_id != int(self.branch_id):
             await self.close(code=4003)
             return
         
@@ -240,12 +286,12 @@ class DriverOrdersConsumer(BaseConsumer):
             return
         
         # Verify user is a driver
-        is_driver = await self.check_is_driver(self.user)
-        if not is_driver:
+        driver_profile = await self.get_driver_profile(self.user)
+        if not driver_profile:
             await self.close(code=4003)
             return
-        
-        self.driver_id = self.user.driver_profile.id
+
+        self.driver_id = driver_profile.id
         self.driver_orders_group = f"driver_orders_{self.driver_id}"
         self.driver_notification_group = f"driver_{self.driver_id}"  # NEW
         
@@ -394,6 +440,7 @@ class DriverOrdersConsumer(BaseConsumer):
 
         return serialized
 
+
 class ChatConsumer(BaseConsumer):
     """
     WebSocket consumer for private messaging
@@ -500,13 +547,19 @@ class ChatConsumer(BaseConsumer):
     def get_user_info(self):
         """Determine user type and ID"""
         user = self.user
-        
-        if hasattr(user, 'customer_profile'):
-            return ('customer', user.customer_profile.id)
-        elif hasattr(user, 'driver_profile'):
-            return ('driver', user.driver_profile.id)
-        elif hasattr(user, 'primaryagent'):
-            return ('branch', user.primaryagent.branch_id)
+
+        if isinstance(user, LinkedStaff):
+            return ("branch", user.created_by.branch_id)
+        if isinstance(user, User):
+            customer = get_profile(user, PROFILE_CUSTOMER)
+            if customer:
+                return ("customer", customer.id)
+            driver = get_profile(user, PROFILE_DRIVER)
+            if driver:
+                return ("driver", driver.id)
+            branch = get_profile(user, PROFILE_BUSINESS_STAFF)
+            if branch:
+                return ("branch", branch.branch_id)
         
         return (None, None)
     
@@ -684,17 +737,21 @@ class OrderConsumer(BaseConsumer):
                 'driver__user'
             ).get(id=self.order_id)
             
-            # Customer check
-            if hasattr(self.user, 'customer_profile'):
-                return order.orderer_id == self.user.customer_profile.id
-            
-            # Driver check
-            if hasattr(self.user, 'driver_profile'):
-                return order.driver_id == self.user.driver_profile.id
-            
-            # Branch staff check
-            if hasattr(self.user, 'primaryagent'):
-                return order.branch_id == self.user.primaryagent.branch_id
+            if isinstance(self.user, LinkedStaff):
+                return order.branch_id == self.user.created_by.branch_id
+
+            if isinstance(self.user, User):
+                customer = get_profile(self.user, PROFILE_CUSTOMER)
+                if customer:
+                    return order.orderer_id == customer.id
+
+                driver = get_profile(self.user, PROFILE_DRIVER)
+                if driver:
+                    return order.driver_id == driver.id
+
+                branch = get_profile(self.user, PROFILE_BUSINESS_STAFF)
+                if branch:
+                    return order.branch_id == branch.branch_id
             
             return False
             
@@ -767,12 +824,12 @@ class DriverLocationConsumer(BaseConsumer):
             return
         
         # Verify user is a driver
-        is_driver = await self.check_is_driver(self.user)
-        if not is_driver:
+        driver_profile = await self.get_driver_profile(self.user)
+        if not driver_profile:
             await self.close(code=4003)
             return
         
-        self.driver_id = self.user.driver_profile.id
+        self.driver_id = driver_profile.id
         self.driver_location_group = f"driver_location_{self.driver_id}"
         
         # Join driver's personal group (for notifications)
@@ -923,5 +980,3 @@ class DriverLocationConsumer(BaseConsumer):
                 }
             }
         )
-
-

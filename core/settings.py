@@ -64,6 +64,7 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     'accounts',
     'addresses',
+    'business_api',
     'menu',
     'driver_api',
     'authflow',
@@ -177,6 +178,17 @@ CHANNEL_LAYERS = {
 # Session engine for WebSocket auth
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
+
+
+# Order matters — tries left to right, falls back on failure
+ROUTING_BACKENDS = env.list("ROUTING_BACKENDS", default=['ors',])
+
+# Backend credentials — only need the ones you're using
+ORS_BASE_URL = env("ORS_BASE_URL", default="http://ors:8082/ors")
+ORS_API_KEY = env("ORS_API_KEY", default="")
+MAPBOX_ACCESS_TOKEN = env("MAPBOX_ACCESS_TOKEN", default="")
+GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
+
 
 TEMPLATES = [
     {

@@ -188,6 +188,10 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None):
         
         # Get branch location
         branch_location = order.branch.location
+
+        if not order.branch.location:
+            logger.error(f"Branch {order.branch.id} has no location")
+            return "Branch has no location"
         
         # Find nearest drivers
         available_drivers = find_nearest_available_drivers(
@@ -216,7 +220,7 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None):
                 args=[order_id, excluded_driver_ids],
                 countdown=120
             )
-            return f"No drivers available, will retry"
+            return "No drivers available, will retry"
         
         # Assign to nearest driver
         driver, distance = available_drivers[0]

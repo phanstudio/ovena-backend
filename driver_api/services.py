@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
 from decimal import Decimal
-from uuid import uuid4
 
 from django.conf import settings
 from django.db import transaction
@@ -12,6 +11,9 @@ from django.db.models import DecimalField, Q, Sum
 from django.db.models.functions import Coalesce, TruncDay, TruncWeek
 from django.utils import timezone
 
+from payments.models import LedgerEntry as PaymentLedgerEntry
+from payments.models import Withdrawal as PaymentWithdrawal
+from payments.services.split_calculator import get_ledger_balance
 from payments.integrations.paystack.client import PaystackClient
 from payments.observability.metrics import increment
 
@@ -26,12 +28,13 @@ from driver_api.models import (
 from menu.models import Order
 from driver_api.unified_bridge import process_driver_withdrawal_with_payments
 
-
 MIN_WITHDRAWAL = Decimal("1000.00")
 MAX_RETRY_COUNT = 3
 WITHDRAWAL_COOLDOWN_HOURS = 2
 DAILY_WITHDRAWAL_LIMIT_COUNT = 5
 DAILY_WITHDRAWAL_LIMIT_AMOUNT = Decimal("500000.00")
+
+PENDING_PAYMENT_WITHDRAWAL_STATUSES = ("pending_batch", "processing")
 
 
 def notify_driver(driver: DriverProfile, title: str, body: str, notification_type: str = "generic", payload=None):
@@ -49,8 +52,38 @@ def get_or_create_wallet(driver: DriverProfile) -> DriverWallet:
     return wallet
 
 
-def sync_wallet_from_ledger(driver: DriverProfile) -> DriverWallet:
-    wallet = get_or_create_wallet(driver)
+def _kobo_to_decimal(amount_kobo: int | None) -> Decimal:
+    return (Decimal(amount_kobo or 0) / Decimal("100")).quantize(Decimal("0.01"))
+
+
+def _has_payments_driver_activity(driver: DriverProfile) -> bool:
+    user = getattr(driver, "user", None)
+    if not user:
+        return False
+    return (
+        PaymentLedgerEntry.objects.filter(user=user, role="driver").exists()
+        or PaymentWithdrawal.objects.filter(user=user).exists()
+    )
+
+
+def _sync_wallet_from_payments(driver: DriverProfile, wallet: DriverWallet) -> DriverWallet:
+    user = driver.user
+    ledger_balance_kobo = get_ledger_balance(user)
+    pending_kobo = (
+        PaymentWithdrawal.objects.filter(user=user, status__in=PENDING_PAYMENT_WITHDRAWAL_STATUSES)
+        .aggregate(total=Coalesce(Sum("amount"), 0))["total"]
+        or 0
+    )
+
+    wallet.current_balance = _kobo_to_decimal(ledger_balance_kobo + pending_kobo)
+    wallet.pending_balance = _kobo_to_decimal(pending_kobo)
+    wallet.available_balance = _kobo_to_decimal(ledger_balance_kobo)
+    wallet.last_settled_at = timezone.now()
+    wallet.save(update_fields=["current_balance", "pending_balance", "available_balance", "last_settled_at", "updated_at"])
+    return wallet
+
+
+def _sync_wallet_from_driver_projection(driver: DriverProfile, wallet: DriverWallet) -> DriverWallet:
     aggregates = DriverLedgerEntry.objects.filter(driver=driver, status=DriverLedgerEntry.STATUS_POSTED).aggregate(
         credit=Coalesce(
             Sum("amount", filter=Q(entry_type=DriverLedgerEntry.TYPE_CREDIT)),
@@ -84,9 +117,26 @@ def sync_wallet_from_ledger(driver: DriverProfile) -> DriverWallet:
     return wallet
 
 
+def sync_wallet_from_ledger(driver: DriverProfile) -> DriverWallet:
+    wallet = get_or_create_wallet(driver)
+    if _has_payments_driver_activity(driver):
+        return _sync_wallet_from_payments(driver, wallet)
+    return _sync_wallet_from_driver_projection(driver, wallet)
+
+
 def ledger_credit_for_delivered_order(order: Order) -> DriverLedgerEntry | None:
     if not order.driver_id or order.status != "delivered":
         return None
+    if order.sale_id:
+        existing = DriverLedgerEntry.objects.filter(
+            driver=order.driver,
+            source_type="payments_sale_credit",
+            source_id=str(order.sale_id),
+            entry_type=DriverLedgerEntry.TYPE_CREDIT,
+        ).first()
+        if existing:
+            return existing
+
     source_id = str(order.id)
     existing = DriverLedgerEntry.objects.filter(
         driver=order.driver,
@@ -97,17 +147,44 @@ def ledger_credit_for_delivered_order(order: Order) -> DriverLedgerEntry | None:
     if existing:
         return existing
 
-    amount = order.delivery_price or Decimal("0.00")
+    amount = Decimal("0.00")
+    source_type = "order_delivery"
+    metadata = {"order_number": order.order_number}
+
+    if order.sale_id:
+        payment_entry = (
+            PaymentLedgerEntry.objects.filter(
+                user=order.driver.user,
+                sale_id=order.sale_id,
+                role="driver",
+                type="credit",
+            )
+            .order_by("created_at")
+            .first()
+        )
+        if payment_entry:
+            amount = _kobo_to_decimal(payment_entry.amount)
+            source_type = "payments_sale_credit"
+            source_id = str(order.sale_id)
+            metadata = {
+                "order_number": order.order_number,
+                "sale_id": str(order.sale_id),
+                "payment_ledger_entry_id": str(payment_entry.id),
+            }
+
+    if amount <= 0:
+        amount = order.delivery_price or Decimal("0.00")
+
     if amount <= 0:
         return None
     entry = DriverLedgerEntry.objects.create(
         driver=order.driver,
         entry_type=DriverLedgerEntry.TYPE_CREDIT,
         amount=amount,
-        source_type="order_delivery",
+        source_type=source_type,
         source_id=source_id,
         status=DriverLedgerEntry.STATUS_POSTED,
-        metadata={"order_number": order.order_number},
+        metadata=metadata,
     )
     sync_wallet_from_ledger(order.driver)
     return entry
@@ -337,6 +414,35 @@ def mark_withdrawal_failed(withdrawal: DriverWithdrawalRequest, reason: str, man
 
 
 def earnings_summary(driver: DriverProfile, start=None, end=None):
+    if _has_payments_driver_activity(driver):
+        qs = PaymentLedgerEntry.objects.filter(user=driver.user, role="driver")
+        if start:
+            qs = qs.filter(created_at__gte=start)
+        if end:
+            qs = qs.filter(created_at__lte=end)
+
+        total_earned_kobo = (
+            qs.filter(type="credit")
+            .exclude(notes__startswith="Release hold for failed withdrawal")
+            .aggregate(total=Coalesce(Sum("amount"), 0))["total"]
+            or 0
+        )
+        withdrawal_qs = PaymentWithdrawal.objects.filter(user=driver.user, status="complete")
+        if start:
+            withdrawal_qs = withdrawal_qs.filter(completed_at__gte=start)
+        if end:
+            withdrawal_qs = withdrawal_qs.filter(completed_at__lte=end)
+        total_withdrawn_kobo = withdrawal_qs.aggregate(total=Coalesce(Sum("amount"), 0))["total"] or 0
+        wallet = sync_wallet_from_ledger(driver)
+        return {
+            "total_earned": _kobo_to_decimal(total_earned_kobo),
+            "total_withdrawn": _kobo_to_decimal(total_withdrawn_kobo),
+            "available_balance": wallet.available_balance,
+            "pending_balance": wallet.pending_balance,
+            "period_start": start,
+            "period_end": end,
+        }
+
     qs = DriverLedgerEntry.objects.filter(driver=driver, status=DriverLedgerEntry.STATUS_POSTED)
     if start:
         qs = qs.filter(created_at__gte=start)
@@ -419,8 +525,6 @@ def parse_range(range_key: str, from_date=None, to_date=None):
         end = timezone.make_aware(datetime.combine(to_date, datetime.max.time()))
         return start, end
     return now - timedelta(days=30), now
-
-
 
 
 
