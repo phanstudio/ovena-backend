@@ -278,7 +278,8 @@ class UpdateCustomer(APIView):
     responses=OpS.OnboardResponseSerializer,
 )
 class BuisnnessOnboardingStatusView(APIView):
-    permission_classes= [IsBusinessAdmin]
+    authentication_classes = [CustomBAdminAuth]
+    permission_classes = [IsBusinessAdmin]
     def get(self, request):
         Bstatus:BusinessOnboardStatus = BusinessOnboardStatus.objects.filter(admin=request.user.business_admin).first()
         
@@ -406,7 +407,6 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
     serializer_class = InS.RestaurantPhase2Serializer
     def post(self, request):
         user = request.user
-
         try:
             admin = user.business_admin
         except BusinessAdmin.DoesNotExist:
@@ -456,27 +456,41 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
             # Branches + operating hours
             branches_data = vd.get("branches", [])
             for branch_data in branches_data:
-                branch = Branch.objects.create(
+                branch, _ = Branch.objects.update_or_create(
                     business=restaurant,
                     name=branch_data["name"],
-                    address=branch_data.get("address", "unknown"),
-                    location=checkset_location(branch_data),
-                    delivery_method=branch_data.get("delivery_method", "instant"),
-                    pre_order_open_period=branch_data.get("pre_order_open_period"),
-                    final_order_time=branch_data.get("final_order_time"),
+                    defaults={
+                        "address": branch_data.get("address", "unknown"),
+                        "location": checkset_location(branch_data),
+                        "delivery_method": branch_data.get("delivery_method", "instant"),
+                        "pre_order_open_period": branch_data.get("pre_order_open_period"),
+                        "final_order_time": branch_data.get("final_order_time"),
+                    },
+                    # business=restaurant,
+                    # name=branch_data["name"],
+                    # address=branch_data.get("address", "unknown"),
+                    # location=checkset_location(branch_data),
+                    # delivery_method=branch_data.get("delivery_method", "instant"),
+                    # pre_order_open_period=branch_data.get("pre_order_open_period"),
+                    # final_order_time=branch_data.get("final_order_time"),
                 )
 
                 hours_data = branch_data.get("operating_hours", [])
-                BranchOperatingHours.objects.bulk_create([
-                    BranchOperatingHours(
-                        branch=branch,
-                        day=h["day"],
-                        open_time=h["open_time"],
-                        close_time=h["close_time"],
-                        is_closed=h.get("is_closed", False),
-                    )
-                    for h in hours_data
-                ])
+                BranchOperatingHours.objects.bulk_create(
+                    [
+                        BranchOperatingHours(
+                            branch=branch,
+                            day=h["day"],
+                            open_time=h["open_time"],
+                            close_time=h["close_time"],
+                            is_closed=h.get("is_closed", False),
+                        )
+                        for h in hours_data
+                    ], 
+                    update_conflicts=True,
+                    unique_fields=["branch", "day"],   # 🔥 what makes a row unique
+                    update_fields=["open_time", "close_time", "is_closed"],  # 🔥 what to update
+                )
 
         return Response({"detail": "Onboarding complete."}, status=status.HTTP_200_OK)
 
