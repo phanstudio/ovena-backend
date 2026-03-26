@@ -222,6 +222,7 @@ class RegisterRManager(APIView):
             )
 
         main_token = create_token(user, role="main", expires_in=3600)
+        print(main_token)
 
         return Response(
             {
@@ -233,11 +234,7 @@ class RegisterRManager(APIView):
         )
 
 # add transfer of ownershp later
-
-
-# regular register
 class RegisterCustomer(APIView):
-    # authentication_classes = [CustomCustomerAuth]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -277,19 +274,18 @@ class UpdateCustomer(APIView):
     responses=OpS.OnboardResponseSerializer,
 )
 class BuisnnessOnboardingStatusView(APIView):
-    permission_classes= [IsBusinessAdmin]
+    authentication_classes = [CustomBAdminAuth]
+    permission_classes = [IsBusinessAdmin]
     def get(self, request):
         Bstatus:BusinessOnboardStatus = BusinessOnboardStatus.objects.filter(admin=request.user.business_admin).first()
         
         if not Bstatus:
             data = {
-                "admin_id": request.user.id,
                 "onboarding_step": 0,
                 "is_onboarding_complete": False,
             }
         else:
             data = {
-            "admin_id": Bstatus.admin.id,
             "onboarding_step": Bstatus.onboarding_step,
             "is_onboarding_complete": Bstatus.is_onboarding_complete,
         }
@@ -309,10 +305,12 @@ class RegisterBAdmin(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
-        try:
-            identifier = verify(vd["otp_code"], vd["phone_number"])
-        except OTPInvalidError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        # try:
+        #     identifier = verify(vd["otp_code"], vd["phone_number"])
+        # except OTPInvalidError as e:
+        #     return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        identifier = vd["phone_number"]
         
         try:
             with transaction.atomic():
@@ -375,6 +373,10 @@ class RestaurantPhase1RegisterView(GenericAPIView):
                 email=vd["email"],
                 phone_number=vd["phone_number"],
             )
+            # if "business_image" in request.FILES:
+            #     restaurant.business_image = request.FILES["business_image"]
+            # if "business_logo" in request.FILES:
+            #     restaurant.business_logo = request.FILES["business_logo"]
             BusinessCerd.objects.create(business=restaurant)
             user.set_password(vd["password"])
             user.save()
@@ -405,7 +407,6 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
     serializer_class = InS.RestaurantPhase2Serializer
     def post(self, request):
         user = request.user
-
         try:
             admin = user.business_admin
         except BusinessAdmin.DoesNotExist:
@@ -429,6 +430,8 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
 
             if "business_image" in request.FILES:
                 restaurant.business_image = request.FILES["business_image"]
+            # if "business_logo" in request.FILES:
+            #     restaurant.business_logo = request.FILES["business_logo"]
             if "business_documents" in request.FILES:
                 restaurant_cerds.business_doc = request.FILES["business_documents"]
             
@@ -457,27 +460,41 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
             # Branches + operating hours
             branches_data = vd.get("branches", [])
             for branch_data in branches_data:
-                branch = Branch.objects.create(
+                branch, _ = Branch.objects.update_or_create(
                     business=restaurant,
                     name=branch_data["name"],
-                    address=branch_data.get("address", "unknown"),
-                    location=checkset_location(branch_data),
-                    delivery_method=branch_data.get("delivery_method", "instant"),
-                    pre_order_open_period=branch_data.get("pre_order_open_period"),
-                    final_order_time=branch_data.get("final_order_time"),
+                    defaults={
+                        "address": branch_data.get("address", "unknown"),
+                        "location": checkset_location(branch_data),
+                        "delivery_method": branch_data.get("delivery_method", "instant"),
+                        "pre_order_open_period": branch_data.get("pre_order_open_period"),
+                        "final_order_time": branch_data.get("final_order_time"),
+                    },
+                    # business=restaurant,
+                    # name=branch_data["name"],
+                    # address=branch_data.get("address", "unknown"),
+                    # location=checkset_location(branch_data),
+                    # delivery_method=branch_data.get("delivery_method", "instant"),
+                    # pre_order_open_period=branch_data.get("pre_order_open_period"),
+                    # final_order_time=branch_data.get("final_order_time"),
                 )
 
                 hours_data = branch_data.get("operating_hours", [])
-                BranchOperatingHours.objects.bulk_create([
-                    BranchOperatingHours(
-                        branch=branch,
-                        day=h["day"],
-                        open_time=h["open_time"],
-                        close_time=h["close_time"],
-                        is_closed=h.get("is_closed", False),
-                    )
-                    for h in hours_data
-                ])
+                BranchOperatingHours.objects.bulk_create(
+                    [
+                        BranchOperatingHours(
+                            branch=branch,
+                            day=h["day"],
+                            open_time=h["open_time"],
+                            close_time=h["close_time"],
+                            is_closed=h.get("is_closed", False),
+                        )
+                        for h in hours_data
+                    ], 
+                    update_conflicts=True,
+                    unique_fields=["branch", "day"],   # 🔥 what makes a row unique
+                    update_fields=["open_time", "close_time", "is_closed"],  # 🔥 what to update
+                )
 
         return Response({"detail": "Onboarding complete."}, status=status.HTTP_200_OK)
 

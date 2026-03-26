@@ -11,6 +11,5 @@ class RegisterBAdminResponseSerializer(serializers.Serializer):
     user = UserInfoSerializer()
 
 class OnboardResponseSerializer(serializers.Serializer):
-    admin_id = serializers.IntegerField()
     onboarding_step = serializers.IntegerField()
     is_onboarding_complete = serializers.BooleanField()

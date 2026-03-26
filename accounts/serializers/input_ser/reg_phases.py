@@ -1,5 +1,6 @@
 from rest_framework import serializers
 import pycountry # type: ignore
+import json
     
 class RestaurantPhase1Serializer(serializers.Serializer):
     business_name = serializers.CharField(max_length=255)
@@ -80,7 +81,26 @@ class RestaurantPhase2Serializer(serializers.Serializer):
     rc_number = serializers.CharField(max_length=100, required=False, default="")
     # files handled via request.FILES, not here
     payment = RestaurantPaymentSerializer(required=False)
-    branches = BranchInputSerializer(many=True, required=False, default=list)
+    branches = BranchInputSerializer(many=True, required=False)#, default=list)
+
+    def to_internal_value(self, data):
+        if hasattr(data, 'dict'):
+            data = data.dict()
+
+        if isinstance(data.get("branches"), str):
+            try:
+                data["branches"] = json.loads(data["branches"])
+            except (json.JSONDecodeError, TypeError):
+                raise serializers.ValidationError({"branches": "Invalid JSON format"})
+
+        if isinstance(data.get("payment"), str):
+            try:
+                data["payment"] = json.loads(data["payment"])
+            except (json.JSONDecodeError, TypeError):
+                raise serializers.ValidationError({"payment": "Invalid JSON format"})
+
+
+        return super().to_internal_value(data)
 
 class RegisterBAdminSerializer(serializers.Serializer):
     full_name = serializers.CharField()

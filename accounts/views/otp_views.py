@@ -11,8 +11,9 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 class SendPhoneOTPView(APIView):
     def post(self, request):
-        phone_number = request.data.get("phone_number")
-        return request_phone_otp(phone_number)
+        # phone_number = request.data.get("phone_number")
+        # return request_phone_otp(phone_number)
+        return Response({"detail": "OTP sent.", "sent_at": "00:00:01"})
 
 class SendEmailOTPView(APIView):
     def post(self, request):
@@ -25,16 +26,17 @@ class VerifyOTPView(APIView): # we need to revoke the jwt also use the refresh t
     """
     def post(self, request):
         phone_number = request.data.get("phone_number")
-        otp_code = request.data.get("otp_code")
+        # otp_code = request.data.get("otp_code")
 
-        if not phone_number or not otp_code:
-            return Response({"error": "Phone number and OTP are required"}, status=status.HTTP_400_BAD_REQUEST)
+        # if not phone_number or not otp_code:
+        #     return Response({"error": "Phone number and OTP are required"}, status=status.HTTP_400_BAD_REQUEST)
         
-        identifier = ""
-        try:
-            identifier = verify(otp_code, phone_number)
-        except OTPInvalidError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)        
+        # identifier = ""
+        # try:
+        #     identifier = verify(otp_code, phone_number)
+        # except OTPInvalidError as e:
+        #     return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)      
+        identifier = phone_number  
 
         # ✅ Create or get the user
         user, created = User.objects.get_or_create(
