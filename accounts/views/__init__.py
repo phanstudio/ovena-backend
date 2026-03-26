@@ -2,7 +2,7 @@ from .otp_views import VerifyOTPView, VerifyEmailOTPView, SendEmailOTPView, Send
 from .account_views import (
     RegisterCustomer, RegisterRManager, # noqa: F401
     UserProfileView, DeleteAccountView, UpdateBranch, Delete2AccountView, # noqa: F401
-    UpdateCustomer, RegisterBAdmin, PasswordResetView, AdminLoginView, # noqa: F401
+    UpdateCustomer, PasswordResetView, AdminLoginView, # noqa: F401
     DriverLoginView # noqa: F401
 )
 from .oath_views import OAuthExchangeView # noqa: F401

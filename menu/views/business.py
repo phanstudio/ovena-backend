@@ -44,8 +44,6 @@ class MenuView(APIView):
             .prefetch_related(
                 "categories__items__variant_groups__options",
                 "categories__items__addon_groups__addons",
-                # optional:
-                # "categories__items__branch_availabilities",
         )
         serializer = OpS.MenuSerializer(menus, many=True)
         return Response(serializer.data)

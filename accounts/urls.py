@@ -2,10 +2,11 @@ from django.urls import path, include
 from .views import (
     VerifyOTPView, UserProfileView, DeleteAccountView, UpdateBranch, Delete2AccountView,
     OAuthExchangeView, RegisterRManager, RegisterCustomer, UpdateCustomer,
-    jwt_views, SendEmailOTPView, VerifyEmailOTPView, RegisterBAdmin, SendPhoneOTPView,
+    jwt_views, SendEmailOTPView, VerifyEmailOTPView, SendPhoneOTPView,
     PasswordResetView, AdminLoginView, DriverLoginView
 )
 from .views import driver_reg_views
+from .views import business_reg_views
 
 token_urls = [
     path("rotate-token/", jwt_views.RotateTokenView.as_view(), name="rotate-token"),
@@ -16,8 +17,12 @@ token_urls = [
 
 onboarding_urls = [
     # make sure you send otp before
-    path("admin/", RegisterBAdmin.as_view(), name="register-businessadmin"),
-    path("", include("business_api.legacy_onboarding_urls")),
+    path("admin/", business_reg_views.RegisterBAdmin.as_view(), name="register-businessadmin"),
+    path("phase1/", business_reg_views.RestaurantPhase1RegisterView.as_view(), name="business-register-phase1"),
+    path("phase2/", business_reg_views.RestaurantPhase2OnboardingView.as_view(), name="business-register-phase2"),
+    path("phase3/", business_reg_views.RegisterMenusPhase3View.as_view(), name="business-register-menus-ob"),
+    path("batch-gen-url/", business_reg_views.BatchGenerateUploadURLView.as_view(), name="business-batch-generate-url"),
+    path("status/", business_reg_views.BuisnnessOnboardingStatusView.as_view(), name="business-onboard-status"),
 ]
 
 account_urls = [
