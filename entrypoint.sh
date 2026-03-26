@@ -16,7 +16,7 @@ python manage.py migrate accounts --noinput
 # python manage.py showmigrations accounts
 
 echo "Collecting static files..."
-# python3 manage.py collectstatic --noinput
+python3 manage.py collectstatic --noinput
 
 echo "Starting server..."
 exec "$@"
