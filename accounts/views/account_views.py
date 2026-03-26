@@ -77,7 +77,6 @@ class UserProfileView(APIView):
                 "email": user.email,
                 "phone_number": user.phone_number,
                 "name": user.name,
-                "role": user.role,
                 "roles": user_roles,
                 "active_profile_type": active_profile_type,
             },
@@ -317,7 +316,6 @@ class RegisterBAdmin(GenericAPIView):
                 user = User.objects.create(
                     name=vd["full_name"],
                     phone_number=identifier,
-                    role="businessadmin"
                 )
                 business_admin = BusinessAdmin.objects.create(user=user)
                 BusinessOnboardStatus.objects.create(admin=business_admin, onboarding_step= 0)

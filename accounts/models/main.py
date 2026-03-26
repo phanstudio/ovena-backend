@@ -130,14 +130,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     name = models.CharField(max_length=150, blank=True, null= True)
     # username = models.CharField(max_length=150, blank=True, null= True)
 
-    role = models.CharField(max_length=20, choices=[
-        ("customer", "Customer"),
-        ("driver", "Driver"),
-        ("businessstaff", "BusinessStaff"),
-        ("buisnessstaff", "BuisnessStaff (Legacy)"),
-        ("businessadmin", "BusinessAdmin"),
-    ], default="customer") # remove soon
-
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 

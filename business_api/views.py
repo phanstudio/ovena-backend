@@ -309,6 +309,7 @@ class BusinessWalletWithdrawalView(APIView):
                 idempotency_key=idempotency_key,
                 strategy=strategy,
                 request_id=request_id,
+                role="business_owner"
             )
 
             response_payload = {

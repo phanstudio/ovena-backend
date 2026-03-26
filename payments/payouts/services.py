@@ -29,9 +29,7 @@ WITHDRAWAL_COOLDOWN_HOURS = int(getattr(settings, "WITHDRAWAL_COOLDOWN_HOURS", 2
 STRATEGY_BATCH = Withdrawal.STRATEGY_BATCH
 STRATEGY_REALTIME = Withdrawal.STRATEGY_REALTIME
 
-LEDGER_ROLE_ALIASES = {
-    "businessadmin": "business_owner",
-}
+LEDGER_WITHDRAWAL_ROLES = frozenset(MINIMUM_BY_ROLE.keys())
 
 
 @dataclass
@@ -45,8 +43,53 @@ class WithdrawalDecision:
 paystack_client = PaystackClient()
 
 
-def _ledger_role_for_user(user: User) -> str:
-    return LEDGER_ROLE_ALIASES.get(user.role, user.role)
+def _normalize_ledger_role(role: str | None) -> str | None:
+    if role is None:
+        return None
+    value = str(role).lower().strip()
+    if not value:
+        return None
+    if value not in LEDGER_WITHDRAWAL_ROLES:
+        raise ValueError(f"Invalid ledger role '{role}'. Expected one of: {sorted(LEDGER_WITHDRAWAL_ROLES)}")
+    return value
+
+
+def _infer_ledger_role_for_user(user: User) -> str:
+    """
+    Best-effort inference for the ledger role without depending on the old accounts role system.
+
+    Priority:
+    1) Most recent LedgerEntry.role (authoritative for payments ledger usage)
+    2) Related profiles (driver_profile / business_admin) as a fallback
+    """
+    try:
+        from payments.models import LedgerEntry
+    except Exception:
+        LedgerEntry = None  # type: ignore
+
+    if LedgerEntry is not None:
+        last_role = (
+            LedgerEntry.objects.filter(user=user)
+            .order_by("-created_at")
+            .values_list("role", flat=True)
+            .first()
+        )
+        try:
+            normalized = _normalize_ledger_role(last_role)
+        except ValueError:
+            normalized = None
+        if normalized:
+            return normalized
+
+    if getattr(user, "driver_profile", None):
+        return "driver"
+    if getattr(user, "business_admin", None):
+        return "business_owner"
+
+    raise ValueError(
+        "Unable to infer ledger role for withdrawals. "
+        "Provide an explicit 'role' (driver|business_owner|referral) or ensure the user has ledger entries."
+    )
 
 
 def _pending_total(user) -> int:
@@ -61,12 +104,19 @@ def _coerce_strategy(strategy: str | None) -> str:
     return value
 
 
-def get_balance_summary(user_id):
+def get_balance_summary(user_id, role: str | None = None):
     user = User.objects.get(id=user_id)
     balance = get_ledger_balance(user)
     pending = _pending_total(user)
     available = balance - pending
-    minimum = MINIMUM_BY_ROLE.get(_ledger_role_for_user(user), 0)
+    if role:
+        ledger_role = _normalize_ledger_role(role)
+        minimum = MINIMUM_BY_ROLE.get(ledger_role or "", 0)
+    else:
+        try:
+            minimum = MINIMUM_BY_ROLE.get(_infer_ledger_role_for_user(user), 0)
+        except ValueError:
+            minimum = 0
     return {
         "total_balance_kobo": balance,
         "pending_withdrawal_kobo": pending,
@@ -80,8 +130,8 @@ def get_balance_summary(user_id):
     }
 
 
-def evaluate_eligibility(user: User, amount_kobo: int) -> WithdrawalDecision:
-    ledger_role = _ledger_role_for_user(user)
+def evaluate_eligibility(user: User, amount_kobo: int, role: str | None = None) -> WithdrawalDecision:
+    ledger_role = _normalize_ledger_role(role) or _infer_ledger_role_for_user(user)
     minimum = MINIMUM_BY_ROLE.get(ledger_role)
     if minimum is None:
         return WithdrawalDecision(False, {"role_eligible": False}, 0, 0)
@@ -129,11 +179,13 @@ def create_withdrawal_request(
     user_id: str,
     amount_kobo: int,
     idempotency_key: str,
+    role: str | None = None,
     strategy: str | None = None,
     request_id: str | None = None,
 ):
     user = User.objects.select_for_update().get(id=user_id)
     strategy_value = _coerce_strategy(strategy)
+    ledger_role = _normalize_ledger_role(role) or _infer_ledger_role_for_user(user)
 
     existing = Withdrawal.objects.select_for_update().filter(user=user, idempotency_key=idempotency_key).first()
     if existing:
@@ -148,7 +200,7 @@ def create_withdrawal_request(
         )
         return existing, False
 
-    decision = evaluate_eligibility(user=user, amount_kobo=amount_kobo)
+    decision = evaluate_eligibility(user=user, amount_kobo=amount_kobo, role=ledger_role)
     if not decision.eligible:
         logger.warning(
             "payments.withdrawal.request.ineligible",
@@ -165,7 +217,7 @@ def create_withdrawal_request(
     hold_entry = _create_ledger_entry(
         user=user,
         sale=None,
-        role=_ledger_role_for_user(user),
+        role=ledger_role,
         entry_type="debit",
         amount=-amount_kobo,
         notes="Hold for withdrawal request",
@@ -325,10 +377,18 @@ def mark_withdrawal_failed(withdrawal: Withdrawal, reason: str):
     withdrawal.failure_reason = reason
     withdrawal.save(update_fields=["status", "failure_reason"])
 
+    role = None
+    if withdrawal.ledger_entry_id:
+        try:
+            role = _normalize_ledger_role(withdrawal.ledger_entry.role)
+        except Exception:
+            role = None
+    ledger_role = role or _infer_ledger_role_for_user(withdrawal.user)
+
     _create_ledger_entry(
         user=withdrawal.user,
         sale=None,
-        role=_ledger_role_for_user(withdrawal.user),
+        role=ledger_role,
         entry_type="credit",
         amount=withdrawal.amount,
         notes=f"Release hold for failed withdrawal {withdrawal.id}",

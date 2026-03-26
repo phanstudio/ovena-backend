@@ -58,7 +58,6 @@ def resturant_manager(db, registered_branch):
     user = User.objects.create(
         email="ajugapeterben@gmail.com",
         name="ben",
-        role="businessadmin",
     )
     pa = BusinessAdmin.objects.create(
         business=registered_branch.business,
@@ -79,7 +78,6 @@ def resturant_vendor(db, registered_branch):
     user = User.objects.create(
         email="ajugapeterbens@gmail.com",
         name="besn",
-        role="businessadmin",
     )
 
     pa = PrimaryAgent.objects.create(
@@ -119,7 +117,6 @@ def driverUser(db):
     user = User.objects.create(
         email="ajugajosh@gmail.com",
         name="josh",
-        role="driver",
     )
     driver = DriverProfile.objects.create(
         user=user,

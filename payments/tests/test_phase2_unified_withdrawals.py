@@ -21,13 +21,13 @@ from payments.services.split_calculator import _create_ledger_entry
 def test_create_withdrawal_request_unified_service(monkeypatch):
     """Baseline: a withdrawal created through the unified payouts service is persisted with a hold entry."""
     monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
-    user = User.objects.create_user(email="w1@gmail.com", password="x", role="driver")
+    user = User.objects.create_user(email="w1@gmail.com", password="x")
     UserAccount.objects.create(user=user, paystack_recipient_code="RCP_123")
 
-    _create_ledger_entry(user=user, sale=None, role=user.role, entry_type="credit", amount=300000, notes="seed")
+    _create_ledger_entry(user=user, sale=None, role="driver", entry_type="credit", amount=300000, notes="seed")
 
     withdrawal, created = payout_services.create_withdrawal_request(
-        user_id=str(user.id), amount_kobo=120000, idempotency_key="idem-w1"
+        user_id=str(user.id), amount_kobo=120000, idempotency_key="idem-w1", role="driver",
     )
 
     assert created is True
@@ -40,15 +40,15 @@ def test_create_withdrawal_request_unified_service(monkeypatch):
 def test_create_withdrawal_request_idempotent(monkeypatch):
     """A second call with the same (user, idempotency key) should return the same withdrawal instead of duplicating."""
     monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
-    user = User.objects.create_user(email="w2@gmail.com", password="x", role="driver")
+    user = User.objects.create_user(email="w2@gmail.com", password="x")
     UserAccount.objects.create(user=user, paystack_recipient_code="RCP_123")
-    _create_ledger_entry(user=user, sale=None, role=user.role, entry_type="credit", amount=300000, notes="seed")
+    _create_ledger_entry(user=user, sale=None, role="driver", entry_type="credit", amount=300000, notes="seed")
 
     first, created_first = payout_services.create_withdrawal_request(
-        user_id=str(user.id), amount_kobo=120000, idempotency_key="idem-w2"
+        user_id=str(user.id), amount_kobo=120000, idempotency_key="idem-w2", role="driver",
     )
     second, created_second = payout_services.create_withdrawal_request(
-        user_id=str(user.id), amount_kobo=120000, idempotency_key="idem-w2"
+        user_id=str(user.id), amount_kobo=120000, idempotency_key="idem-w2", role="driver",
     )
 
     assert created_first is True
@@ -60,9 +60,9 @@ def test_create_withdrawal_request_idempotent(monkeypatch):
 def test_request_withdrawal_view_uses_unified_service_and_can_queue_realtime(monkeypatch):
     """Wallet API should call the unified service and enqueue realtime payouts asynchronously."""
     monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
-    user = User.objects.create_user(email="w3@gmail.com", password="x", role="driver")
+    user = User.objects.create_user(email="w3@gmail.com", password="x")
     UserAccount.objects.create(user=user, paystack_recipient_code="RCP_123")
-    _create_ledger_entry(user=user, sale=None, role=user.role, entry_type="credit", amount=300000, notes="seed")
+    _create_ledger_entry(user=user, sale=None, role="driver", entry_type="credit", amount=300000, notes="seed")
 
     queued = {"calls": 0}
 
@@ -90,7 +90,7 @@ def test_request_withdrawal_view_uses_unified_service_and_can_queue_realtime(mon
 @pytest.mark.django_db
 def test_request_withdrawal_view_forwards_request_id_to_service(monkeypatch):
     """`X-Request-ID` and idempotency key from the API layer are forwarded into the core service for tracing."""
-    user = User.objects.create_user(email="w4@gmail.com", password="x", role="driver")
+    user = User.objects.create_user(email="w4@gmail.com", password="x")
 
     captured = {}
 
@@ -128,12 +128,12 @@ def test_request_withdrawal_view_forwards_request_id_to_service(monkeypatch):
 @pytest.mark.django_db
 def test_business_admin_can_create_withdrawal_request(monkeypatch):
     monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
-    user = User.objects.create_user(email="biz1@gmail.com", password="x", role="businessadmin")
+    user = User.objects.create_user(email="biz1@gmail.com", password="x")
     UserAccount.objects.create(user=user, paystack_recipient_code="RCP_BIZ_1")
     _create_ledger_entry(user=user, sale=None, role="business_owner", entry_type="credit", amount=500000, notes="seed")
 
     withdrawal, created = payout_services.create_withdrawal_request(
-        user_id=str(user.id), amount_kobo=200000, idempotency_key="idem-biz1"
+        user_id=str(user.id), amount_kobo=200000, idempotency_key="idem-biz1", role="business_owner",
     )
 
     assert created is True
@@ -144,7 +144,7 @@ def test_business_admin_can_create_withdrawal_request(monkeypatch):
 
 @pytest.mark.django_db
 def test_business_admin_payout_account_syncs_to_user_account(monkeypatch):
-    user = User.objects.create_user(email="biz2@gmail.com", password="x", role="businessadmin")
+    user = User.objects.create_user(email="biz2@gmail.com", password="x")
     business = Business.objects.create(business_name="Biz Two")
     admin = BusinessAdmin.objects.create(user=user, business=business)
     monkeypatch.setattr("payments.payouts.tasks.ensure_paystack_recipient_for_business_admin.delay", lambda *_args, **_kwargs: None)

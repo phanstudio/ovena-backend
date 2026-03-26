@@ -44,7 +44,6 @@ def driver_user():
         name="Test Driver",
         phone_number="+2348010000001",
         email="driver@example.com",
-        role="driver",
     )
 
 

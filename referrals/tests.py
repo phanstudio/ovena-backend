@@ -25,7 +25,6 @@ def customer_profile(user_model):
     user = user_model.objects.create(
         email="customer1@example.com",
         phone_number="+2348010001001",
-        role="customer",
     )
     return CustomerProfile.objects.create(user=user)
 
@@ -35,7 +34,6 @@ def customer_profile_2(user_model):
     user = user_model.objects.create(
         email="customer2@example.com",
         phone_number="+2348010001002",
-        role="customer",
     )
     return CustomerProfile.objects.create(user=user)
 
@@ -45,7 +43,6 @@ def driver_profile(user_model):
     user = user_model.objects.create(
         email="driver1@example.com",
         phone_number="+2348010002001",
-        role="driver",
     )
     return DriverProfile.objects.create(user=user)
 
@@ -70,7 +67,6 @@ def test_prevent_self_referral_same_user_cross_profiles(user_model):
     user = user_model.objects.create(
         email="dual@example.com",
         phone_number="+2348010099999",
-        role="driver",
     )
     customer = CustomerProfile.objects.create(user=user)
     driver = DriverProfile.objects.create(user=user)
@@ -85,7 +81,6 @@ def test_prevent_multiple_referrals_per_referee_user(user_model, customer_profil
     target_user = user_model.objects.create(
         email="target@example.com",
         phone_number="+2348010088888",
-        role="customer",
     )
     target_customer = CustomerProfile.objects.create(user=target_user)
     target_driver = DriverProfile.objects.create(user=target_user)

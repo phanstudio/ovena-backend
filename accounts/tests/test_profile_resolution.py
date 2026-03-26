@@ -26,7 +26,6 @@ def test_get_profile_and_has_profile_customer():
     user = user_model.objects.create(
         email="profile-resolver-customer@example.com",
         phone_number="+2348000001201",
-        role="customer",
     )
     base = _create_profile_base(user, PROFILE_CUSTOMER)
     customer = CustomerProfile.objects.create(base_profile=base, user=user)
@@ -41,7 +40,6 @@ def test_resolve_active_profile_type_prefers_header():
     user = user_model.objects.create(
         email="profile-resolver-both@example.com",
         phone_number="+2348000001202",
-        role="customer",
     )
     cbase = _create_profile_base(user, PROFILE_CUSTOMER)
     dbase = _create_profile_base(user, PROFILE_DRIVER)
@@ -63,7 +61,6 @@ def test_issue_jwt_with_active_profile_claim():
     user = user_model.objects.create(
         email="profile-token@example.com",
         phone_number="+2348000001203",
-        role="driver",
     )
     dbase = _create_profile_base(user, PROFILE_DRIVER)
     DriverProfile.objects.create(base_profile=dbase, user=user)

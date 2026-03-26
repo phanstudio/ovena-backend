@@ -15,7 +15,6 @@ def test_roles_are_profile_derived_with_legacy_fallback():
     user = user_model.objects.create(
         email="roles@example.com",
         phone_number="+2348000001000",
-        role="buisnessstaff",
     )
     pb = ProfileBase.objects.create(
         user=user,
@@ -35,7 +34,6 @@ def test_roles_are_profile_derived_with_legacy_fallback():
 #     user = user_model.objects.create(
 #         email="multi@example.com",
 #         phone_number="+2348000001001",
-#         role="customer",
 #     )
 #     CustomerProfile.objects.create(user=user)
 #     DriverProfile.objects.create(user=user)
@@ -50,7 +48,6 @@ def test_roles_are_profile_derived_with_legacy_fallback():
 #     user = user_model.objects.create(
 #         email="jwtroles@example.com",
 #         phone_number="+2348000001002",
-#         role="driver",
 #     )
 #     DriverProfile.objects.create(user=user)
 

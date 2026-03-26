@@ -1,9 +1,10 @@
 from django.urls import path, include
 import menu.views as views
-import menu.payment_views as payviews
+import menu.views.business as bmenuview
 
-payment_urls =[
-    path("paystack/webhook/", payviews.paystack_webhook, name="paystack-webhook"),
+
+business_urls =[
+    path("business/menu-list", bmenuview.MenuView.as_view(), name="business-menu-list"),
 ]
 
 urlpatterns = [
@@ -19,5 +20,5 @@ urlpatterns = [
     path("orders/<int:order_id>/", views.OrderView.as_view(), name="order-detail"),
     path("order/<int:order_id>/cancel/", views.OrderCancelView.as_view(), name="order-cancel"),
 
-    path("", include(payment_urls)),
+    path("", include(business_urls)),
 ]

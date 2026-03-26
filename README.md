@@ -20,3 +20,6 @@ the use of push notification help with the information distrbution on reconnect?
 
 withdrawal strategy will be handeled by us
 remeber to change coupons back to is admin
+
+
+_ledger_role_for_user

@@ -170,7 +170,7 @@ def test_withdrawal_creation_triggers_background_processing_for_approved_request
 @pytest.mark.django_db
 def test_sync_wallet_prefers_payments_ledger_when_available(monkeypatch):
     monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
-    user = User.objects.create(email="driver6@example.com", name="Driver Six", role="driver")
+    user = User.objects.create(email="driver6@example.com", name="Driver Six")
     profile = DriverProfile.objects.create(user=user, first_name="Driver", last_name="Six")
     UserAccount.objects.create(user=user, paystack_recipient_code="RCP_123")
 
@@ -187,6 +187,7 @@ def test_sync_wallet_prefers_payments_ledger_when_available(monkeypatch):
     payout_services.create_withdrawal_request(
         user_id=str(user.id),
         amount_kobo=100000,
+        role="driver",
         idempotency_key="idem-driver6",
         strategy="realtime",
     )

@@ -46,7 +46,6 @@ def business_admin_user(db):
     return User.objects.create(
         name="Chidi Okeke",
         phone_number="+2348012345678",
-        role="businessadmin",
     )
 
 
@@ -404,7 +403,7 @@ class TestPhase2Onboarding:
         """User who skipped phase1 should be rejected."""
         from accounts.models import User
         from authflow.services import issue_jwt_for_user
-        orphan_user = User.objects.create(name="Orphan", phone_number="+2340000000001", role="businessadmin")
+        orphan_user = User.objects.create(name="Orphan", phone_number="+2340000000001")
         tokens = issue_jwt_for_user(orphan_user)
         api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
         response = api_client.post(reverse("register-phase2"), {"registered_business_name": "X"}, format="json")

@@ -97,6 +97,12 @@ def refund_sale_view(request, sale_id):
 @permission_classes([IsAuthenticated])
 def balance_view(request):
     """GET /api/wallet/balance/"""
+    role = getattr(request, "query_params", {}).get("role") if hasattr(request, "query_params") else None
+    if role:
+        try:
+            return Response(get_balance_summary(str(request.user.id), role=role))
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     return Response(get_balance_summary(str(request.user.id)))
 
 
@@ -108,6 +114,7 @@ def request_withdrawal_view(request):
     idempotency_key = request.headers.get("Idempotency-Key")
     strategy = request.data.get("strategy", getattr(settings, "PAYMENTS_PAYOUT_STRATEGY_DEFAULT", "batch"))
     request_id = request.headers.get("X-Request-ID", "")
+    role = request.data.get("role")
 
     if not amount_kobo:
         return Response({"error": "amount_kobo is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -124,13 +131,16 @@ def request_withdrawal_view(request):
         if has_response:
             return Response(row.response_snapshot, status=status.HTTP_200_OK)
 
-        withdrawal, created = create_withdrawal_request(
-            user_id=str(request.user.id),
-            amount_kobo=int(amount_kobo),
-            idempotency_key=idempotency_key,
-            strategy=strategy,
-            request_id=request_id
-        )
+        kwargs = {
+            "user_id": str(request.user.id),
+            "amount_kobo": int(amount_kobo),
+            "idempotency_key": idempotency_key,
+            "strategy": strategy,
+            "request_id": request_id,
+        }
+        if role:
+            kwargs["role"] = role
+        withdrawal, created = create_withdrawal_request(**kwargs)
 
         response_payload = {
             "success": True,
