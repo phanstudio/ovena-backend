@@ -4,8 +4,8 @@ set -e
 # Always use the venv's python
 
 echo "Running migrations..."
-# python manage.py makemigrations accounts --noinput
-# python manage.py migrate accounts --noinput
+python manage.py makemigrations accounts --noinput
+python manage.py migrate accounts --noinput
 # python manage.py migrate accounts 0026 --fake --noinput
 
 # python3 manage.py makemigrations --noinput
