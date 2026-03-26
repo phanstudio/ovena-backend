@@ -1,0 +1,474 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ovena Order Flow Harness</title>
+  <style>
+    :root {
+      --bg: #0f1216;
+      --panel: #171b22;
+      --panel-2: #1f2430;
+      --text: #e8edf2;
+      --muted: #a6b0bf;
+      --accent: #3fa9f5;
+      --danger: #ff5d5d;
+      --ok: #4ad295;
+      --border: #2a3140;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(900px 400px at 10% -10%, #1f2b3d, transparent),
+                  radial-gradient(900px 400px at 90% -20%, #2d1f2f, transparent),
+                  var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+    }
+    header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(90deg, #131822, #12161d);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    h1 { margin: 0 0 6px 0; font-size: 20px; }
+    p { margin: 0; color: var(--muted); }
+    .wrap { padding: 16px 24px 28px; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      min-height: 520px;
+    }
+    .panel h2 { margin: 0 0 8px 0; font-size: 16px; }
+    .row { display: flex; gap: 8px; margin-bottom: 8px; }
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+    input, select, textarea, button {
+      font: inherit;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+    }
+    textarea { min-height: 64px; font-family: var(--mono); }
+    button {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #202736;
+      color: var(--text);
+      cursor: pointer;
+    }
+    button.primary { background: var(--accent); border-color: transparent; color: #0e1116; font-weight: 600; }
+    button.danger { background: var(--danger); border-color: transparent; color: #0e1116; font-weight: 600; }
+    button.ok { background: var(--ok); border-color: transparent; color: #0e1116; font-weight: 600; }
+    .log {
+      background: #0c1017;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      height: 200px;
+      overflow: auto;
+      font-family: var(--mono);
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+    .small { font-size: 12px; color: var(--muted); }
+    .spacer { height: 6px; }
+    .wide { grid-column: 1 / -1; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Ovena Order Flow Harness</h1>
+    <p>Three-role tester (Customer, Branch, Driver) with REST + WebSocket. Use this to document and catch flow bugs.</p>
+  </header>
+
+  <div class="wrap">
+    <div class="panel wide">
+      <div class="row">
+        <div style="flex:1">
+          <label>API Base</label>
+          <input id="apiBase" value="http://localhost:8000/api" />
+        </div>
+        <div style="flex:1">
+          <label>WS Base</label>
+          <input id="wsBase" value="ws://localhost:8000" />
+        </div>
+        <div style="flex:1">
+          <label>Current Order ID</label>
+          <input id="currentOrderId" placeholder="auto" />
+        </div>
+      </div>
+      <div class="small">Paste tokens below. Use the role dropdown to choose Bearer/SubBearer. You can also paste a full prefixed token if you want.</div>
+    </div>
+
+    <div class="grid">
+      <!-- CUSTOMER -->
+      <div class="panel">
+        <h2>Customer</h2>
+        <div class="row">
+          <div style="flex:0.4">
+            <label>Token Type</label>
+            <select id="custTokenType">
+              <option>Bearer</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label>Access Token</label>
+            <input id="custToken" placeholder="paste access token" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1">
+            <label>Branch ID</label>
+            <input id="custBranchId" placeholder="e.g. 1" />
+          </div>
+          <div style="flex:1">
+            <label>Menu Item ID</label>
+            <input id="custMenuItemId" placeholder="e.g. 10" />
+          </div>
+          <div style="flex:1">
+            <label>Quantity</label>
+            <input id="custQty" value="1" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1">
+            <label>Variant Option IDs (comma)</label>
+            <input id="custVariants" placeholder="e.g. 3,4" />
+          </div>
+          <div style="flex:1">
+            <label>Addon IDs (comma)</label>
+            <input id="custAddons" placeholder="e.g. 7,9" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1">
+            <label>Coupon Code</label>
+            <input id="custCoupon" placeholder="optional" />
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="primary" onclick="createOrder()">Create Order</button>
+          <button onclick="connectCustomerWS()">Connect Order WS</button>
+          <button onclick="disconnectWS('customer')">Disconnect WS</button>
+        </div>
+
+        <div class="spacer"></div>
+        <label>Customer Log</label>
+        <div id="custLog" class="log"></div>
+      </div>
+
+      <!-- BRANCH -->
+      <div class="panel">
+        <h2>Branch</h2>
+        <div class="row">
+          <div style="flex:0.4">
+            <label>Token Type</label>
+            <select id="branchTokenType">
+              <option>Bearer</option>
+              <option>SubBearer</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label>Access Token</label>
+            <input id="branchToken" placeholder="paste access token" />
+          </div>
+        </div>
+
+        <div class="row">
+          <!-- <div style="flex:1">
+            <label>Branch ID</label>
+            <input id="branchId" placeholder="e.g. 1" />
+          </div> -->
+          <div style="flex:1">
+            <label>Order ID</label>
+            <input id="branchOrderId" placeholder="auto" />
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="primary" onclick="branchAction('accept')">Accept Order</button>
+          <button class="ok" onclick="branchAction('made')">Mark Ready</button>
+          <button class="danger" onclick="branchAction('cancel')">Cancel</button>
+        </div>
+
+        <div class="row">
+          <button onclick="connectBranchWS()">Connect Branch WS</button>
+          <button onclick="disconnectWS('branch')">Disconnect WS</button>
+        </div>
+
+        <div class="spacer"></div>
+        <label>Branch Log</label>
+        <div id="branchLog" class="log"></div>
+      </div>
+
+      <!-- DRIVER -->
+      <div class="panel">
+        <h2>Driver</h2>
+        <div class="row">
+          <div style="flex:0.4">
+            <label>Token Type</label>
+            <select id="driverTokenType">
+              <option>Bearer</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label>Access Token</label>
+            <input id="driverToken" placeholder="paste access token" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div style="flex:1">
+            <label>Order ID</label>
+            <input id="driverOrderId" placeholder="auto" />
+          </div>
+          <div style="flex:1">
+            <label>Delivery Code</label>
+            <input id="driverCode" placeholder="from create order" />
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="primary" onclick="driverAction('accept')">Accept</button>
+          <button onclick="driverAction('reject')">Reject</button>
+          <button class="ok" onclick="driverAction('deliver')">Deliver</button>
+        </div>
+
+        <div class="row">
+          <button onclick="connectDriverOrdersWS()">Connect Driver WS</button>
+          <button onclick="connectDriverLocationWS()">Connect Location WS</button>
+          <button onclick="disconnectWS('driverOrders')">Disconnect Orders WS</button>
+          <button onclick="disconnectWS('driverLocation')">Disconnect Location WS</button>
+        </div>
+
+        <div class="row">
+          <button onclick="sendLocationUpdate()">Send Location</button>
+          <button onclick="sendStatusUpdate()"><span id="statusIndi">🔴</span> IsAvailable</button>
+        </div>
+
+        <div class="spacer"></div>
+        <label>Driver Log</label>
+        <div id="driverLog" class="log"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const sockets = {
+    customer: null,
+    branch: null,
+    driverOrders: null,
+    driverLocation: null,
+  };
+  let IsAvailable = false
+
+  function log(id, msg) {
+    const el = document.getElementById(id);
+    const line = `[${new Date().toISOString()}] ${msg}\n`;
+    el.textContent = line + el.textContent;
+  }
+
+  function getToken(typeId, tokenId) {
+    const prefix = document.getElementById(typeId).value.trim();
+    let token = document.getElementById(tokenId).value.trim();
+    if (!token) return null;
+    if (token.toLowerCase().startsWith('bearer ') || token.toLowerCase().startsWith('subbearer ')) {
+      return token;
+    }
+    return `${prefix} ${token}`;
+  }
+
+  async function apiFetch(role, path, method, body) {
+    const apiBase = document.getElementById('apiBase').value.trim();
+    let token = null;
+    if (role === 'customer') token = getToken('custTokenType', 'custToken');
+    if (role === 'branch') token = getToken('branchTokenType', 'branchToken');
+    if (role === 'driver') token = getToken('driverTokenType', 'driverToken');
+
+    const res = await fetch(`${apiBase}${path}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': token } : {})
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const text = await res.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    return { status: res.status, data };
+  }
+
+  function setOrderId(orderId) {
+    if (!orderId) return;
+    document.getElementById('currentOrderId').value = orderId;
+    document.getElementById('branchOrderId').value = orderId;
+    document.getElementById('driverOrderId').value = orderId;
+  }
+
+  async function createOrder() {
+    const branchId = Number(document.getElementById('custBranchId').value);
+    const menuItemId = Number(document.getElementById('custMenuItemId').value);
+    const qty = Number(document.getElementById('custQty').value || 1);
+    const coupon = document.getElementById('custCoupon').value.trim();
+    const variants = document.getElementById('custVariants').value.trim();
+    const addons = document.getElementById('custAddons').value.trim();
+
+    const payload = {
+      branch_id: branchId,
+      coupon_code: coupon || undefined,
+      items: [
+        {
+          menu_item_id: menuItemId,
+          quantity: qty,
+          variant_option_ids: variants ? variants.split(',').map(v => Number(v.trim())).filter(Boolean) : [],
+          addon_ids: addons ? addons.split(',').map(a => Number(a.trim())).filter(Boolean) : [],
+        }
+      ]
+    };
+
+    const res = await apiFetch('customer', '/menu/order/', 'POST', payload);
+    log('custLog', `POST /menu/order/ -> ${res.status}\n${JSON.stringify(res.data, null, 2)}`);
+    if (res.data && res.data.order_id) {
+      setOrderId(res.data.order_id);
+    }
+    if (res.data && res.data.delivery_passphrase) {
+      document.getElementById('driverCode').value = res.data.delivery_passphrase;
+    }
+  }
+
+  async function branchAction(action) {
+    const orderId = Number(document.getElementById('branchOrderId').value || document.getElementById('currentOrderId').value);
+    const res = await apiFetch('branch', '/menu/restaurant-order/', 'POST', { action, order_id: orderId });
+    log('branchLog', `POST /menu/restaurant-order/ (${action}) -> ${res.status}\n${JSON.stringify(res.data, null, 2)}`);
+  }
+
+  async function driverAction(action) {
+    const orderId = Number(document.getElementById('driverOrderId').value || document.getElementById('currentOrderId').value);
+    const code = document.getElementById('driverCode').value.trim();
+    const body = { action, order_id: orderId };
+    if (action === 'deliver') body.order_code = code;
+
+    const res = await apiFetch('driver', '/menu/driver-order/', 'POST', body);
+    log('driverLog', `POST /menu/driver-order/ (${action}) -> ${res.status}\n${JSON.stringify(res.data, null, 2)}`);
+  }
+
+  function connectCustomerWS() {
+    const wsBase = document.getElementById('wsBase').value.trim();
+    const orderId = document.getElementById('currentOrderId').value.trim();
+    const token = getToken('custTokenType', 'custToken');
+    if (!orderId || !token) return log('custLog', 'Missing order_id or token');
+
+    const url = `${wsBase}/ws/orders/${orderId}/?token=${encodeURIComponent(token)}`;
+    sockets.customer = new WebSocket(url);
+    sockets.customer.onmessage = e => log('custLog', `WS ${e.data}`);
+    sockets.customer.onopen = () => log('custLog', 'WS connected');
+    sockets.customer.onclose = () => log('custLog', 'WS closed');
+  }
+
+  function connectBranchWS() {
+    const wsBase = document.getElementById('wsBase').value.trim();
+    // const branchId = document.getElementById('branchId').value.trim();
+    const token = getToken('branchTokenType', 'branchToken');
+    //if (!branchId || !token) return log('branchLog', 'Missing branch_id or token');
+    if (!token) return log('branchLog', 'Missing token');
+
+    // if (tokenType === 'sub') {
+    //   formattedToken = `SubBearer ${token}`;
+    // }
+
+
+    const url = `${wsBase}/ws/branch/?token=${encodeURIComponent(token)}`;
+    sockets.branch = new WebSocket(url);
+    sockets.branch.onmessage = e => log('branchLog', `WS ${e.data}`);
+    sockets.branch.onopen = () => log('branchLog', 'WS connected');
+    sockets.branch.onclose = () => log('branchLog', 'WS closed');
+  }
+
+  function connectDriverOrdersWS() {
+    const wsBase = document.getElementById('wsBase').value.trim();
+    const token = getToken('driverTokenType', 'driverToken');
+    if (!token) return log('driverLog', 'Missing token');
+
+    const url = `${wsBase}/ws/driver/orders/?token=${encodeURIComponent(token)}`;
+    sockets.driverOrders = new WebSocket(url);
+    sockets.driverOrders.onmessage = e => log('driverLog', `WS orders ${e.data}`);
+    sockets.driverOrders.onopen = () => log('driverLog', 'WS orders connected');
+    sockets.driverOrders.onclose = () => log('driverLog', 'WS orders closed');
+  }
+
+  function connectDriverLocationWS() {
+    const wsBase = document.getElementById('wsBase').value.trim();
+    const token = getToken('driverTokenType', 'driverToken');
+    if (!token) return log('driverLog', 'Missing token');
+
+    const url = `${wsBase}/ws/driver/location/?token=${encodeURIComponent(token)}`;
+    sockets.driverLocation = new WebSocket(url);
+    sockets.driverLocation.onmessage = e => log('driverLog', `WS location ${e.data}`);
+    sockets.driverLocation.onopen = () => log('driverLog', 'WS location connected');
+    sockets.driverLocation.onclose = () => log('driverLog', 'WS location closed');
+  }
+
+  function sendLocationUpdate() {
+    if (!sockets.driverLocation || sockets.driverLocation.readyState !== 1) {
+      return log('driverLog', 'Location WS not connected');
+    }
+    // "latitude": 6.5244,    "longitude": 3.3792,
+    const payload = {
+      type: 'location_update',
+      lat: 6.5244,
+      lng: 3.3792,
+      heading: 90,
+      speed: 8,
+      accuracy: 5
+    };
+    sockets.driverLocation.send(JSON.stringify(payload));
+    log('driverLog', `Sent location_update ${JSON.stringify(payload)}`);
+  }
+
+  function sendStatusUpdate() {
+    if (!sockets.driverLocation || sockets.driverLocation.readyState !== 1) {
+      return log('driverLog', 'Location WS not connected');
+    }
+    const newAvailability = !IsAvailable;
+    const payload = {
+      type: 'status',
+      is_available: newAvailability,
+    };
+    const status = document.getElementById('statusIndi');
+    sockets.driverLocation.send(JSON.stringify(payload));
+    IsAvailable = newAvailability;
+    status.textContent = IsAvailable ? '🟢' : '🔴';
+    log('driverLog', `Sent Status ${JSON.stringify(payload)}`);
+  }
+
+  function disconnectWS(key) {
+    if (sockets[key]) {
+      sockets[key].close();
+      sockets[key] = null;
+    }
+  }
+</script>
+</body>
+</html>
