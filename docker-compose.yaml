@@ -51,6 +51,15 @@ services:
       timeout: 3s
       retries: 30
 
+  # osrm:
+  #   image: ghcr.io/project-osrm/osrm-backend:latest
+  #   ports:
+  #     - "5000:5000"
+  #   volumes:
+  #     - ./osrm-data:/data
+  #   command: osrm-routed --algorithm mld /data/map.osrm
+  #   restart: unless-stopped
+
   # prometheus:
   #   image: prom/prometheus:latest
   #   ports:
