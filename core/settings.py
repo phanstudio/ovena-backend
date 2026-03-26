@@ -67,11 +67,13 @@ LOCAL_APPS = [
     'business_api',
     'menu',
     'driver_api',
+    'notifications',
     'authflow',
     'ratings',
     'coupons_discount',
     'referrals',
-    'payments'
+    'payments',
+    'support_center',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -189,6 +191,9 @@ ORS_API_KEY = env("ORS_API_KEY", default="")
 MAPBOX_ACCESS_TOKEN = env("MAPBOX_ACCESS_TOKEN", default="")
 GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
 
+# Verification
+DOJAH_APP_ID     = env("DOJAH_APP_ID", default="")
+DOJAH_SECRET_KEY = env("DOJAH_SECRET_KEY", default="")
 
 TEMPLATES = [
     {

@@ -49,7 +49,9 @@ from driver_api.services import (
     sync_wallet_from_ledger,
 )
 from driver_api.tasks import process_withdrawal, process_withdrawal_request
+from notifications.services import get_driver_unread_count
 from payments.webhooks.paystack import handle_paystack_webhook
+from support_center.services import get_driver_open_ticket_count
 
 
 class BaseDriverAPIView(APIView):
@@ -98,11 +100,8 @@ class DriverDashboardView(BaseDriverAPIView):
                 "pending_balance": wallet.pending_balance,
             },
             "active_order": active_order,
-            "unread_notifications": DriverNotification.objects.filter(driver=driver, is_read=False).count(),
-            "open_tickets": SupportTicket.objects.filter(
-                driver=driver,
-                status__in=[SupportTicket.STATUS_OPEN, SupportTicket.STATUS_IN_PROGRESS],
-            ).count(),
+            "unread_notifications": get_driver_unread_count(driver),
+            "open_tickets": get_driver_open_ticket_count(driver),
         }
         return Response({"detail": "Driver dashboard loaded", "data": payload})
 
@@ -440,5 +439,4 @@ class PaystackWithdrawalWebhookView(APIView):
             request_id=request.headers.get("X-Request-ID", ""),
         )
         return Response({"detail": detail}, status=status_code)
-
 

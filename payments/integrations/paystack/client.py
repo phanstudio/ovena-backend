@@ -57,4 +57,10 @@ class PaystackClient:
 
     def fetch_transfer(self, transfer_code: str) -> dict[str, Any]:
         return self._call(self._client.transfer.verify, {"reference": transfer_code})
+    
+    def verfy_bvn_match(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._call(self._client.verification.verify_bvn_match, payload)
+    
+    def verfy_bvn(self, bvn: str) -> dict[str, Any]:
+        return self._call(self._client.verification.verify_bvn, {"bvn": bvn})
 
