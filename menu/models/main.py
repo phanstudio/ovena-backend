@@ -140,8 +140,8 @@ class MenuItemAddon(models.Model):
         return self.base_item.name
 
 class BaseItemAvailability(models.Model):
-    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="item_availabilities")
-    base_item = models.ForeignKey(BaseItem, on_delete=models.CASCADE, related_name="branch_availabilities")
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="branch_availabilities")
+    base_item = models.ForeignKey(BaseItem, on_delete=models.CASCADE, related_name="item_availabilities")
 
     is_available = models.BooleanField(default=True)
     override_price = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)

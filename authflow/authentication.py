@@ -7,6 +7,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.utils import get_md5_hash_password
 from accounts.models import LinkedStaff
+# from accounts.services.roles import has_role
 from accounts.services.profiles import (
     PROFILE_BUSINESS_ADMIN,
     PROFILE_CUSTOMER,

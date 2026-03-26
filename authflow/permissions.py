@@ -1,4 +1,5 @@
 from rest_framework import permissions
+from accounts.services.roles import has_role, PROFILE_CUSTOMER, PROFILE_BUSINESS_ADMIN, PROFILE_DRIVER
 
 class ScopePermission(permissions.BasePermission):
     """
@@ -24,25 +25,14 @@ class ReadScopePermission(ScopePermission):
             self.check_scope(self.get_scopes(request), {"read"})
         )
 
-
 class IsCustomer(permissions.BasePermission): 
     def has_permission(self, request, view):
-        user = getattr(request, "user", None)
-        if not user or not getattr(user, "is_authenticated", False):
-            return False
-        return bool(getattr(user, "customer_profile", None))
+        return request.user.is_authenticated and has_role(request, PROFILE_CUSTOMER)
 
 class IsDriver(permissions.BasePermission):
     def has_permission(self, request, view):
-        user = getattr(request, "user", None)
-        if not user or not getattr(user, "is_authenticated", False):
-            return False
-        return bool(getattr(user, "driver_profile", None))
+        return request.user.is_authenticated and has_role(request, PROFILE_DRIVER)
 
 class IsBusinessAdmin(permissions.BasePermission):
     def has_permission(self, request, view):
-        user = getattr(request, "user", None)
-        if not user or not getattr(user, "is_authenticated", False):
-            return False
-        return bool(getattr(user, "business_admin", None))
-
+        return request.user.is_authenticated and has_role(request, PROFILE_BUSINESS_ADMIN)

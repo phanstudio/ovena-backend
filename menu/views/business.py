@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.generics import GenericAPIView
+# from rest_framework.permissions import AllowAny
 from ..serializers import OpS
 from ..models import (
     Menu, MenuItem,
@@ -19,7 +20,20 @@ from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
+# for later on the branch level ie the person is a business staff
+# from django.db.models import Prefetch
 
+# branch = ...  # get from request
+
+# menus = Menu.objects.filter(business_id=user.id).prefetch_related(
+#     "categories__items__variant_groups__options",
+#     "categories__items__addon_groups__addons",
+#     Prefetch(
+#         "categories__items__base_item__item_availabilities",
+#         queryset=BaseItemAvailability.objects.filter(branch=branch),
+#         to_attr="filtered_availability"
+#     )
+# )
 class MenuView(APIView):
     authentication_classes=[CustomBAdminAuth]
     permission_classes=[IsBusinessAdmin]
@@ -31,7 +45,7 @@ class MenuView(APIView):
                 "categories__items__variant_groups__options",
                 "categories__items__addon_groups__addons",
                 # optional:
-                "categories__items__branch_availabilities",
+                # "categories__items__branch_availabilities",
         )
         serializer = OpS.MenuSerializer(menus, many=True)
         return Response(serializer.data)
