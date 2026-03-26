@@ -16,6 +16,7 @@ Each function returns a dict:
 import logging
 import requests
 from django.conf import settings
+from verification.services import verify_bvn
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +40,10 @@ def verify_nin_mono(nin: str) -> dict:
 
 def verify_bvn_mono(bvn: str) -> dict:
     """Verify a Nigerian BVN via Mono identity lookup."""
-    url = f"{MONO_BASE_URL}/lookup/bvn"
-    payload = {"bvn": bvn}
-    return _mono_request(url, payload, "bvn")
+    # url = f"{MONO_BASE_URL}/lookup/bvn"
+    # payload = {"bvn": bvn}
+    # return _mono_request(url, payload, "bvn")
+    return verify_bvn(bvn)
 
 
 def _mono_request(url: str, payload: dict, lookup_type: str) -> dict:

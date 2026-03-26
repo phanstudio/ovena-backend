@@ -1,7 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.contrib.gis.db import models as gis_models
 from django.db import models
-from accounts.services.roles import get_user_roles, has_role as role_checker
+from accounts.services.roles import get_user_roles, has_role_all as role_checker
 
 # if what we are check gets big i'm thing of having a separte model for cert inke in driver but only if it gets out of hand
 # and a main branch option, on creation of jwt for the resturant create add it to the token
@@ -128,6 +128,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, null=True, blank=True)
     phone_number = models.CharField(max_length=18,  null=True, blank=True) #unique=True,
     name = models.CharField(max_length=150, blank=True, null= True)
+    # username = models.CharField(max_length=150, blank=True, null= True)
 
     role = models.CharField(max_length=20, choices=[
         ("customer", "Customer"),
@@ -135,7 +136,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         ("businessstaff", "BusinessStaff"),
         ("buisnessstaff", "BuisnessStaff (Legacy)"),
         ("businessadmin", "BusinessAdmin"),
-    ], default="customer")
+    ], default="customer") # remove soon
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
@@ -158,10 +159,14 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     @property
     def customer_profile(self):
-        base = self.profile_bases.filter(profile_type="customer").first()
+        base = self.get_profile_base(profile_type="customer")
         return getattr(base, "customer_profile", None)
 
     @property
     def driver_profile(self):
-        base = self.profile_bases.filter(profile_type="driver").first()
+        base = self.get_profile_base(profile_type="driver")
         return getattr(base, "driver_profile", None)
+    
+    def get_profile_base(self, profile_type):
+        # self.profile_bases.filter(profile_type=profile_type).first()
+        return self.profile_bases.filter(profile_type=profile_type).select_related().first()

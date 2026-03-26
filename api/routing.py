@@ -16,7 +16,8 @@ websocket_urlpatterns = [
 
     # Branch dashboard (all orders for a branch)
     re_path(
-        r'ws/branch/(?P<branch_id>\d+)/$', 
+        # r'ws/branch/(?P<branch_id>\d+)/$',
+        r'ws/branch/$', 
         consumers.BranchConsumer.as_asgi()
     ),
 

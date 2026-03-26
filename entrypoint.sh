@@ -8,8 +8,8 @@ echo "Running migrations..."
 # python manage.py migrate accounts --noinput
 # python manage.py migrate accounts 0026 --fake --noinput
 
-python3 manage.py makemigrations --noinput
-python3 manage.py migrate --noinput
+# python3 manage.py makemigrations --noinput
+# python3 manage.py migrate --noinput
 
 # python manage.py migrate accounts 0012 --fake
 # python manage.py migrate

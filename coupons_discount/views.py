@@ -8,11 +8,8 @@ from rest_framework.views import APIView
 from rest_framework import status
 import random
 from django.db import transaction
-
-# coupons/views.py
-from rest_framework import generics, permissions
-from .models import Coupons
 from .serializers import CouponCreateUpdateSerializer
+from .serializers import CouponWheelSetSerializer
 
 # time left should be added everywhere
 # change if needed, the cred
@@ -130,13 +127,7 @@ class CouponUpdateView(generics.UpdateAPIView):
     serializer_class = CouponCreateUpdateSerializer
     queryset = Coupons.objects.all()
 
-
-# coupons/views.py
-from django.db import transaction
-from rest_framework import generics, permissions
-from .models import CouponWheel
-from .serializers import CouponWheelSetSerializer
-
+# add probabity settings
 class CouponWheelSetterView(generics.UpdateAPIView):
     """
     PATCH /api/admin/coupon-wheels/<id>/

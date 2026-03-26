@@ -195,7 +195,7 @@ class CustomprimJWTAuth(CustomJWtAuth):
         if active_profile:
             token["active_profile"] = active_profile
 
-        if has_role(user, "businessstaff") and getattr(user, "primaryagent", None) is not None:
+        if getattr(user, "primaryagent", None) is not None:
             token["scopes"] = {"*"}
         return (user, token)
 
@@ -208,9 +208,8 @@ class CustomDriverAuth(CustomJWtAuth):
         if result is None:
             return None
         user, token, profile_type = result
-        if not profile_type:
-            raise AuthenticationFailed(_("Driver profile not found"), code="driver_profile_missing")
-        token["active_profile"] = profile_type
+        if profile_type:
+            token["active_profile"] = profile_type
         return (user, token)
 
 class CustomCustomerAuth(CustomJWtAuth):
@@ -222,9 +221,8 @@ class CustomCustomerAuth(CustomJWtAuth):
         if result is None:
             return None
         user, token, profile_type = result
-        if not profile_type:
-            raise AuthenticationFailed(_("Customer profile not found"), code="customer_profile_missing")
-        token["active_profile"] = profile_type
+        if profile_type:
+            token["active_profile"] = profile_type
         return (user, token)
 
 class CustomBAdminAuth(CustomJWtAuth):

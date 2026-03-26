@@ -86,6 +86,11 @@ def successful_referrals(profile) -> int:
     ).count()
 
 
+def referred_by(user):
+    return ProfileReferral.objects.filter(
+        referee_user=user,
+    ).first()
+
 @transaction.atomic
 def convert_referral_once(*, referee_profile) -> bool:
     base = _ensure_profile_base(referee_profile)

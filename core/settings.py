@@ -62,14 +62,18 @@ THIRD_PARTY_APPS = [
 ]
 
 LOCAL_APPS = [
-    # "ovena.users",
     'accounts',
     'addresses',
+    'business_api',
     'menu',
+    'driver_api',
+    'notifications',
     'authflow',
     'ratings',
     'coupons_discount',
     'referrals',
+    'payments',
+    'support_center',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -129,8 +133,12 @@ BRANCH_CONFIRMATION_TIMEOUT = 300  # minutes
 PAYMENT_TIMEOUT = 300  # minutes
 
 # paystack
-PAYSTACK_SECRET_KEY = env("PAYSTACK_SERECT_KEY") # correct change later
+PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY") # correct change later
+LEDGER_HASH_SALT    = env("LEDGER_HASH_SALT") # all of these failed even with no salt
 
+MIN_WITHDRAWAL_DRIVER   = 100000   # ₦1,000 in kobo # same here
+MIN_WITHDRAWAL_BUSINESS = 200000   # ₦2,000 in kobo
+MIN_WITHDRAWAL_REFERRAL = 50000    # ₦500 in kobo
 
 DRIVER_SEARCH_RADIUS_KM = [5, 10, 15]
 DRIVER_LOCATION_STALE_THRESHOLD = 60*60#60 # seconds
@@ -172,6 +180,20 @@ CHANNEL_LAYERS = {
 # Session engine for WebSocket auth
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
+
+
+# Order matters — tries left to right, falls back on failure
+ROUTING_BACKENDS = env.list("ROUTING_BACKENDS", default=['ors',])
+
+# Backend credentials — only need the ones you're using
+ORS_BASE_URL = env("ORS_BASE_URL", default="http://ors:8082/ors")
+ORS_API_KEY = env("ORS_API_KEY", default="")
+MAPBOX_ACCESS_TOKEN = env("MAPBOX_ACCESS_TOKEN", default="")
+GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
+
+# Verification
+DOJAH_APP_ID     = env("DOJAH_APP_ID", default="")
+DOJAH_SECRET_KEY = env("DOJAH_SECRET_KEY", default="")
 
 TEMPLATES = [
     {

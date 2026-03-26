@@ -3,10 +3,8 @@ from .views import (
     VerifyOTPView, UserProfileView, DeleteAccountView, UpdateBranch, Delete2AccountView,
     OAuthExchangeView, RegisterRManager, RegisterCustomer, UpdateCustomer,
     jwt_views, SendEmailOTPView, VerifyEmailOTPView, RegisterBAdmin, SendPhoneOTPView,
-    RestaurantPhase2OnboardingView, RestaurantPhase1RegisterView, 
-    PasswordResetView, AdminLoginView, DriverLoginView, BuisnnessOnboardingStatusView
+    PasswordResetView, AdminLoginView, DriverLoginView
 )
-from menu.views import RegisterMenusPhase3View, BatchGenerateUploadURLView
 from .views import driver_reg_views
 
 token_urls = [
@@ -19,11 +17,7 @@ token_urls = [
 onboarding_urls = [
     # make sure you send otp before
     path("admin/", RegisterBAdmin.as_view(), name="register-businessadmin"),
-    path("phase1/", RestaurantPhase1RegisterView.as_view(), name="register-phase1"),
-    path("phase2/", RestaurantPhase2OnboardingView.as_view(), name="register-phase2"),
-    path("phase3/", RegisterMenusPhase3View.as_view(), name="register-menus-ob"),
-    path("batch-gen-url/", BatchGenerateUploadURLView.as_view(), name="batch-generate-url"),
-    path("status/", BuisnnessOnboardingStatusView.as_view(), name="buisness-onboard-status"),
+    path("", include("business_api.legacy_onboarding_urls")),
 ]
 
 account_urls = [

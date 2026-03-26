@@ -1,0 +1,21 @@
+from django.db import models
+from ulid import ULID # type: ignore
+
+def generate_ulid():
+    return str(ULID.new())
+
+# Create your models here.
+class ULIDField(models.CharField):
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("max_length", 26)
+        kwargs.setdefault("default", generate_ulid)
+        kwargs.setdefault("editable", False)
+        super().__init__(*args, **kwargs)
+
+# from django_ulid.models import ULIDField
+# add later
+# def generate_id() -> str:
+#     return str(ulid.new())
+# class AbstractBaseModel(models.Model):
+#     id = ULIDField(primary_key=True, editable=False, db_index=True, default=generate_id)

@@ -24,6 +24,8 @@ from accounts.serializers import (
 from accounts.utils.driver_verification import (
     verify_nin_mono, verify_bvn_mono, verify_bank_account_paystack,
 )
+from authflow.services import issue_jwt_for_user
+from ulid import ULID # type: ignore
 from referrals.services import apply_referral_code, ensure_profile_base
 from drf_spectacular.utils import extend_schema # type: ignore
 
@@ -117,6 +119,89 @@ class OnboardingStatusView(APIView):
 
 # ─── Phase 1 — Personal Info ──────────────────────────────────────────────────
 
+# class OnboardingPhase1View(GenericAPIView):
+#     """
+#     PUT /onboarding/phase/1/
+#     Saves personal info, contact details, and next-of-kin.
+#     Driver can re-submit to update until final submission.
+#     """
+#     permission_classes = [AllowAny]
+#     serializer_class = OnboardingPhase1InputSerializer
+
+#     def put(self, request):
+#         serializer = self.get_serializer(
+#             data=request.data,
+#             context={"driver_user_id": request.user.pk},
+#         )
+#         serializer.is_valid(raise_exception=True)
+#         data = serializer.validated_data
+
+#         user = User.objects.get_or_create(email=data["email"])
+#         profile, _ = DriverProfile.objects.get_or_create(user=request.user)
+#         submission = _get_or_create_submission(profile)
+
+#         guard = _guard_submitted(submission, None)
+#         if guard:
+#             return guard        
+
+#         # ── Persist to DriverProfile ──
+#         profile.first_name = data["first_name"]
+#         profile.last_name = data["last_name"]
+#         profile.gender = data["gender"]
+#         profile.birth_date = data["birth_date"]
+#         profile.residential_address = data["residential_address"]
+#         profile.save(update_fields=["first_name", "last_name", "gender", "birth_date", "residential_address"])
+
+#         # ── Persist to User ──
+#         user = request.user
+#         user.phone_number = data["phone_number"]
+#         user.email = data["email"]
+#         user.name = f"{data['first_name']} {data['last_name']}"
+#         user.set_password(data["password"])
+#         user.save(update_fields=["phone_number", "email", "name"])
+
+#         # ── Persist next-of-kin to DriverCred ──
+#         cred, _ = DriverCred.objects.get_or_create(user=profile)
+#         cred.next_of_kin_name = data["next_of_kin_name"]
+#         cred.next_of_kin_phone = data["next_of_kin_phone"]
+#         cred.save(update_fields=["next_of_kin_name", "next_of_kin_phone"])
+
+#         ensure_profile_base(profile)
+
+#         referre_code = data.get("referre_code", "")
+#         if referre_code:
+#             try:
+#                 apply_referral_code(profile=profile, code=referre_code)
+#             except DjangoValidationError as exc:
+#                 msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+#                 return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # ── Snapshot into submission answers ──
+#         answers = submission.answers or {}
+#         answers["phase_1"] = {
+#             "first_name": data["first_name"],
+#             "last_name": data["last_name"],
+#             "phone_number": data["phone_number"],
+#             "email": data["email"],
+#             "gender": data["gender"],
+#             "birth_date": str(data["birth_date"]),
+#             "residential_address": data["residential_address"],
+#             "next_of_kin_name": data["next_of_kin_name"],
+#             "next_of_kin_phone": data["next_of_kin_phone"],
+#             "next_of_kin_address": data["next_of_kin_address"],
+#         }
+#         answers["phase_1_complete"] = True
+#         submission.answers = answers
+#         submission.updated_at = timezone.now()
+#         submission.save(update_fields=["answers", "updated_at"])
+
+#         out = {
+#             "phase": 1,
+#             "status": "saved",
+#             **answers["phase_1"],
+#         }
+#         return Response(OnboardingPhase1OutputSerializer(out).data)
+
 class OnboardingPhase1View(GenericAPIView):
     """
     PUT /onboarding/phase/1/
@@ -203,7 +288,118 @@ class OnboardingPhase1View(GenericAPIView):
         return Response(OnboardingPhase1OutputSerializer(out).data)
 
 
+
 # ─── Phase 2 — Identity & Vehicle ─────────────────────────────────────────────
+
+# class OnboardingPhase2View(GenericAPIView):
+#     """
+#     PUT /onboarding/phase/2/
+#     Saves driver's license image, NIN/BVN (verified via Mono),
+#     vehicle info, and guarantor details.
+#     Phase 1 must be complete.
+#     """
+#     permission_classes = [IsAuthenticated]
+#     parser_classes = [MultiPartParser, FormParser]
+#     serializer_class = OnboardingPhase2InputSerializer
+
+#     def put(self, request):
+#         profile = get_object_or_404(DriverProfile, user=request.user)
+#         submission = _get_or_create_submission(profile)
+
+#         guard = _guard_submitted(submission, None)
+#         if guard:
+#             return guard
+
+#         answers = submission.answers or {}
+#         if not answers.get("phase_1_complete"):
+#             return Response(
+#                 {"detail": "Complete Phase 1 before proceeding."},
+#                 status=status.HTTP_400_BAD_REQUEST,
+#             )
+
+#         serializer = self.get_serializer(data=request.data)
+#         # OnboardingPhase2InputSerializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         data = serializer.validated_data
+
+#         # ── Driver's license document ──
+#         license_doc, _ = DriverDocument.objects.get_or_create(
+#             driver=profile,
+#             doc_type="drivers_license",
+#         )
+#         license_doc.file = data["drivers_license"]
+#         license_doc.status = DriverDocument.STATUS_PENDING
+#         license_doc.save(update_fields=["file", "status"])
+
+#         # ── NIN verification via Mono ──
+#         nin_result = verify_nin_mono(data["nin"])
+#         nin_ver = DriverVerification.objects.create(
+#             driver=profile,
+#             verification_type=DriverVerification.TYPE_NIN,
+#             status=DriverVerification.STATUS_SUCCESS if nin_result["success"] else DriverVerification.STATUS_FAILED,
+#             provider_name="mono",
+#             provider_ref=nin_result["provider_ref"],
+#             request_payload={"nin": data["nin"][-4:].zfill(11)},  # store masked
+#             response_payload=nin_result["response_payload"],
+#             completed_at=timezone.now(),
+#         )
+
+#         # ── BVN verification via Mono ──
+#         bvn_result = verify_bvn_mono(data["bvn"])
+#         bvn_ver = DriverVerification.objects.create(
+#             driver=profile,
+#             verification_type=DriverVerification.TYPE_BVN,
+#             status=DriverVerification.STATUS_SUCCESS if bvn_result["success"] else DriverVerification.STATUS_FAILED,
+#             provider_name="mono",
+#             provider_ref=bvn_result["provider_ref"],
+#             request_payload={"bvn": data["bvn"][-4:].zfill(11)},  # store masked
+#             response_payload=bvn_result["response_payload"],
+#             completed_at=timezone.now(),
+#         )
+
+#         # ── Store last4 in DriverCred ──
+#         cred, _ = DriverCred.objects.get_or_create(user=profile)
+#         cred.nin_last4 = data["nin"][-4:]
+#         cred.bvn_last4 = data["bvn"][-4:]
+#         cred.guarantor1_name = data["guarantor1_name"]
+#         cred.guarantor1_phone = data["guarantor1_phone"]
+#         cred.guarantor2_name = data["guarantor2_name"]
+#         cred.guarantor2_phone = data["guarantor2_phone"]
+#         cred.save(update_fields=[
+#             "nin_last4", "bvn_last4",
+#             "guarantor1_name", "guarantor1_phone",
+#             "guarantor2_name", "guarantor2_phone",
+#         ])
+
+#         # ── Vehicle info on DriverProfile ──
+#         profile.vehicle_type = data["vehicle_type"]
+#         profile.vehicle_make = data["vehicle_make"]
+#         profile.vehicle_number = data["plate_number"]
+#         profile.save(update_fields=["vehicle_type", "vehicle_make", "vehicle_number"])
+
+#         # ── Snapshot ──
+#         answers["phase_2"] = {
+#             "drivers_license_url": license_doc.file.url if license_doc.file else "",
+#             "nin_last4": data["nin"][-4:],
+#             "bvn_last4": data["bvn"][-4:],
+#             "nin_verification_status": nin_ver.status,
+#             "bvn_verification_status": bvn_ver.status,
+#             "vehicle_type": data["vehicle_type"],
+#             "vehicle_make": data["vehicle_make"],
+#             "plate_number": data["plate_number"],
+#             "guarantor1_name": data["guarantor1_name"],
+#             "guarantor1_phone": data["guarantor1_phone"],
+#             "guarantor2_name": data["guarantor2_name"],
+#             "guarantor2_phone": data["guarantor2_phone"],
+#         }
+#         answers["phase_2_complete"] = True
+#         submission.answers = answers
+#         submission.updated_at = timezone.now()
+#         submission.save(update_fields=["answers", "updated_at"])
+
+#         out = {"phase": 2, "status": "saved", **answers["phase_2"]}
+#         return Response(OnboardingPhase2OutputSerializer(out).data)
+
 
 class OnboardingPhase2View(GenericAPIView):
     """
@@ -464,6 +660,7 @@ class OnboardingPhase4View(GenericAPIView):
             "bank_name": bank_account.bank_name,
             "account_number": bank_account.account_number,
             "account_name": bank_account.account_name,
+            # "bank_verification_status": "verified" if bank_result["success"] else "failed",
             "bank_verification_status": "verified",
             "selfie_url": selfie_doc.file.url if selfie_doc.file else "",
         }
@@ -478,4 +675,6 @@ class OnboardingPhase4View(GenericAPIView):
             "onboarding_complete": True,
             **answers["phase_4"],
         }
+        from payments.payouts.tasks import ensure_paystack_recipient_for_driver
+        ensure_paystack_recipient_for_driver.delay(profile.id)
         return Response(OnboardingPhase4OutputSerializer(out).data)
