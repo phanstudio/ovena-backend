@@ -377,6 +377,10 @@ class RestaurantPhase1RegisterView(GenericAPIView):
                 email=vd["email"],
                 phone_number=vd["phone_number"],
             )
+            # if "business_image" in request.FILES:
+            #     restaurant.business_image = request.FILES["business_image"]
+            # if "business_logo" in request.FILES:
+            #     restaurant.business_logo = request.FILES["business_logo"]
             BusinessCerd.objects.create(business=restaurant)
             user.set_password(vd["password"])
             user.save()
@@ -430,6 +434,8 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
 
             if "business_image" in request.FILES:
                 restaurant.business_image = request.FILES["business_image"]
+            # if "business_logo" in request.FILES:
+            #     restaurant.business_logo = request.FILES["business_logo"]
             if "business_documents" in request.FILES:
                 restaurant_cerds.business_doc = request.FILES["business_documents"]
             

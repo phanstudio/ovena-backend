@@ -21,6 +21,7 @@ class Business(models.Model):
     email = models.EmailField(blank=True, null=True)
     phone_number = models.CharField(max_length=20, blank=True, default="")
     business_image = models.ImageField(upload_to="business/images/", null=True, blank=True)
+    # business_logo = models.ImageField(upload_to="business/logos/", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     onboarding_complete = models.BooleanField(default=False) # if this is not true then the resturant doesn't get shown
 
