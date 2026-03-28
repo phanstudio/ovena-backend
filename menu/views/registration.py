@@ -13,6 +13,7 @@ from django.db import transaction
 from storages.backends.s3boto3 import S3Boto3Storage # type: ignore
 from ulid import ULID # type: ignore
 from drf_spectacular.utils import extend_schema, inline_serializer # type: ignore
+from menu.utils import upsert_menus, bootstrap_base_item_availability_for_business
 
 # edit permissions later
 # first in order split the json into section all the branches and all the categories and etc one by one 
@@ -354,42 +355,6 @@ class RegisterMenusPhase3View(GenericAPIView):
             status=status.HTTP_201_CREATED,
         )
 
-def bootstrap_base_item_availability_for_business(business, base_ids =None, batch_size=10_000, save_point=True):
-    """
-    Create BaseItemAvailability rows:
-      (branch, base_item) => is_available=True
-    for every branch in a business.
-
-    - ignore_conflicts=True means: if a toggle already exists, we don't overwrite it.
-    """
-
-    branches = list(business.branches.all().only("id"))
-    if not branches:
-        return 0
-
-    if not base_ids:
-        return 0
-
-    rows = []
-    created_total = 0
-
-    with transaction.atomic(savepoint=save_point):
-        for br in branches:
-            for bid in base_ids:
-                rows.append(BaseItemAvailability(branch_id=br.id, base_item_id=bid, is_available=True))
-
-                # prevent huge memory usage
-                if len(rows) >= batch_size:
-                    BaseItemAvailability.objects.bulk_create(rows, ignore_conflicts=True)
-                    created_total += len(rows)
-                    rows.clear()
-
-        if rows:
-            BaseItemAvailability.objects.bulk_create(rows, ignore_conflicts=True)
-            created_total += len(rows)
-
-    return created_total
-
 def verify_menu_registration(business, expected_menu_ids, expected_base_item_names):
     errors = []
 
@@ -475,3 +440,59 @@ class BatchGenerateUploadURLView(GenericAPIView):
             })
 
         return Response({"urls": results})
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UpdateMenusView
+# ─────────────────────────────────────────────────────────────────────────────
+
+@extend_schema(
+    # request=UpdateMenuSerializer(many=True),
+    responses={200: inline_serializer("UpdateMenusResponse", fields={
+        "message": s.CharField(),
+        "stats": s.DictField(),
+    })}
+)
+class UpdateMenusView(GenericAPIView):
+    """
+    Bulk upsert for Menu → Category → Item → Variant/Addon tree.
+
+    Payload rules (per object at every level):
+      {id}                → SKIP   (no DB write, but children are still traversed)
+      {id, ...fields}     → UPDATE (only the provided fields are written)
+      {no id, ...fields}  → CREATE
+
+    Children not mentioned in the payload are left completely untouched.
+    BaseItem special rules — see _resolve_base_items docstring.
+
+    ### How the three states flow through every level
+    Payload object          _is_new   _is_skip   _is_update   DB write?   Children traversed?
+    ──────────────────────  ────────  ─────────  ───────────  ─────────   ───────────────────
+    {name: "Lunch"}           ✓                               INSERT       ✓ (if categories key present)
+    {id: 5}                             ✓                     none         ✓ (if categories key present)
+    {id: 5, name: "Dinner"}                        ✓          UPDATE       ✓ (if categories key present)
+
+    """
+    authentication_classes = [CustomBAdminAuth]
+    permission_classes = [IsBusinessAdmin]
+    serializer_class = InS.UpdateMenuSerializer
+
+    def patch(self, request):
+        user = request.user
+        try:
+            business = get_user_business(user)
+        except ValueError as e:
+            if "not_business_admin" in str(e):
+                return Response({"detail": "User is not business admin"}, status=403)
+            return Response({"detail": "Business not created yet"}, status=400)
+
+        menus_data = request.data.get("menus", [])
+        if not isinstance(menus_data, list):
+            return Response({"detail": "`menus` must be a list."}, status=400)
+
+        serializer = self.get_serializer(data=menus_data, many=True)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            stats = upsert_menus(business, serializer.validated_data)
+
+        return Response({"message": "Update successful.", "stats": stats}, status=200)

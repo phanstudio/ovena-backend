@@ -13,6 +13,9 @@ class PasswordResetSerializer(serializers.Serializer):
     new_password = serializers.CharField()
     otp_code = serializers.CharField()
 
+class AdminChangePasswordSerializer(serializers.Serializer):
+    password = serializers.CharField()
+    new_password = serializers.CharField()
 
 # phone number reated check later
 # import phonenumbers

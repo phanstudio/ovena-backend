@@ -4,6 +4,8 @@ from rest_framework import status
 # from rest_framework import serializers as s
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.generics import GenericAPIView
+from django.shortcuts import get_object_or_404
 # from rest_framework.generics import GenericAPIView
 # from drf_spectacular.utils import extend_schema, inline_serializer  # type: ignore
 
@@ -15,8 +17,9 @@ from accounts.models import (
     # BusinessCerd,
     # BusinessOnboardStatus,
     BusinessPayoutAccount,
+    User
 )
-from accounts.serializers import InS
+from business_api.serializers import InS
 # , OpS
 # from addresses.utils import checkset_location
 from authflow.authentication import CustomBAdminAuth
@@ -27,157 +30,30 @@ from payments.payouts.services import create_withdrawal_request, get_balance_sum
 from payments.payouts.tasks import process_withdrawal
 
 
-# @extend_schema(
-#     responses=OpS.OnboardResponseSerializer,
-# )
-# class BuisnnessOnboardingStatusView(APIView):
-#     authentication_classes = [CustomBAdminAuth]
-#     permission_classes = [IsBusinessAdmin]
+class BaseBuisAdminAPIView(GenericAPIView):
+    authentication_classes = [CustomBAdminAuth]
+    permission_classes = [IsBusinessAdmin]
 
-#     def get(self, request):
-#         status_row: BusinessOnboardStatus = BusinessOnboardStatus.objects.filter(admin=request.user.business_admin).first()
-
-#         if not status_row:
-#             data = {
-#                 "admin_id": request.user.id,
-#                 "onboarding_step": 0,
-#                 "is_onboarding_complete": False,
-#             }
-#         else:
-#             data = {
-#                 "admin_id": status_row.admin.id,
-#                 "onboarding_step": status_row.onboarding_step,
-#                 "is_onboarding_complete": status_row.is_onboarding_complete,
-#             }
-#         response_data = OpS.OnboardResponseSerializer(data)
-#         return Response(response_data.data, status=status.HTTP_200_OK)
+    def get_buisnessadmn(self, request) -> BusinessAdmin:
+        profile = request.user.buisnessadmin
+        if not profile:
+            profile = get_object_or_404(BusinessAdmin, user=request.user)
+        return profile
 
 
-# @extend_schema(
-#     responses={201: inline_serializer("Phase2Response", fields={
-#         "details": s.CharField(),
-#         "business_id": s.CharField(),
-#     })}
-# )
-# class RestaurantPhase1RegisterView(GenericAPIView):
-#     authentication_classes = [CustomBAdminAuth]
-#     permission_classes = [IsBusinessAdmin]
-#     serializer_class = InS.RestaurantPhase1Serializer
 
-#     def post(self, request):
-#         serializer = self.get_serializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         vd = serializer.validated_data
-#         user = request.user
-
-#         with transaction.atomic():
-#             restaurant = Business.objects.create(
-#                 business_name=vd["business_name"],
-#                 business_type=vd["business_type"],
-#                 country=vd["country"],
-#                 business_address=vd["business_address"],
-#                 email=vd["email"],
-#                 phone_number=vd["phone_number"],
-#             )
-#             BusinessCerd.objects.create(business=restaurant)
-#             user.set_password(vd["password"])
-#             user.save()
-
-#             business_admin = BusinessAdmin.objects.get(user=user)
-#             business_admin.business = restaurant
-#             business_admin.save()
-#             BusinessOnboardStatus.objects.filter(admin=business_admin).update(onboarding_step=1)
-
-#         return Response(
-#             {"detail": "Business registered. Proceed to onboarding.", "business_id": restaurant.id},
-#             status=status.HTTP_201_CREATED,
-#         )
-
-
-# @extend_schema(
-#     responses={200: inline_serializer("Phase1Response", fields={
-#         "details": s.CharField(),
-#     })}
-# )
-# class RestaurantPhase2OnboardingView(GenericAPIView):
-#     authentication_classes = [CustomBAdminAuth]
-#     permission_classes = [IsBusinessAdmin]
-#     serializer_class = InS.RestaurantPhase2Serializer
-
-#     def post(self, request):
-#         user = request.user
-
-#         try:
-#             admin = user.business_admin
-#         except BusinessAdmin.DoesNotExist:
-#             return Response({"detail": "Not a restaurant admin."}, status=status.HTTP_403_FORBIDDEN)
-
-#         restaurant: Business = admin.business
-#         restaurant_cerds = admin.business.cerd
-
-#         serializer = self.get_serializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         vd = serializer.validated_data
-
-#         with transaction.atomic():
-#             restaurant_cerds.registered_business_name = vd.get("registered_business_name", restaurant.business_name)
-#             restaurant_cerds.bn_number = vd.get("bn_number", "")
-#             restaurant_cerds.rc_number = vd.get("rc_number", "")
-#             restaurant_cerds.tax_identification_number = vd.get("tax_identification_number", "")
-#             restaurant_cerds.business_type = vd.get("business_type", restaurant.business_type)
-#             restaurant_cerds.doc_type = vd.get("doc_type", "")
-
-#             if "business_image" in request.FILES:
-#                 restaurant.business_image = request.FILES["business_image"]
-#             if "business_documents" in request.FILES:
-#                 restaurant_cerds.business_doc = request.FILES["business_documents"]
-
-#             restaurant.onboarding_complete = True
-#             restaurant_cerds.save()
-#             restaurant.save()
-#             onboarding_status: BusinessOnboardStatus = BusinessOnboardStatus.objects.get(admin=admin)
-#             onboarding_status.onboarding_step = 2
-#             onboarding_status.save()
-
-#             payment_data = vd.get("payment", {})
-#             if payment_data:
-#                 BusinessPayoutAccount.objects.update_or_create(
-#                     business=restaurant,
-#                     defaults={
-#                         "bank_name": payment_data["bank"],
-#                         "bank_code": payment_data.get("bank_code", ""),
-#                         "account_number": payment_data["account_number"],
-#                         "account_name": payment_data["account_name"],
-#                         "bvn": payment_data["bvn"][-4:],
-#                     },
-#                 )
-
-#             branches_data = vd.get("branches", [])
-#             for branch_data in branches_data:
-#                 branch = Branch.objects.create(
-#                     business=restaurant,
-#                     name=branch_data["name"],
-#                     address=branch_data.get("address", "unknown"),
-#                     location=checkset_location(branch_data),
-#                     delivery_method=branch_data.get("delivery_method", "instant"),
-#                     pre_order_open_period=branch_data.get("pre_order_open_period"),
-#                     final_order_time=branch_data.get("final_order_time"),
-#                 )
-
-#                 hours_data = branch_data.get("operating_hours", [])
-#                 BranchOperatingHours.objects.bulk_create([
-#                     BranchOperatingHours(
-#                         branch=branch,
-#                         day=h["day"],
-#                         open_time=h["open_time"],
-#                         close_time=h["close_time"],
-#                         is_closed=h.get("is_closed", False),
-#                     )
-#                     for h in hours_data
-#                 ])
-
-#         return Response({"detail": "Onboarding complete."}, status=status.HTTP_200_OK)
-
+class BuisnessUpdateView(BaseBuisAdminAPIView):
+    serializer_class = InS.AdminUpdateSerializer
+    def put(self, request):
+        user:User = request.user
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+    
+        user.name = vd.get("full_name", user.name)
+        user.phone_number = vd.get("phone_number", user.phone_number)
+        user.email = vd.get("email", user.email)
+        user.save()
 
 class BranchOperatingHoursView(APIView):
     authentication_classes = [CustomBAdminAuth]

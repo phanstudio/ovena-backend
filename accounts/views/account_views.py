@@ -462,6 +462,67 @@ class AdminLoginView(GenericAPIView):
         })
 
 @extend_schema(
+    responses={
+        200: inline_serializer("AdminChangePasswordResponse", fields={
+            "message": s.CharField(),
+        })
+    },
+)
+class AdminChangePassword(GenericAPIView):
+    authentication_classes = [CustomBAdminAuth]
+    permission_classes = [IsBusinessAdmin]
+    serializer_class = InS.AdminChangePasswordSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        user:User = request.user
+        if user.check_password(vd["password"]):
+            return Response(
+                {"error": "Invalid password"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        user.set_password(vd["new_password"])
+        user.save(update_fields=["password"])
+        return Response({ "message": "Password Changed" })
+
+# @extend_schema(
+#     responses={
+#         200: inline_serializer("AdminLoginResponse", fields={
+#             "message": s.CharField(),
+#             "access": s.CharField(),
+#             "refresh": s.CharField(),
+#         })
+#     },
+# )
+# class AdminChangePassword(GenericAPIView):
+#     authentication_classes = [CustomBAdminAuth]
+#     permission_classes = [IsBusinessAdmin]
+#     serializer_class = InS.AdminChangePasswordSerializer
+
+#     def post(self, request):
+#         serializer = self.get_serializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         vd = serializer.validated_data
+
+#         user:User = request.user
+#         if user.check_password(vd["password"]):
+#             return Response(
+#                 {"error": "Invalid password"},
+#                 status=status.HTTP_401_UNAUTHORIZED
+#             )
+        
+#         user.set_password(vd["new_password"])
+#         user.save(update_fields=["password"])
+#         return Response({
+#             "message": "Password Changed",
+#         })
+
+
+@extend_schema(
     responses={200: inline_serializer("PasswordResetResponse", fields={
         "message": s.CharField(),
     })},
