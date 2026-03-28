@@ -5,6 +5,7 @@ import menu.views.business as bmenuview
 
 business_urls =[
     path("business/menu-list", bmenuview.MenuView.as_view(), name="business-menu-list"),
+
 ]
 
 urlpatterns = [
@@ -19,6 +20,8 @@ urlpatterns = [
     path("order/", views.OrderView.as_view(), name="order"),
     path("orders/<int:order_id>/", views.OrderView.as_view(), name="order-detail"),
     path("order/<int:order_id>/cancel/", views.OrderCancelView.as_view(), name="order-cancel"),
+
+    path("update-menus/", views.UpdateMenusView.as_view(), name="update-menus"),
 
     path("", include(business_urls)),
 ]

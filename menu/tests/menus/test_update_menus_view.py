@@ -328,6 +328,113 @@ def test_update_menus_view_updates_existing_nodes_and_preserves_unmentioned_sibl
     assert setup["drinks"].name == "Drinks"
     assert setup["drink_item"].custom_name == "Cola"
 
+@pytest.mark.django_db
+def test_update_menus_view_updates_bases(resturant_manager):
+    user, branch, _ = resturant_manager
+    setup = _seed_existing_menu_tree(branch.business)
+
+    payload = {
+        "menus": [
+            {
+                "id": setup["menu"].id,
+                "name": "Updated Main Menu",
+                "categories": [
+                    {
+                        "id": setup["burgers"].id,
+                        "sort_order": 7,
+                        "items": [
+                            {
+                                "id": setup["burger_item"].id,
+                                "custom_name": "Deluxe Burger",
+                                "price": "55.00",
+                                "variant_groups": [
+                                    {
+                                        "id": setup["variant_group"].id,
+                                        "name": "Burger Size",
+                                        "options": [
+                                            {
+                                                "id": setup["small_option"].id,
+                                                "price_diff": "1.50",
+                                            }
+                                        ],
+                                    }
+                                ],
+                                "addon_groups": [
+                                    {
+                                        "id": setup["addon_group"].id,
+                                        "max_selection": 3,
+                                        "addons": [
+                                            {
+                                                "id": setup["addon"].id,
+                                                "price": "6.50",
+                                                "base_item": {
+                                                    "id": setup["cheese_base"].id,
+                                                    "name": "Aged Cheese Base",
+                                                },
+                                            }
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+    response = _patch_update_menus(user, payload)
+
+    assert response.status_code == 200
+    assert response.data["stats"] == {
+        "menus_created": 0,
+        "menus_updated": 1,
+        "categories_created": 0,
+        "categories_updated": 1,
+        "items_created": 0,
+        "items_updated": 1,
+        "variant_groups_created": 0,
+        "variant_groups_updated": 1,
+        "variant_options_created": 0,
+        "variant_options_updated": 1,
+        "addon_groups_created": 0,
+        "addon_groups_updated": 1,
+        "addons_created": 0,
+        "addons_updated": 1,
+    }
+
+    setup["menu"].refresh_from_db()
+    setup["burgers"].refresh_from_db()
+    setup["drinks"].refresh_from_db()
+    setup["burger_item"].refresh_from_db()
+    setup["drink_item"].refresh_from_db()
+    setup["burger_base"].refresh_from_db()
+    setup["cheese_base"].refresh_from_db()
+    setup["variant_group"].refresh_from_db()
+    setup["small_option"].refresh_from_db()
+    setup["large_option"].refresh_from_db()
+    setup["addon_group"].refresh_from_db()
+    setup["addon"].refresh_from_db()
+
+    print(setup["burger_base"])
+
+    assert setup["menu"].name == "Updated Main Menu"
+    assert setup["burgers"].sort_order == 7
+    assert setup["burger_item"].custom_name == "Deluxe Burger"
+    assert setup["burger_item"].description == "Juicy burger"
+    assert setup["burger_item"].price == Decimal("55.00")
+    assert setup["burger_base"].description == "Original burger base"
+    assert setup["variant_group"].name == "Burger Size"
+    assert setup["small_option"].price_diff == Decimal("1.50")
+    assert setup["large_option"].price_diff == Decimal("8.00")
+    assert setup["addon_group"].max_selection == 3
+    assert setup["addon"].price == Decimal("6.50")
+    assert setup["cheese_base"].name == "Aged Cheese Base"
+
+    assert setup["drinks"].name == "Drinks"
+    assert setup["drink_item"].custom_name == "Cola"
+
+
 
 @pytest.mark.django_db
 def test_update_menus_view_traverses_parents_without_counting_them_as_updates(resturant_manager):

@@ -40,7 +40,7 @@ class MenuView(APIView):
     def get(self, request):
         user = request.user.business_admin
         
-        menus = Menu.objects.filter(business_id=user.id)\
+        menus = Menu.objects.filter(business_id=user.business_id)\
             .prefetch_related(
                 "categories__items__variant_groups__options",
                 "categories__items__addon_groups__addons",

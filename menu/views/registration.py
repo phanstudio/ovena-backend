@@ -456,19 +456,19 @@ class UpdateMenusView(GenericAPIView):
     """
     Bulk upsert for Menu → Category → Item → Variant/Addon tree.
 
-    Payload rules (per object at every level):
-      {id}                → SKIP   (no DB write, but children are still traversed)
-      {id, ...fields}     → UPDATE (only the provided fields are written)
-      {no id, ...fields}  → CREATE
+    Payload rules (per object at every level):\n
+      {id}                → SKIP   (no DB write, but children are still traversed)\n
+      {id, ...fields}     → UPDATE (only the provided fields are written)\n
+      {no id, ...fields}  → CREATE\n
 
     Children not mentioned in the payload are left completely untouched.
     BaseItem special rules — see _resolve_base_items docstring.
 
-    ### How the three states flow through every level
-    Payload object          _is_new   _is_skip   _is_update   DB write?   Children traversed?
-    ──────────────────────  ────────  ─────────  ───────────  ─────────   ───────────────────
-    {name: "Lunch"}           ✓                               INSERT       ✓ (if categories key present)
-    {id: 5}                             ✓                     none         ✓ (if categories key present)
+    How the three states flow through every level\n
+    Payload object          _is_new   _is_skip   _is_update   DB write?   Children traversed?\n
+    ──────────────────────  ────────  ─────────  ───────────  ─────────   ───────────────────\n
+    {name: "Lunch"}           ✓                               INSERT       ✓ (if categories key present)\n
+    {id: 5}                             ✓                     none         ✓ (if categories key present)\n
     {id: 5, name: "Dinner"}                        ✓          UPDATE       ✓ (if categories key present)
 
     """
