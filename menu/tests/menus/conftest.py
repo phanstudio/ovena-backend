@@ -7,7 +7,7 @@ from rest_framework.test import APIClient
 from utils import authenticate
 
 from accounts.models import (
-    Business, Address, Branch, User, PrimaryAgent, LinkedStaff,
+    Business, Address, Branch, User, PrimaryAgent,
     DriverProfile, CustomerProfile, BusinessAdmin, BusinessOnboardStatus
 )
 from addresses.utils.gis_point import make_point
@@ -184,7 +184,7 @@ def orders_taken(db, registered_restaurant, resturant_manager, driverUser, user1
 @pytest.fixture
 def linkedstaff(db, resturant_manager):
     _, _, pa = resturant_manager
-    linked_user = LinkedStaff.objects.create(
+    linked_user = PrimaryAgent.objects.create(
         device_name="dyukljhgf4567890",
         created_by=pa,
     )

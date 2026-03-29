@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404
 from accounts.models import (
     Branch,
     BranchOperatingHours,
-    # Business,
+    Business,
     BusinessAdmin,
     # BusinessCerd,
     # BusinessOnboardStatus,
@@ -28,19 +28,34 @@ from payments.idempotency import IdempotencyConflictError, begin_idempotent_requ
 from payments.models import Withdrawal
 from payments.payouts.services import create_withdrawal_request, get_balance_summary
 from payments.payouts.tasks import process_withdrawal
+from rest_framework.pagination import LimitOffsetPagination
+from .serializers import OpS
 
+class businessLimitOffsetPagination(LimitOffsetPagination):
+    default_limit = 20
+    max_limit = 100
 
 class BaseBuisAdminAPIView(GenericAPIView):
     authentication_classes = [CustomBAdminAuth]
     permission_classes = [IsBusinessAdmin]
 
     def get_buisnessadmn(self, request) -> BusinessAdmin:
-        profile = request.user.buisnessadmin
+        profile = request.user.business_admin
         if not profile:
             profile = get_object_or_404(BusinessAdmin, user=request.user)
         return profile
 
+class BranchListView(BaseBuisAdminAPIView):
+    pagination_class = businessLimitOffsetPagination
 
+    def get(self, request):
+        buisness_admin = self.get_buisnessadmn(request)
+        qs = Branch.objects.filter(business=buisness_admin.business.id).order_by("-created_at")
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(
+            {"detail": "Branches", "data": OpS.BranchlistSerializer(page, many=True).data}
+        )
 
 class BuisnessUpdateView(BaseBuisAdminAPIView):
     serializer_class = InS.AdminUpdateSerializer

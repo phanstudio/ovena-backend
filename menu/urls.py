@@ -6,6 +6,9 @@ import menu.views.business as bmenuview
 business_urls =[
     path("business/menu-list", bmenuview.MenuView.as_view(), name="business-menu-list"),
 
+    # branch things
+    path("availability/bulk-update/", bmenuview.AvaliabilityView.as_view(), name="update-availability"),
+    path("availability/", bmenuview.AvailabilityListView.as_view(), name="availability"),
 ]
 
 urlpatterns = [

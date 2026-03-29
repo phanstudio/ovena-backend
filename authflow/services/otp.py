@@ -99,6 +99,16 @@ class OTPManager:
             cls._deliver_email(identifier, code)
         elif channel == "phone":
             cls._deliver_sms(identifier, code)
+    
+    @staticmethod
+    def send_blank(identifier: str) -> None:
+        """
+        Rate-limit, generate, store, and deliver an OTP.
+        Raises OTPRateLimitError, OTPGenerationError, or OTPDeliveryError.
+        """
+        OTPManager._enforce_rate_limit("none", identifier)
+        code = OTPManager._mint_and_store(identifier)
+        return code
 
     @staticmethod  
     def verify(otp_code: str) -> str:

@@ -95,9 +95,6 @@ class BranchOperatingHours(models.Model):
     class Meta:
         unique_together = ("branch", "day")
 
-# Temporary compatibility alias while code and migrations finish moving to Business.
-Restaurant = Business
-
 class UserManager(BaseUserManager):
     def create_user(self, email=None, phone_number=None, password=None, **extra_fields):
         if not email and not phone_number:

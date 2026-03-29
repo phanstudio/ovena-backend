@@ -1,4 +1,3 @@
-import jwt
 from django.conf import settings
 from rest_framework.authentication import BaseAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication as SimpleJWTAuth
@@ -6,7 +5,6 @@ from rest_framework_simplejwt.exceptions import AuthenticationFailed, InvalidTok
 from django.utils.translation import gettext_lazy as _
 from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.utils import get_md5_hash_password
-from accounts.models import LinkedStaff
 # from accounts.services.roles import has_role
 from accounts.services.profiles import (
     PROFILE_BUSINESS_ADMIN,
@@ -85,43 +83,8 @@ class CustomJWTAuthentication(BaseAuthentication): # any way to speed this up
 
         if auth_header.startswith("Bearer "):
             # Delegate to SimpleJWT for normal tokens
-            simple_jwt = CustomprimJWTAuth()
+            simple_jwt = CustomBusinessAgentsAuth()
             return simple_jwt.authenticate(request)
-
-        elif auth_header.startswith("SubBearer "):
-            token = auth_header[len("SubBearer "):]
-
-            try: 
-                payload = jwt.decode(
-                    token,
-                    settings.SECRET_KEY,
-                    algorithms=["HS256"],
-                ) # a way to destroy just this stoken incase of early teminaton that is still fast problem for later
-            except jwt.ExpiredSignatureError:
-                raise AuthenticationFailed("Sub token expired")
-            except jwt.InvalidTokenError:
-                raise AuthenticationFailed("Invalid sub token")
-
-            account = (
-                LinkedStaff.objects
-                .select_related("created_by", "created_by__branch")#, "created_by__user")
-                .filter(device_name=payload["device_id"])
-                .first()
-            )
-            # change to device id
-            if not account:
-                raise AuthenticationFailed("Account not found")
-            if account.revoked:
-                raise AuthenticationFailed("Account revoked")
-
-            auth_data = {
-                "token_type": "sub", # nosec B105
-                "scopes": set(payload.get("scopes", [])),
-                "device_id": payload.get("device_id"), # optional extra 
-                # also we need to record the person login in like a side efect that should not affect flow speed
-            }
-
-            return (account, auth_data)
 
         return None
 
@@ -180,23 +143,32 @@ class CustomJWtAuth(SimpleJWTAuth):
 
         return (user, token, active_profile)
 
-
-class CustomprimJWTAuth(CustomJWtAuth):
+class CustomBusinessAgentsAuth(CustomJWtAuth):
     def allowed_profile_types(self):
         return [PROFILE_BUSINESS_ADMIN, PROFILE_BUSINESS_STAFF]
     
     def authenticate(self, request):
         result = super().custom_auth(request)
-
         if result is None:
             return None
-        user, token, active_profile = result
+        user, token, profile_type = result
+        if not profile_type:
+            raise AuthenticationFailed(_("Business agents profile not found"), code="business_agents_missing")
+        token["active_profile"] = profile_type
+        return (user, token)
 
-        if active_profile:
-            token["active_profile"] = active_profile
-
-        if getattr(user, "primaryagent", None) is not None:
-            token["scopes"] = {"*"}
+class CustomBStaffAuth(CustomJWtAuth):
+    def allowed_profile_types(self):
+        return [PROFILE_BUSINESS_STAFF]
+    
+    def authenticate(self, request):
+        result = super().custom_auth(request)
+        if result is None:
+            return None
+        user, token, profile_type = result
+        if not profile_type:
+            raise AuthenticationFailed(_("Business staff profile not found"), code="business_staff_missing")
+        token["active_profile"] = profile_type
         return (user, token)
 
 class CustomDriverAuth(CustomJWtAuth):

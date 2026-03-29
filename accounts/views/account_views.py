@@ -14,18 +14,16 @@ from accounts.models import(
 )
 from django.db import transaction, IntegrityError
 from authflow.services import (
-    create_token, issue_jwt_for_user, verify, OTPInvalidError, 
-    # request_phone_otp
+    issue_jwt_for_user, verify, OTPInvalidError, OTPManager
 )
 from django.contrib.gis.geos import Point
 from authflow.authentication import CustomCustomerAuth, CustomBAdminAuth
 from authflow.permissions import IsBusinessAdmin
 from accounts.services.roles import get_user_roles
 from accounts.services.profiles import PROFILE_BUSINESS_ADMIN, get_profile
-# from addresses.utils import checkset_location
 from drf_spectacular.utils import extend_schema, inline_serializer # type: ignore
 from rest_framework import serializers as s
-from accounts.serializers import InS
+from accounts.serializers import InS, OpS
 
 
 class UserProfileView(APIView):
@@ -137,99 +135,120 @@ class UpdateBranch(APIView):
             status=status.HTTP_200_OK,
         )
 
+@extend_schema(
+    responses={200: inline_serializer("LinkRequestCreateResponse", fields={"otp": s.CharField()})},
+)
+class LinkRequestCreateView(GenericAPIView):
+    authentication_classes = [CustomBAdminAuth]
+    permission_classes = [IsBusinessAdmin]
+    def post(self, request):
+        user = request.user
+        otp = OTPManager.send_blank(user.phone_number) # or id since it can be auto gen
+        return Response({"otp": otp})
 
-# register resturant
-# finished
-# due to new opt code this is depeciated will use a different method
-# class LinkRequestCreate(APIView):
-#     permission_classes = [IsAuthenticated]#IsAuthenticated, IsResturantManager]
-#     def post(self, request):
-#         user = request.user
-#         # return request_phone_otp()
-#         # otp = send_otp(user.id)
-#         # return Response({"otp": otp})
-
-# class LinkApprove(APIView):
-#     authentication_classes = []  # mobile only
-#     def post(self, request):
-#         otp = request.data.get("otp")
-#         device_id = request.data.get("device_id")
-#         if not otp or not device_id:
-#             return Response({"detail": "Otp or Device id not found."}, status=status.HTTP_404_NOT_FOUND)
-#         # user_id = verify_otp(otp)
-#         user_id = 1
-
-#         # Fetch PrimaryAgent in one query
-#         primary_agent = (
-#             PrimaryAgent.objects
-#             .select_related("user", "branch")
-#             .filter(user_id=user_id)
-#             .first()
-#         )
-#         if not primary_agent:
-#             return Response(
-#                 {"detail": "User not a manager."},
-#                 status=status.HTTP_404_NOT_FOUND
-#             )
-#         sub_user = LinkedStaff.objects.create(
-#             created_by= primary_agent,
-#             device_name=device_id
-#         )
-#         user = {"user_id": primary_agent.user.id, "device_id": device_id}
-#         sub_token = create_token(user, role="sub", scopes=["read", "availability:update", "item:availability"]) 
-#         # create a ascopes modules /class contain the available scopes also i'm i just reenventing the wheel that permissions can solve?
-#         return Response(
-#             {
-#                 "message": "Account registered successfully",
-#                 "user": {
-#                     "id": sub_user.id,
-#                     "username": sub_user.device_name,
-#                 },
-#                 "tokens": sub_token
-#             },
-#             status=status.HTTP_201_CREATED,
-#         )
-
-# fuse rr and rrm add main
-# adi attached to the resturants, handeling withdrawals, added vendors.
-# tokens system for paymets.
-# optional address names?
-
-class RegisterRManager(APIView):
-    permission_classes = []
+# might add password
+# check if the user is not revocked
+@extend_schema(
+    responses=OpS.RegisterBAdminResponseSerializer,
+    auth=[],
+)
+class LinkApproveView(GenericAPIView):
+    serializer_class = InS.LinkApproveSerializer
+    permission_classes = [AllowAny]
 
     def post(self, request):
-        username = request.data.get("username")
-        email = request.data.get("email")
-        branch_id = request.data.get("branch_id")
-        phone_number = request.data.get("phone_number")
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
 
-        if not username or not branch_id:
+        device_id = vd["device_id"]
+        
+        try:
+            identifier = OTPManager.verify(otp_code=vd["otp"])
+        except OTPInvalidError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # # Fetch PrimaryAgent in one query
+        # business_admin = (
+        #     BusinessAdmin.objects
+        #     .select_related("user", "branch")
+        #     .filter(user__phone_number=identifier)
+        #     .first()
+        # )
+
+        # # validate branch belongs to admin
+        # branch = Branch.objects.filter(
+        #     id=vd["branch_id"],
+        #     business=business_admin.business
+        # ).first()
+
+        branch = (
+            Branch.objects
+            .select_related("business__admin__user")
+            .filter(
+                id=vd["branch_id"],
+                business__admin__user__phone_number=identifier
+            )
+            .first()
+        )
+
+        if not branch:
             return Response(
-                {"error": "Username and branch are required"},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"detail": "Invalid branch or not authorized"},
+                status=403
             )
 
+        business_admin = branch.business.admin
+
+        if not branch:
+            return Response(
+                {"detail": "Invalid branch"},
+                status=403
+            )
+
+        # ensure only one primary agent per branch
+        if hasattr(branch, "primary_agent"):
+            return Response(
+                {"detail": "Branch already has a primary agent"},
+                status=400
+            )
+
+        # if not business_admin:
+        #     return Response(
+        #         {"detail": "User not a manager."},
+        #         status=status.HTTP_404_NOT_FOUND
+        #     )
         try:
             with transaction.atomic():
-                user = User.objects.create(name=username, email=email, phone_number=phone_number)
-                PrimaryAgent.objects.create(user=user, branch_id=branch_id)
+                user, _ = User.objects.get_or_create(
+                    phone_number=vd["phone_number"],
+                    defaults={"name": vd["username"] or device_id}
+                )
+
+                sub_user = PrimaryAgent.objects.create(
+                    created_by=business_admin,
+                    device_name=device_id,
+                    # branch_id=vd["branch_id"],
+                    branch=branch,
+                    user=user
+                )
 
         except IntegrityError as _:
             return Response(
-                {"error": "Username or branch already taken"},
+                {"error": "A device_id is already linked"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        main_token = create_token(user, role="main", expires_in=3600)
-        print(main_token)
-
+        
+        
+        token = issue_jwt_for_user(user)
+        response = OpS.RegisterBAdminResponseSerializer({
+            "message": "Account registered successfully",
+            "refresh": token["refresh"],
+            "access": token["access"],
+            "user": {"id": sub_user.id, "name": sub_user.device_name},
+        })
         return Response(
-            {
-                "message": "User registered successfully",
-                "user": {"id": user.id, "name": user.name},
-                "tokens": main_token,
-            },
+            response.data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -268,7 +287,6 @@ class UpdateCustomer(APIView):
             {"detail": "Profile updated successfully"},
             status=status.HTTP_200_OK,
         )
-
 
 
 # read 
@@ -316,7 +334,6 @@ class BranchOperatingHoursView(APIView):
             ])
 
         return Response({"detail": "Operating hours updated."})
-
 
 class RestaurantPaymentView(APIView):
     """
@@ -468,7 +485,7 @@ class AdminLoginView(GenericAPIView):
         })
     },
 )
-class AdminChangePassword(GenericAPIView):
+class AdminChangePasswordView(GenericAPIView):
     authentication_classes = [CustomBAdminAuth]
     permission_classes = [IsBusinessAdmin]
     serializer_class = InS.AdminChangePasswordSerializer
@@ -498,28 +515,28 @@ class AdminChangePassword(GenericAPIView):
 #         })
 #     },
 # )
-# class AdminChangePassword(GenericAPIView):
-#     authentication_classes = [CustomBAdminAuth]
-#     permission_classes = [IsBusinessAdmin]
-#     serializer_class = InS.AdminChangePasswordSerializer
+# class AdminTransactionpinView(GenericAPIView):
+    authentication_classes = [CustomBAdminAuth]
+    permission_classes = [IsBusinessAdmin]
+    serializer_class = InS.AdminChangePasswordSerializer
 
-#     def post(self, request):
-#         serializer = self.get_serializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         vd = serializer.validated_data
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
 
-#         user:User = request.user
-#         if user.check_password(vd["password"]):
-#             return Response(
-#                 {"error": "Invalid password"},
-#                 status=status.HTTP_401_UNAUTHORIZED
-#             )
+        user:User = request.user
+        if user.check_password(vd["password"]):
+            return Response(
+                {"error": "Invalid password"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
         
-#         user.set_password(vd["new_password"])
-#         user.save(update_fields=["password"])
-#         return Response({
-#             "message": "Password Changed",
-#         })
+        user.set_password(vd["new_password"])
+        user.save(update_fields=["password"])
+        return Response({
+            "message": "Password Changed",
+        })
 
 
 @extend_schema(
@@ -554,3 +571,41 @@ class PasswordResetView(GenericAPIView):
         # simplest approach: tell frontend to discard tokens and re-login
 
         return Response({"message": "Password updated successfully"})
+
+class StaffLoginView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = InS.LinkStaffLoginSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        device_id = vd["device_id"] # migth add branch_id
+        buisness_staff = PrimaryAgent.objects.filter(device_name=device_id).select_related("user").first()
+        user = buisness_staff.user
+        
+        if not buisness_staff:
+            return Response(
+                {"error": "Account doesn't exist"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if not buisness_staff.revoked:
+            return Response(
+                {"error": "Account revoked"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # if not user or not user.check_password(vd["password"]):
+        #     return Response(
+        #         {"error": "Invalid credentials"},
+        #         status=status.HTTP_401_UNAUTHORIZED
+        #     )
+
+        token = issue_jwt_for_user(user)
+        return Response({
+            "message": "Logged in successfully",
+            "access": token["access"],
+            "refresh": token["refresh"],
+        })

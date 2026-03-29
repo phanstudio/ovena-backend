@@ -45,3 +45,17 @@ class CustomBAdminAuthScheme(OpenApiAuthenticationExtension):
 
     def get_security_definition(self, auto_schema):
         return _bearer_jwt()
+
+class CustomBusinessAgentsAuthScheme(OpenApiAuthenticationExtension):
+    target_class = "authflow.authentication.CustomBusinessAgentsAuth"
+    name = "BusinessAgentsJWT"
+
+    def get_security_definition(self, auto_schema):
+        return _bearer_jwt()
+
+class CustomBStaffAuthScheme(OpenApiAuthenticationExtension):
+    target_class = "authflow.authentication.CustomBStaffAuth"
+    name = "BusinessStaffJWT"
+
+    def get_security_definition(self, auto_schema):
+        return _bearer_jwt()

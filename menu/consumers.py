@@ -10,10 +10,8 @@ from menu.models import Order, ChatMessage
 from rest_framework_simplejwt.tokens import AccessToken
 from django.contrib.auth.models import AnonymousUser
 import json
-import jwt
-from django.conf import settings
 from authflow.authentication import CustomJWtAuth
-from accounts.models import LinkedStaff, User
+from accounts.models import User
 from accounts.services.profiles import (
     PROFILE_CUSTOMER,
     PROFILE_DRIVER,
@@ -30,54 +28,14 @@ class BaseConsumer(AsyncWebsocketConsumer):
         if not token:
             return AnonymousUser()
 
-        token_type = self.scope.get("token_type")
         raw_token = token.strip()
-        lowered = raw_token.lower()
-
-        if lowered.startswith("subbearer "):
-            token_type = "sub"
-            raw_token = raw_token[10:].strip()
-        else:
-            token_type = "bearer"
-
-        try:
-            if token_type == "sub":
-                return await self._authenticate_sub_token(raw_token)
-            return await self._authenticate_main_token(raw_token)
-        except Exception:
-            return AnonymousUser()
+        return await self._authenticate_main_token(raw_token)
 
     @database_sync_to_async
     def _authenticate_main_token(self, token):
         access = AccessToken(token)
         auth = CustomJWtAuth()
         return auth.get_user(access)
-
-    @database_sync_to_async
-    def _authenticate_sub_token(self, token):
-        try:
-            payload = jwt.decode(
-                token,
-                settings.SECRET_KEY,
-                algorithms=["HS256"],
-            )
-        except jwt.PyJWTError:
-            return AnonymousUser()
-
-        device_id = payload.get("device_id")
-        if not device_id:
-            return AnonymousUser()
-
-        account = (
-            LinkedStaff.objects
-            .select_related("created_by", "created_by__branch")
-            .filter(device_name=device_id)
-            .first()
-        )
-        if not account or account.revoked:
-            return AnonymousUser()
-
-        return account
     
     @database_sync_to_async
     def check_is_driver(self, user):
@@ -89,8 +47,6 @@ class BaseConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def check_is_branch_staff(self, user): # add for the resturant staffs
         """Check if user is branch staff"""
-        if isinstance(user, LinkedStaff):
-            return user.created_by is not None
         if isinstance(user, User):
             return get_profile(user, PROFILE_BUSINESS_STAFF) is not None
         return False
@@ -116,8 +72,6 @@ class BaseConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_branch_staff(self, user):
-        if isinstance(user, LinkedStaff):
-            return user.created_by
         if isinstance(user, User):
             return get_profile(user, PROFILE_BUSINESS_STAFF)
         return None
@@ -548,8 +502,6 @@ class ChatConsumer(BaseConsumer):
         """Determine user type and ID"""
         user = self.user
 
-        if isinstance(user, LinkedStaff):
-            return ("branch", user.created_by.branch_id)
         if isinstance(user, User):
             customer = get_profile(user, PROFILE_CUSTOMER)
             if customer:
@@ -737,9 +689,6 @@ class OrderConsumer(BaseConsumer):
                 'driver__user'
             ).get(id=self.order_id)
             
-            if isinstance(self.user, LinkedStaff):
-                return order.branch_id == self.user.created_by.branch_id
-
             if isinstance(self.user, User):
                 customer = get_profile(self.user, PROFILE_CUSTOMER)
                 if customer:

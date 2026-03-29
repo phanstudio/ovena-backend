@@ -106,9 +106,23 @@ class CustomerProfile(ProfileBase): # create a simple view to change the defualt
     def successful_referrals(self):
         return 0
 
+class BusinessAdmin(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="business_admin")
+    business = models.OneToOneField(Business, on_delete=models.CASCADE, related_name="admin", null=True, blank=True)
+    # we can change to null later else might be an issue
+    
+    def __str__(self):
+        return f"{self.user.name} admin @ {self.business.business_name}"
+
 class PrimaryAgent(models.Model): # only one primary users, so the branch should be a one to one
     branch = models.OneToOneField(Branch, on_delete=models.CASCADE, related_name="primary_agent")
     user = models.OneToOneField(User, on_delete=models.CASCADE)
+    created_by = models.ForeignKey(
+        BusinessAdmin, on_delete=models.CASCADE, related_name="linked_staff",
+    )
+    device_name = models.CharField(max_length=200, unique=True)
+    revoked = models.BooleanField(default=False) # change this to status
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.user.name} - vendor agent @ {self.branch.name}"
@@ -119,25 +133,6 @@ class PrimaryAgent(models.Model): # only one primary users, so the branch should
                 fields=["branch"], name="unique_primary_agent_per_branch"
             )
         ]
-
-class LinkedStaff(models.Model):
-    created_by = models.ForeignKey(
-        PrimaryAgent, on_delete=models.CASCADE, related_name="linked_staff"
-    )
-    device_name = models.CharField(max_length=200, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    revoked = models.BooleanField(default=False)
-
-    def __str__(self):
-        return f"{self.device_name or 'Unnamed Device'} - staff for {self.created_by.user.name}"
-
-class BusinessAdmin(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="business_admin")
-    business = models.OneToOneField(Business, on_delete=models.CASCADE, related_name="admin", null=True, blank=True)
-    # we can change to null later else might be an issue
-    
-    def __str__(self):
-        return f"{self.user.name} admin @ {self.business.business_name}"
 
 # admin Profle connected to the restaurant:
 # password;

@@ -17,6 +17,18 @@ class AdminChangePasswordSerializer(serializers.Serializer):
     password = serializers.CharField()
     new_password = serializers.CharField()
 
+class LinkApproveSerializer(serializers.Serializer):
+    otp = serializers.CharField()
+    device_id = serializers.CharField()
+    branch_id = serializers.IntegerField()
+    phone_number = serializers.CharField()
+    username = serializers.CharField(required=False, allow_blank=True)
+
+class LinkStaffLoginSerializer(serializers.Serializer):
+    device_id = serializers.CharField()
+    # password = serializers.CharField()
+    # branch_id = serializers.CharField() or int
+
 # phone number reated check later
 # import phonenumbers
 # from rest_framework import serializers

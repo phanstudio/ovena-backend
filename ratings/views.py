@@ -13,9 +13,8 @@ from .serializers import (
     BranchRatingReadSerializer,
 )
 from .services import RatingService
-from authflow.decorators import subuser_authentication
-from authflow.permissions import ReadScopePermission
-from authflow.authentication import CustomDriverAuth
+from authflow.permissions import IsBusinessStaff
+from authflow.authentication import CustomDriverAuth, CustomBStaffAuth
 
 class SubmitOrderRatingsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -77,10 +76,9 @@ class DriverRatingsView(ListAPIView):
         driver = self.request.user.driver_profile
         return DriverRating.objects.filter(driver=driver).select_related("driver", "order").order_by("-created_at")
 
-@subuser_authentication
 class BranchRatingsView(ListAPIView):
-    permission_classes = [ReadScopePermission]
-    required_scopes = ["ratings:read"]
+    authentication_classes = [CustomBStaffAuth]
+    permission_classes = [IsBusinessStaff]
     serializer_class = BranchRatingReadSerializer
 
     def get_queryset(self):

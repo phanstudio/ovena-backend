@@ -1,9 +1,10 @@
 from django.urls import path, include
 from .views import (
     VerifyOTPView, UserProfileView, DeleteAccountView, UpdateBranch, Delete2AccountView,
-    OAuthExchangeView, RegisterRManager, RegisterCustomer, UpdateCustomer,
+    OAuthExchangeView, RegisterCustomer, UpdateCustomer, LinkApproveView,
     jwt_views, SendEmailOTPView, VerifyEmailOTPView, SendPhoneOTPView,
-    PasswordResetView, AdminLoginView, DriverLoginView
+    PasswordResetView, AdminLoginView, DriverLoginView, LinkRequestCreateView, 
+    StaffLoginView
 )
 from .views import driver_reg_views
 from .views import business_reg_views
@@ -27,8 +28,9 @@ onboarding_urls = [
 
 account_urls = [
     path("admin-login/", AdminLoginView.as_view(), name="admin-login"),
-    path("driver-login/", DriverLoginView.as_view(), name="admin-login"),
+    path("driver-login/", DriverLoginView.as_view(), name="driver-login"),
     path("password-reset/", PasswordResetView.as_view(), name="password-reset"),
+    path("staff-login/", StaffLoginView.as_view(), name="staff-login"),
 ]
 
 
@@ -43,13 +45,15 @@ driver_onboarding_urls = [
     path("phase/4/", driver_reg_views.OnboardingPhase4View.as_view(), name="onboarding-phase-4"),
 ]
 
+linked_user_urls = [
+    path("approval/", LinkApproveView.as_view(), name="linked-user-approval"),
+    path("request/", LinkRequestCreateView.as_view(), name="linked-user-request-create"),
+]
 
 urlpatterns = [
     path("send-otp/", SendPhoneOTPView.as_view(), name="send-otp"),
     path("verify-otp/", VerifyOTPView.as_view(), name="verify-otp"),
-    # path("link-approval/", LinkApprove.as_view(), name="link-approval"),
-    # path("link-request/", LinkRequestCreate.as_view(), name="link-request-create"),
-    path("register-manager/", RegisterRManager.as_view(), name="register-rmanager"),
+    
     path("register-user/", RegisterCustomer.as_view(), name="register-user"),
     path("oauth/exchange/", OAuthExchangeView.as_view(), name="oauth-exchange"),
     path("profile/", UserProfileView.as_view(), name="user-profile"),
@@ -65,4 +69,5 @@ urlpatterns = [
     path("onboard/", include(onboarding_urls)),
     path("onboard/driver/", include(driver_onboarding_urls)),
     path("", include(account_urls)),
+    path("linked/", include(linked_user_urls)),
 ]

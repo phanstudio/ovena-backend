@@ -8,10 +8,9 @@ from menu.models import (
 )
 from menu.pagifications import StandardResultsSetPagination
 
-from accounts.models import LinkedStaff, User
-from authflow.decorators import subuser_authentication
-from authflow.authentication import CustomCustomerAuth, CustomDriverAuth
-from authflow.permissions import ScopePermission, ReadScopePermission, IsCustomer
+from accounts.models import User
+from authflow.authentication import CustomCustomerAuth, CustomDriverAuth, CustomBStaffAuth
+from authflow.permissions import IsCustomer, IsBusinessStaff, IsDriver
 from authflow.services import verify_delivery_phrase
 
 from django.shortcuts import get_object_or_404
@@ -241,16 +240,13 @@ class CurrentActiveOrderView(APIView):
 
         return Response({"orders": order_data})
 
-@subuser_authentication
 class ResturantOrderView(GenericAPIView):
-    permission_classes=[ScopePermission, ReadScopePermission]
+    authentication_classes=[CustomBStaffAuth]
+    permission_classes=[IsBusinessStaff]
     pagination_class=StandardResultsSetPagination
-    required_scopes = ["order:accept", "order:cancle"]
 
     def get_queryset(self):
         user = self.request.user
-        if isinstance(user, LinkedStaff):
-            return Order.objects.filter(branch=user.created_by.branch)
         if isinstance(user, User):
             return Order.objects.filter(branch=user.primaryagent.branch)
         return Order.objects.none()
@@ -413,6 +409,7 @@ class ResturantOrderView(GenericAPIView):
 
 class DriverOrderView(GenericAPIView):
     authentication_classes = [CustomDriverAuth]
+    permission_classes = [IsDriver]
     
     def get_queryset(self):
         user = self.request.user

@@ -16,5 +16,6 @@ urlpatterns = [
     path("wallet/balance/", views.BusinessWalletBalanceView.as_view(), name="business-wallet-balance"),
     path("wallet/withdraw/", views.BusinessWalletWithdrawalView.as_view(), name="business-wallet-withdraw"),
     path("wallet/withdrawals/", views.BusinessWalletWithdrawalHistoryView.as_view(), name="business-wallet-history"),
+    path("list-branches/", views.BranchListView.as_view(), name="list-branches"),
 ]
 

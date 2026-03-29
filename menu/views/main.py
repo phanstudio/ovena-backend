@@ -9,9 +9,7 @@ from ..models import (
 )
 from ..pagifications import StandardResultsSetPagination
 
-from accounts.models import LinkedStaff, User
-from authflow.decorators import subuser_authentication
-from authflow.permissions import ScopePermission, ReadScopePermission
+from accounts.models import User
 
 import logging
 from django.db.models import OuterRef, Subquery, IntegerField, Avg, Count, Q
@@ -198,59 +196,3 @@ class HomePageView(APIView):
 # who is this for the user before payment is made, the payment gatway has been made no pyment is made yet so we need to kill that transaction
 # custom authentication with select related for this, we need paginification here
 # finished
-
-def norm_name(s: str) -> str:
-    return (s or "").strip().casefold()
-
-def get_branch_staff(user):
-    branch:Branch = None
-    error = None
-    if isinstance(user, LinkedStaff):
-        branch = user.created_by.branch
-    elif isinstance(user, User):
-        branch = user.primaryagent.branch
-    else:
-        error = Response(
-            {"detail": "user is not a resturant employee"},
-            status=status.HTTP_404_NOT_FOUND,
-        )
-    return branch, error
-
-@subuser_authentication
-class AvaliabilityView(GenericAPIView): # not sure if it wil be this direct sha must likely not be
-    queryset = BaseItemAvailability.objects.all()
-    permission_classes=[ScopePermission, ReadScopePermission]
-    pagination_class=StandardResultsSetPagination
-    required_scopes = ["item:availability"]
-
-    def patch(self, request):
-        user = self.request.user
-        is_available = request.data.get("is_available") # should be a bool
-        base_item_id = request.data.get("base_item_id")
-
-        if base_item_id is None:
-            return Response({"detail": "base_item_id is required"}, status=400)
-        if not isinstance(is_available, bool):
-            return Response({"detail": "is_available must be a boolean"}, status=400)
-
-        branch = None
-        branch, error = get_branch_staff(user)
-        if error:
-            return error
-
-        updated = (
-            self.get_queryset()
-            .filter(branch=branch, base_item_id=base_item_id)
-            .update(is_available=is_available)
-        )
-
-        if not updated:
-            return Response(
-                {"detail": "Item availability not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        return Response(
-            {"detail": "Availability updated", "is_available": is_available},
-            status=status.HTTP_200_OK,
-        )

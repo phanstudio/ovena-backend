@@ -138,7 +138,7 @@ class MenuItemAddon(models.Model):
 
     def __str__(self):
         return self.base_item.name
-
+# should be per menu items
 class BaseItemAvailability(models.Model):
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="branch_availabilities")
     base_item = models.ForeignKey(BaseItem, on_delete=models.CASCADE, related_name="item_availabilities")

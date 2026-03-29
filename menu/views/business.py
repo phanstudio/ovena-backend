@@ -2,18 +2,17 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.generics import GenericAPIView
-# from rest_framework.permissions import AllowAny
-from ..serializers import OpS
+from ..serializers import OpS, InS
 from ..models import (
     Menu, MenuItem,
-    Business, Branch, BaseItemAvailability,
+    Branch, BaseItemAvailability,
 )
 from ..pagifications import StandardResultsSetPagination
 
-from accounts.models import LinkedStaff, User
-from authflow.decorators import subuser_authentication
-from authflow.permissions import ScopePermission, ReadScopePermission, IsBusinessAdmin
-from authflow.authentication import CustomBAdminAuth
+from accounts.models import User
+from authflow.permissions import IsBusinessAdmin, IsBusinessStaff
+from authflow.authentication import CustomBAdminAuth, CustomBStaffAuth
+from django.db import transaction
 
 import logging
 from django.db.models import Q
@@ -39,7 +38,7 @@ class MenuView(APIView):
     permission_classes=[IsBusinessAdmin]
     def get(self, request):
         user = request.user.business_admin
-        
+
         menus = Menu.objects.filter(business_id=user.business_id)\
             .prefetch_related(
                 "categories__items__variant_groups__options",
@@ -48,6 +47,7 @@ class MenuView(APIView):
         serializer = OpS.MenuSerializer(menus, many=True)
         return Response(serializer.data)
 
+# branch thing;
 # how to test searching 
 class SearchMenuItems(APIView):# the search should show the restorunt the menu item came from 
     def get(self, request):
@@ -62,58 +62,132 @@ class SearchMenuItems(APIView):# the search should show the restorunt the menu i
         serializer = OpS.MenuItemSerializer(items, many=True)
         return Response(serializer.data)
 
-def norm_name(s: str) -> str:
-    return (s or "").strip().casefold()
 
-def get_branch_staff(user):
-    branch:Branch = None
-    error = None
-    if isinstance(user, LinkedStaff):
-        branch = user.created_by.branch
-    elif isinstance(user, User):
-        branch = user.primaryagent.branch
-    else:
-        error = Response(
-            {"detail": "user is not a resturant employee"},
-            status=status.HTTP_404_NOT_FOUND,
-        )
-    return branch, error
+class BaseBuisStaffAPIView(GenericAPIView):
+    authentication_classes = [CustomBStaffAuth]
+    permission_classes = [IsBusinessStaff]
 
-@subuser_authentication
-class AvaliabilityView(GenericAPIView): # not sure if it wil be this direct sha must likely not be
-    queryset = BaseItemAvailability.objects.all()
-    permission_classes=[ScopePermission, ReadScopePermission]
-    pagination_class=StandardResultsSetPagination
-    required_scopes = ["item:availability"]
+    # def get_buisnessadmn(self, request):
+    #     profile = request.user.buisnessadmin
+    #     if not profile:
+    #         profile = get_object_or_404(BusinessAdmin, user=request.user)
+    #     return profile
 
-    def patch(self, request):
-        user = self.request.user
-        is_available = request.data.get("is_available") # should be a bool
-        base_item_id = request.data.get("base_item_id")
+    def get_branch_staff(user):
+        branch:Branch = None
+        error = None
+        if isinstance(user, User):
+            branch = user.primaryagent.branch
+        else:
+            error = Response(
+                {"detail": "user is not a resturant employee"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return branch, error
 
-        if base_item_id is None:
-            return Response({"detail": "base_item_id is required"}, status=400)
-        if not isinstance(is_available, bool):
-            return Response({"detail": "is_available must be a boolean"}, status=400)
+# not sure if it wil be this direct sha must likely not be
+class AvailabilityListView(BaseBuisStaffAPIView):
+    serializer_class = InS.ItemAvailabilityListSerializer
+    pagination_class = StandardResultsSetPagination
+ 
+    def get(self, request):
+        user = request.user
 
-        branch = None
-        branch, error = get_branch_staff(user)
+        branch, error = self.get_branch_staff(user)
         if error:
             return error
 
-        updated = (
-            self.get_queryset()
-            .filter(branch=branch, base_item_id=base_item_id)
-            .update(is_available=is_available)
+        queryset = (
+            BaseItemAvailability.objects
+            .filter(branch=branch)
+            .select_related("base_item")
         )
 
-        if not updated:
-            return Response(
-                {"detail": "Item availability not found"},
-                status=status.HTTP_404_NOT_FOUND,
+        # -------------------
+        # FILTER: availability
+        # -------------------
+        is_available = request.query_params.get("available")
+        if is_available is not None:
+            queryset = queryset.filter(
+                is_available=is_available.lower() == "true"
             )
 
-        return Response(
-            {"detail": "Availability updated", "is_available": is_available},
-            status=status.HTTP_200_OK,
+        # -------------------
+        # FILTER: search (name)
+        # -------------------
+        search = request.query_params.get("search")
+        if search:
+            queryset = queryset.filter(
+                base_item__name__icontains=search
+            )
+
+        # -------------------
+        # FILTER: category
+        # -------------------
+        category = request.query_params.get("category")
+        if category:
+            category_ids = [int(c) for c in category.split(",")]
+
+            queryset = queryset.filter(
+                base_item__menu_items__category_id__in=category_ids
+            ).distinct()
+
+        # -------------------
+        # ORDERING
+        # -------------------
+        queryset = queryset.order_by("base_item__name")
+
+        # -------------------
+        # PAGINATION
+        # -------------------
+        page = self.paginate_queryset(queryset)
+        # serializer = InS.ItemAvailabilityListSerializer(page or queryset, many=True)
+        serializer = self.get_serializer(page or queryset, many=True)
+
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
+
+        return Response(serializer.data)
+
+class AvaliabilityView(BaseBuisStaffAPIView):
+    queryset = BaseItemAvailability.objects.all()
+    serializer_class = InS.BulkItemAvailabilityUpdateSerializer
+
+    def patch(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        branch, error = self.get_branch_staff(user)
+        if error:
+            return error
+
+        items = serializer.validated_data["items"]
+
+        base_item_ids = [item["id"] for item in items]
+
+        availabilities = BaseItemAvailability.objects.filter(
+            branch=branch,
+            base_item_id__in=base_item_ids
         )
+
+        availability_map = {a.base_item_id: a for a in availabilities}
+
+        updated_objects = []
+
+        for item in items:
+            obj = availability_map.get(item["id"])
+            if obj:
+                obj.is_available = item["is_available"]
+                updated_objects.append(obj)
+
+        with transaction.atomic():
+            BaseItemAvailability.objects.bulk_update(
+                updated_objects,
+                ["is_available"]
+            )
+
+        return Response({
+            "detail": "Bulk availability updated",
+            "updated_count": len(updated_objects)
+        })

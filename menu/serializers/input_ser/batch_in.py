@@ -1,5 +1,5 @@
 from rest_framework import serializers
-
+from menu.models import BaseItemAvailability
 
 class UploadFileItemSerializer(serializers.Serializer):
     """
@@ -29,3 +29,29 @@ class BatchGenerateUploadURLRequestSerializer(serializers.Serializer):
         if len(files) > max_batch:
             raise serializers.ValidationError(f"Max {max_batch} files per batch.")
         return files
+
+class ItemAvailabilityListSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(source="base_item.id")
+    name = serializers.CharField(source="base_item.name")
+    price = serializers.SerializerMethodField()
+    is_available = serializers.BooleanField()
+
+    class Meta:
+        model = BaseItemAvailability
+        fields = ["id", "name", "price", "is_available"]
+
+    def get_price(self, obj):
+        return obj.effective_price
+
+class ItemAvailabilityUpdateItemSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    is_available = serializers.BooleanField()
+
+
+class BulkItemAvailabilityUpdateSerializer(serializers.Serializer):
+    items = ItemAvailabilityUpdateItemSerializer(many=True)
+
+    def validate_items(self, value):
+        if not value:
+            raise serializers.ValidationError("Items list cannot be empty")
+        return value

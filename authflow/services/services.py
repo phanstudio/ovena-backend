@@ -1,6 +1,3 @@
-import jwt
-import datetime
-from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.models import User
 from accounts.services.roles import get_user_roles
@@ -11,34 +8,6 @@ import hashlib
 import string
 from .otp import OTPManager, OTPError, OTPRateLimitError, OTPDeliveryError, OTPInvalidError
 from rest_framework.response import Response
-
-def create_token(user, role="main", scopes=None, expires_in=3600):
-    """
-    Create a JWT for a user with optional role + scopes.
-    - user: Django User instance
-    - role: "main" or "sub"
-    - scopes: list of permissions (["read", "availability:update"])
-    - expires_in: seconds (default: 1 hour)
-    """
-    if role == "main":
-        if not isinstance(user, User):
-            return {"error": "Request sender is not a user"}
-        return issue_jwt_for_user(user)
-
-    elif role == "sub":
-        return make_sub_token(user['user_id'], user['device_id'], scopes, expires_in)
-
-def make_sub_token(user_id, device_id="dyukljhgf4567890", scopes=None, expires_in=3600):
-    now = datetime.datetime.now(datetime.timezone.utc)
-    exp = now + datetime.timedelta(seconds=expires_in)
-    payload = {
-        "user_id": user_id,
-        "device_id": device_id,
-        "scopes": scopes or ["read"],
-        "iat": now,
-        "exp": exp,
-    }
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
 def issue_jwt_for_user(user: User, *, active_profile: str | None = None):
     refresh = RefreshToken.for_user(user)
