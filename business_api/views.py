@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView
 from django.shortcuts import get_object_or_404
-# from rest_framework.generics import GenericAPIView
+from rest_framework.exceptions import PermissionDenied
 # from drf_spectacular.utils import extend_schema, inline_serializer  # type: ignore
 
 from accounts.models import (
@@ -14,22 +14,23 @@ from accounts.models import (
     BranchOperatingHours,
     Business,
     BusinessAdmin,
+    PrimaryAgent,
     # BusinessCerd,
     # BusinessOnboardStatus,
     BusinessPayoutAccount,
     User
 )
-from business_api.serializers import InS
-# , OpS
-# from addresses.utils import checkset_location
-from authflow.authentication import CustomBAdminAuth
-from authflow.permissions import IsBusinessAdmin
+from business_api.serializers import InS, OpS
+from addresses.utils import checkset_location
+from authflow.authentication import CustomBAdminAuth, CustomBStaffAuth
+from authflow.permissions import IsBusinessAdmin, IsBusinessAgent
 from payments.idempotency import IdempotencyConflictError, begin_idempotent_request, save_idempotent_response
 from payments.models import Withdrawal
 from payments.payouts.services import create_withdrawal_request, get_balance_summary
 from payments.payouts.tasks import process_withdrawal
 from rest_framework.pagination import LimitOffsetPagination
-from .serializers import OpS
+from accounts.serializers import InS as acInS
+from drf_spectacular.utils import extend_schema # type: ignore
 
 class businessLimitOffsetPagination(LimitOffsetPagination):
     default_limit = 20
@@ -45,6 +46,71 @@ class BaseBuisAdminAPIView(GenericAPIView):
             profile = get_object_or_404(BusinessAdmin, user=request.user)
         return profile
 
+@extend_schema(responses={200: OpS.BuisnessResponse},)
+class BranchCreateUpdateView(BaseBuisAdminAPIView):
+    serializer_class = acInS.BranchInputSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        branch_data = serializer.validated_data
+        buisness_admin = self.get_buisnessadmn(request)
+        
+        # Branches + operating hours
+        branch = Branch.objects.create(
+            business_id=buisness_admin.business.id,
+            name=branch_data["name"],
+            address=branch_data.get("address", "unknown"),
+            location=checkset_location(branch_data),
+            delivery_method=branch_data.get("delivery_method", "instant"),
+            pre_order_open_period=branch_data.get("pre_order_open_period"),
+            final_order_time=branch_data.get("final_order_time"),
+        )
+
+        hours_data = branch_data.get("operating_hours", [])
+        BranchOperatingHours.objects.bulk_create(
+            [
+                BranchOperatingHours(
+                    branch=branch,
+                    day=h["day"],
+                    open_time=h["open_time"],
+                    close_time=h["close_time"],
+                    is_closed=h.get("is_closed", False),
+                )
+                for h in hours_data
+            ], 
+        )
+
+        return Response({"detail": "branch created."}, status=status.HTTP_201_CREATED)
+    
+    @extend_schema(
+        request=InS.BranchInputSerializer,
+    )
+    def put(self, request):
+        serializer = InS.BranchInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        branch_data = serializer.validated_data
+        buisness_admin = self.get_buisnessadmn(request)
+
+        update_data = {
+            k: v for k, v in branch_data.items()
+            if k not in ["id", "latitude", "longitude"]
+        }
+
+        if "latitude" in branch_data and "longitude" in branch_data:
+            update_data["location"] = checkset_location(branch_data)
+
+        
+        updated = Branch.objects.filter(
+            business_id=buisness_admin.business.id,
+            id=branch_data["id"]
+        ).update(**update_data)
+
+        if not updated:
+            return Response({"detail": "Branch not found"}, status=404)
+        
+        return Response({"detail": "branch updated."}, status=status.HTTP_200_OK)
+
 class BranchListView(BaseBuisAdminAPIView):
     pagination_class = businessLimitOffsetPagination
 
@@ -56,6 +122,39 @@ class BranchListView(BaseBuisAdminAPIView):
         return paginator.get_paginated_response(
             {"detail": "Branches", "data": OpS.BranchlistSerializer(page, many=True).data}
         )
+
+@extend_schema(responses={200: OpS.BuisnessResponse},)
+class StaffRevokeView(BaseBuisAdminAPIView):
+    serializer_class = InS.StaffRevokedSerializer
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        PrimaryAgent.objects.filter(id = vd["agent_id"]).update(revoked=vd["revoked"])
+        return Response({"detail": f"agent {'revoked' if vd["revoked"] else 'Unrevoked'}"})
+
+@extend_schema(responses=OpS.PrimaryAgentBranchSerializer)
+class StaffListView(BaseBuisAdminAPIView):
+    pagination_class = businessLimitOffsetPagination
+
+    def get(self, request):
+        buisness_admin = self.get_buisnessadmn(request)
+
+        qs = (
+            PrimaryAgent.objects
+            .select_related("branch", "user")
+            .filter(branch__business=buisness_admin.business)
+            .order_by("-created_at")
+        )
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(qs, request)
+
+        serializer = OpS.PrimaryAgentBranchSerializer(page, many=True)
+        return paginator.get_paginated_response({
+            "detail": "Primary agents",
+            "data": serializer.data
+        })
 
 class BuisnessUpdateView(BaseBuisAdminAPIView):
     serializer_class = InS.AdminUpdateSerializer
@@ -69,38 +168,64 @@ class BuisnessUpdateView(BaseBuisAdminAPIView):
         user.phone_number = vd.get("phone_number", user.phone_number)
         user.email = vd.get("email", user.email)
         user.save()
+        return Response({"detail": "User updated."})
 
-class BranchOperatingHoursView(APIView):
-    authentication_classes = [CustomBAdminAuth]
-    permission_classes = [IsBusinessAdmin]
+def resolve_branch(request, branch_id=None):
+    user = request.user
 
-    def get(self, request, branch_id):
-        user = request.user
-        try:
-            admin = user.business_admin
-        except BusinessAdmin.DoesNotExist:
-            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+    actor_type = request.actor_type
 
-        branch = Branch.objects.filter(id=branch_id, business=admin.business).first()
+    # Admin path
+    if actor_type == "admin":
+        if not branch_id:
+            raise PermissionDenied("branch_id required for admin")
+
+        branch = Branch.objects.filter(
+            id=branch_id,
+            business=user.business_admin.business
+        ).first()
+
         if not branch:
-            return Response({"detail": "Branch not found."}, status=status.HTTP_404_NOT_FOUND)
+            raise PermissionDenied("Invalid branch")
+
+        return branch
+
+    # Staff path
+    if actor_type == "staff":
+        agent = user.primaryagent
+
+        if not agent or agent.revoked:
+            raise PermissionDenied("Invalid staff account")
+
+        return agent.branch
+
+    raise PermissionDenied("Unauthorized")
+
+# in the put we are changing everything
+class BranchOperatingHoursView(APIView):
+    authentication_classes = [
+        CustomBStaffAuth, 
+        CustomBAdminAuth
+    ]
+    permission_classes = [IsBusinessAgent]
+
+    def get(self, request, branch_id=None):
+        try:
+            branch = resolve_branch(request, branch_id)
+        except PermissionDenied as e:
+            return Response({"detail": str(e)}, status=403)
 
         hours = BranchOperatingHours.objects.filter(branch=branch).order_by("day")
-        serializer = InS.BranchOperatingHoursSerializer(hours, many=True)
+        serializer = acInS.BranchOperatingHoursSerializer(hours, many=True)
         return Response(serializer.data)
 
     def put(self, request, branch_id):
-        user = request.user
         try:
-            admin = user.business_admin
-        except BusinessAdmin.DoesNotExist:
-            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+            branch = resolve_branch(request, branch_id)
+        except PermissionDenied as e:
+            return Response({"detail": str(e)}, status=403)
 
-        branch = Branch.objects.filter(id=branch_id, business=admin.business).first()
-        if not branch:
-            return Response({"detail": "Branch not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        serializer = InS.BranchOperatingHoursSerializer(data=request.data, many=True)
+        serializer = acInS.BranchOperatingHoursSerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
 
         with transaction.atomic():
@@ -112,6 +237,18 @@ class BranchOperatingHoursView(APIView):
 
         return Response({"detail": "Operating hours updated."})
 
+# def get(self, request, branch_id=None):
+#     branch = getattr(request, "branch", None)
+
+#     if branch:
+#         queryset = BranchOperatingHours.objects.filter(branch=branch)
+#     else:
+#         queryset = BranchOperatingHours.objects.filter(
+#             branch__business=request.user.business_admin.business
+#         )
+
+#     serializer = InS.BranchOperatingHoursSerializer(queryset, many=True)
+#     return Response(serializer.data)
 
 class RestaurantPaymentView(APIView):
     authentication_classes = [CustomBAdminAuth]
@@ -145,7 +282,7 @@ class RestaurantPaymentView(APIView):
         except BusinessAdmin.DoesNotExist:
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = InS.RestaurantPaymentSerializer(data=request.data)
+        serializer = acInS.RestaurantPaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
@@ -234,3 +371,7 @@ class BusinessWalletWithdrawalHistoryView(APIView):
             "id", "amount", "status", "batch_date", "requested_at", "completed_at", "failure_reason"
         )
         return Response(list(withdrawals))
+
+# dashboard
+# analysis
+# support 

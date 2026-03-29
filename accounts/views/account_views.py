@@ -9,8 +9,7 @@ from accounts.serializers import (
     BuisnessAdminProfileSerializer, PrimaryAgentProfileSerializer
 )
 from accounts.models import(
-    User, Branch, PrimaryAgent, 
-    BusinessAdmin, BusinessPayoutAccount, BranchOperatingHours
+    User, Branch, PrimaryAgent,
 )
 from django.db import transaction, IntegrityError
 from authflow.services import (
@@ -168,20 +167,6 @@ class LinkApproveView(GenericAPIView):
         except OTPInvalidError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # # Fetch PrimaryAgent in one query
-        # business_admin = (
-        #     BusinessAdmin.objects
-        #     .select_related("user", "branch")
-        #     .filter(user__phone_number=identifier)
-        #     .first()
-        # )
-
-        # # validate branch belongs to admin
-        # branch = Branch.objects.filter(
-        #     id=vd["branch_id"],
-        #     business=business_admin.business
-        # ).first()
-
         branch = (
             Branch.objects
             .select_related("business__admin__user")
@@ -200,12 +185,6 @@ class LinkApproveView(GenericAPIView):
 
         business_admin = branch.business.admin
 
-        if not branch:
-            return Response(
-                {"detail": "Invalid branch"},
-                status=403
-            )
-
         # ensure only one primary agent per branch
         if hasattr(branch, "primary_agent"):
             return Response(
@@ -213,11 +192,6 @@ class LinkApproveView(GenericAPIView):
                 status=400
             )
 
-        # if not business_admin:
-        #     return Response(
-        #         {"detail": "User not a manager."},
-        #         status=status.HTTP_404_NOT_FOUND
-        #     )
         try:
             with transaction.atomic():
                 user, _ = User.objects.get_or_create(
@@ -228,7 +202,6 @@ class LinkApproveView(GenericAPIView):
                 sub_user = PrimaryAgent.objects.create(
                     created_by=business_admin,
                     device_name=device_id,
-                    # branch_id=vd["branch_id"],
                     branch=branch,
                     user=user
                 )
@@ -238,7 +211,6 @@ class LinkApproveView(GenericAPIView):
                 {"error": "A device_id is already linked"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        
         
         token = issue_jwt_for_user(user)
         response = OpS.RegisterBAdminResponseSerializer({
@@ -287,98 +259,6 @@ class UpdateCustomer(APIView):
             {"detail": "Profile updated successfully"},
             status=status.HTTP_200_OK,
         )
-
-
-# read 
-class BranchOperatingHoursView(APIView):
-    """
-    GET/PUT operating hours for a specific branch.
-    Useful for editing hours after onboarding.
-    """
-    authentication_classes = [CustomBAdminAuth]
-    permission_classes = [IsBusinessAdmin]
-    def get(self, request, branch_id):
-        user = request.user
-        try:
-            admin = user.business_admin
-        except BusinessAdmin.DoesNotExist:
-            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
-
-        branch = Branch.objects.filter(id=branch_id, restaurant=admin.business).first()
-        if not branch:
-            return Response({"detail": "Branch not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        hours = BranchOperatingHours.objects.filter(branch=branch).order_by("day")
-        serializer = InS.BranchOperatingHoursSerializer(hours, many=True)
-        return Response(serializer.data)
-
-    def put(self, request, branch_id):
-        user = request.user
-        try:
-            admin = user.business_admin
-        except BusinessAdmin.DoesNotExist:
-            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
-
-        branch = Branch.objects.filter(id=branch_id, restaurant=admin.business).first()
-        if not branch:
-            return Response({"detail": "Branch not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        serializer = InS.BranchOperatingHoursSerializer(data=request.data, many=True)
-        serializer.is_valid(raise_exception=True)
-
-        with transaction.atomic():
-            BranchOperatingHours.objects.filter(branch=branch).delete()
-            BranchOperatingHours.objects.bulk_create([
-                BranchOperatingHours(branch=branch, **h)
-                for h in serializer.validated_data
-            ])
-
-        return Response({"detail": "Operating hours updated."})
-
-class RestaurantPaymentView(APIView):
-    """
-    GET/PUT payment details for the restaurant.
-    """
-    authentication_classes = [CustomBAdminAuth]
-    permission_classes = [IsBusinessAdmin]
-
-    def get(self, request):
-        user = request.user
-        try:
-            admin = user.business_admin
-        except BusinessAdmin.DoesNotExist:
-            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
-
-        try:
-            payment = admin.business.payout
-        except BusinessPayoutAccount.DoesNotExist:
-            return Response({"detail": "No payment info set."}, status=status.HTTP_404_NOT_FOUND)
-
-        serializer = InS.RestaurantPaymentSerializer(payment)
-        return Response(serializer.data)
-
-    def put(self, request):
-        user = request.user
-        try:
-            admin = user.business_admin
-        except BusinessAdmin.DoesNotExist:
-            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
-
-        serializer = InS.RestaurantPaymentSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        vd = serializer.validated_data
-
-        BusinessPayoutAccount.objects.update_or_create(
-            business=admin.business,
-            defaults={
-                "bank_name": vd["bank"],
-                "bank_code": vd.get("bank_code", ""),
-                "account_number": vd["account_number"],
-                "account_name": vd["account_name"],
-                "bvn": vd["bvn"],
-            },
-        )
-        return Response({"detail": "Payment info updated."})
 
 
 # Login views

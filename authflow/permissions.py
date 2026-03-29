@@ -19,9 +19,18 @@ class IsBusinessStaff(permissions.BasePermission):
 
 class IsBusinessAgent(permissions.BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and (
-            valid_staff(request) or has_role(request, PROFILE_BUSINESS_ADMIN)
-        )
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        
+        if valid_staff(request):
+            request.actor_type = "staff"
+            return True
+        
+        if has_role(request, PROFILE_BUSINESS_ADMIN):
+            request.actor_type = "admin"
+            return True
+        return False
 
 def valid_staff(request): # can i return revoked
-    return (not request.user.primary_agent.revoked and has_role(request, PROFILE_BUSINESS_STAFF))
+    return ((not request.user.primaryagent.revoked) and has_role(request, PROFILE_BUSINESS_STAFF))

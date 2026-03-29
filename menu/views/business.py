@@ -73,7 +73,8 @@ class BaseBuisStaffAPIView(GenericAPIView):
     #         profile = get_object_or_404(BusinessAdmin, user=request.user)
     #     return profile
 
-    def get_branch_staff(user):
+    def get_branch_staff(self, request):
+        user = request.user
         branch:Branch = None
         error = None
         if isinstance(user, User):
@@ -91,9 +92,8 @@ class AvailabilityListView(BaseBuisStaffAPIView):
     pagination_class = StandardResultsSetPagination
  
     def get(self, request):
-        user = request.user
 
-        branch, error = self.get_branch_staff(user)
+        branch, error = self.get_branch_staff(request)
         if error:
             return error
 
@@ -141,7 +141,6 @@ class AvailabilityListView(BaseBuisStaffAPIView):
         # PAGINATION
         # -------------------
         page = self.paginate_queryset(queryset)
-        # serializer = InS.ItemAvailabilityListSerializer(page or queryset, many=True)
         serializer = self.get_serializer(page or queryset, many=True)
 
         if page is not None:
