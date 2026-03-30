@@ -1,5 +1,6 @@
 from addresses.models import Address
 from django.utils import timezone
+from django.contrib.auth.hashers import check_password, make_password
 from authflow.services import generate_referral_code
 from django.db import models, IntegrityError, transaction
 from .main import User, Branch, Business
@@ -109,10 +110,23 @@ class CustomerProfile(ProfileBase): # create a simple view to change the defualt
 class BusinessAdmin(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="business_admin")
     business = models.OneToOneField(Business, on_delete=models.CASCADE, related_name="admin", null=True, blank=True)
+    transaction_pin_hash = models.CharField(max_length=128, blank=True, default="")
     # we can change to null later else might be an issue
     
     def __str__(self):
         return f"{self.user.name} admin @ {self.business.business_name}"
+
+    @property
+    def has_transaction_pin(self) -> bool:
+        return bool(self.transaction_pin_hash)
+
+    def set_transaction_pin(self, raw_pin: str) -> None:
+        self.transaction_pin_hash = make_password(raw_pin)
+
+    def check_transaction_pin(self, raw_pin: str) -> bool:
+        if not self.transaction_pin_hash:
+            return False
+        return check_password(raw_pin, self.transaction_pin_hash)
 
 class PrimaryAgent(models.Model): # only one primary users, so the branch should be a one to one
     branch = models.OneToOneField(Branch, on_delete=models.CASCADE, related_name="primary_agent")
