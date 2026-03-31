@@ -29,7 +29,7 @@ from support_center.services import (
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.decorators import action
 from rest_framework.mixins import ListModelMixin, CreateModelMixin, RetrieveModelMixin
-
+from django.utils import timezone
 
 class SupportPagination(LimitOffsetPagination):
     default_limit = 20
@@ -160,6 +160,76 @@ class BaseSupportTicketViewSet(
                 "data": self.message_serializer(message).data
             },
             status=status.HTTP_201_CREATED
+        )
+
+    @action(detail=True, methods=["post"])
+    def reopen(self, request, pk=None):
+        ticket = self.get_object()
+
+        if ticket.status != SupportTicket.STATUS_CLOSED:
+            return Response(
+                {"detail": "Only closed tickets can be reopened."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        is_owner = ticket.owner == request.user
+        is_assigned_admin = ticket.assigned_to == request.user
+
+        if not (is_owner or is_assigned_admin):
+            return Response(
+                {"detail": "You do not have permission to reopen this ticket."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        ticket.status = SupportTicket.STATUS_IN_PROGRESS
+        ticket.closed_at = None
+        ticket.save(update_fields=["status", "closed_at", "updated_at"])
+
+        # Create system message
+        SupportTicketMessage.objects.create(
+            ticket=ticket,
+            sender_type=SupportTicketMessage.SENDER_SYSTEM,
+            sender=None,
+            message=f"Ticket reopened by {request.user.id}",
+            attachments_json=[]
+        )
+
+        return Response(
+            {
+                "detail": "Ticket reopened successfully.",
+                "data": self.detail_serializer(ticket).data
+            },
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=["post"])
+    def close(self, request, pk=None):
+        ticket = self.get_object()
+
+        # Ensure the request.user is the owner of the ticket
+        if ticket.owner != request.user:
+            return Response(
+                {"detail": "You do not have permission to close this ticket."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Only allow closing if not already closed
+        if ticket.status in [SupportTicket.STATUS_CLOSED, SupportTicket.STATUS_RESOLVED]:
+            return Response(
+                {"detail": f"Ticket is already {ticket.status}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        ticket.status = SupportTicket.STATUS_CLOSED
+        ticket.closed_at = timezone.now()
+        ticket.save(update_fields=["status", "closed_at"])
+
+        return Response(
+            {
+                "detail": "Ticket successfully closed",
+                "data": self.detail_serializer(ticket).data
+            },
+            status=status.HTTP_200_OK
         )
 
 class DriverSupportTicketViewSet(

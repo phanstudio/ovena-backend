@@ -17,5 +17,15 @@ class ULIDField(models.CharField):
 # add later
 # def generate_id() -> str:
 #     return str(ulid.new())
-# class AbstractBaseModel(models.Model):
-#     id = ULIDField(primary_key=True, editable=False, db_index=True, default=generate_id)
+class AbstractBaseModel(models.Model):
+    id = ULIDField(primary_key=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        abstract = True
+
+class AbstractUBaseModel(AbstractBaseModel):
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True

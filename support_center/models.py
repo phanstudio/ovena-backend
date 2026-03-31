@@ -1,8 +1,8 @@
 from django.conf import settings
 from django.db import models
+from authflow.services.model import AbstractBaseModel, AbstractUBaseModel
 
-
-class SupportTicket(models.Model):
+class SupportTicket(AbstractUBaseModel):
     OWNER_DRIVER = "driver"
     OWNER_BUSINESS_ADMIN = "business_admin"
     OWNER_BUSINESS_STAFF = "business_staff"
@@ -53,9 +53,7 @@ class SupportTicket(models.Model):
         blank=True,
         related_name="assigned_support_tickets_central",
     )
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     closed_at = models.DateTimeField(null=True, blank=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         indexes = [
@@ -67,8 +65,7 @@ class SupportTicket(models.Model):
     def __str__(self):
         return f"SupportTicket({self.id}) {self.owner_role} {self.subject}"
 
-
-class SupportTicketMessage(models.Model):
+class SupportTicketMessage(AbstractBaseModel):
     SENDER_DRIVER = "driver"
     SENDER_BUSINESS_ADMIN = "business_admin"
     SENDER_BUSINESS_STAFF = "business_staff"
@@ -94,12 +91,9 @@ class SupportTicketMessage(models.Model):
     )
     message = models.TextField()
     attachments_json = models.JSONField(default=list, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["created_at"]
         indexes = [
             models.Index(fields=["ticket", "created_at"])
         ]
-        
-
