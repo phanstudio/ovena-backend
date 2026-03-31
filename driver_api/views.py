@@ -18,8 +18,6 @@ from driver_api.models import (
     DriverNotification,
     DriverWithdrawalRequest,
     SupportFAQItem,
-    SupportTicket,
-    SupportTicketMessage,
 )
 from driver_api.serializers import (
     AnalysisPerformanceQuerySerializer,
@@ -30,11 +28,6 @@ from driver_api.serializers import (
     EarningsSummarySerializer,
     FAQItemSerializer,
     LedgerEntrySerializer,
-    TicketCreateSerializer,
-    TicketDetailSerializer,
-    TicketListSerializer,
-    TicketMessageCreateSerializer,
-    TicketMessageSerializer,
     WithdrawalEligibilitySerializer,
     WithdrawalRequestCreateSerializer,
     WithdrawalRequestSerializer,
@@ -52,7 +45,6 @@ from driver_api.tasks import process_withdrawal, process_withdrawal_request
 from notifications.services import get_driver_unread_count
 from payments.webhooks.paystack import handle_paystack_webhook
 from support_center.services import get_driver_open_ticket_count
-
 
 class BaseDriverAPIView(APIView):
     authentication_classes = [CustomDriverAuth]
@@ -205,75 +197,6 @@ class DriverFAQListView(BaseDriverAPIView):
     def get(self, request):
         qs = SupportFAQItem.objects.filter(is_active=True, category__is_active=True).select_related("category")
         return Response({"detail": "FAQ list", "data": FAQItemSerializer(qs, many=True).data})
-
-
-class SupportTicketListCreateView(BaseDriverAPIView):
-    pagination_class = DriverLimitOffsetPagination
-
-    @extend_schema(responses=TicketListSerializer)
-    def get(self, request):
-        driver = self.get_driver(request)
-        qs = SupportTicket.objects.filter(driver=driver).order_by("-created_at")
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(qs, request)
-        ser = TicketListSerializer(page, many=True)
-        return paginator.get_paginated_response({"detail": "Support tickets", "data": ser.data})
-
-    @extend_schema(request=TicketCreateSerializer, responses=TicketDetailSerializer)
-    def post(self, request):
-        driver = self.get_driver(request)
-        serializer = TicketCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        ticket = serializer.save(driver=driver)
-        SupportTicketMessage.objects.create(
-            ticket=ticket,
-            sender_type=SupportTicketMessage.SENDER_DRIVER,
-            sender_id=request.user.id,
-            message=ticket.description,
-        )
-        return Response(
-            {"detail": "Support ticket created", "data": TicketDetailSerializer(ticket).data},
-            status=status.HTTP_201_CREATED,
-        )
-
-
-class SupportTicketDetailView(BaseDriverAPIView):
-    def get(self, request, ticket_id: int):
-        driver = self.get_driver(request)
-        ticket = get_object_or_404(SupportTicket, id=ticket_id, driver=driver)
-        return Response({"detail": "Support ticket detail", "data": TicketDetailSerializer(ticket).data})
-
-
-class SupportTicketMessageListCreateView(BaseDriverAPIView):
-    pagination_class = DriverLimitOffsetPagination
-
-    def _ticket(self, request, ticket_id):
-        driver = self.get_driver(request)
-        return get_object_or_404(SupportTicket, id=ticket_id, driver=driver)
-
-    def get(self, request, ticket_id: int):
-        ticket = self._ticket(request, ticket_id)
-        qs = SupportTicketMessage.objects.filter(ticket=ticket).order_by("created_at")
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(qs, request)
-        return paginator.get_paginated_response(
-            {"detail": "Ticket messages", "data": TicketMessageSerializer(page, many=True).data}
-        )
-
-    def post(self, request, ticket_id: int):
-        ticket = self._ticket(request, ticket_id)
-        if ticket.status == SupportTicket.STATUS_CLOSED:
-            return Response({"detail": "Ticket is closed"}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = TicketMessageCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        msg = SupportTicketMessage.objects.create(
-            ticket=ticket,
-            sender_type=SupportTicketMessage.SENDER_DRIVER,
-            sender_id=request.user.id,
-            message=serializer.validated_data["message"],
-            attachments_json=serializer.validated_data.get("attachments_json", []),
-        )
-        return Response({"detail": "Message sent", "data": TicketMessageSerializer(msg).data}, status=status.HTTP_201_CREATED)
 
 
 class DriverNotificationListView(BaseDriverAPIView):

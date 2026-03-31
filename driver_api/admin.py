@@ -7,8 +7,6 @@ from driver_api.models import (
     DriverWithdrawalRequest,
     SupportFAQCategory,
     SupportFAQItem,
-    SupportTicket,
-    SupportTicketMessage,
 )
 
 
@@ -19,6 +17,4 @@ admin.site.register(DriverNotification)
 admin.site.register(SupportFAQCategory)
 # add faqa from here
 admin.site.register(SupportFAQItem)
-admin.site.register(SupportTicket)
-admin.site.register(SupportTicketMessage)
 

@@ -1,13 +1,13 @@
 from django.urls import include, path
 
 from driver_api import views
-
+from support_center.urls import driver_urlpatterns
 
 urlpatterns = [
     path("dashboard/", views.DriverDashboardView.as_view(), name="driver-dashboard"),
     path("profile/", views.DriverProfileView.as_view(), name="driver-profile"),
     path("availability/", views.DriverAvailabilityView.as_view(), name="driver-availability"),
-    path("", include("support_center.driver_urls")),
+    path("", include(driver_urlpatterns)),
     path("", include("notifications.driver_urls")),
     path("earnings/summary/", views.DriverEarningsSummaryView.as_view(), name="driver-earnings-summary"),
     path("earnings/history/", views.DriverEarningsHistoryView.as_view(), name="driver-earnings-history"),

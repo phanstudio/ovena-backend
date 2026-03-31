@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
-from driver_api.models import SupportFAQCategory, SupportFAQItem, SupportTicket, SupportTicketMessage
+from driver_api.models import SupportFAQCategory, SupportFAQItem
+from support_center.models import SupportTicket, SupportTicketMessage
 
 
 class FAQCategorySerializer(serializers.ModelSerializer):
@@ -68,4 +69,24 @@ class TicketMessageCreateSerializer(serializers.Serializer):
         required=False,
         default=list,
     )
+
+
+class BusinessTicketListSerializer(TicketListSerializer):
+    pass
+
+
+class BusinessTicketCreateSerializer(TicketCreateSerializer):
+    pass
+
+
+class BusinessTicketDetailSerializer(TicketDetailSerializer):
+    pass
+
+
+class BusinessTicketMessageSerializer(TicketMessageSerializer):
+    pass
+
+
+class BusinessTicketMessageCreateSerializer(TicketMessageCreateSerializer):
+    pass
 

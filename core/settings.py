@@ -312,7 +312,7 @@ db_config.update({
     "CONN_MAX_AGE": 60,
     "CONN_HEALTH_CHECKS": True,
     "OPTIONS": {
-        "connect_timeout": 3,
+        "connect_timeout": 30,#3,
         "client_encoding": "UTF8",
     },
     "POOL": {

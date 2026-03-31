@@ -11,9 +11,8 @@ from driver_api.models import (
     DriverWithdrawalRequest,
     SupportFAQCategory,
     SupportFAQItem,
-    SupportTicket,
-    SupportTicketMessage,
 )
+from support_center.models import SupportTicket, SupportTicketMessage
 
 
 class DriverDashboardSerializer(serializers.Serializer):
