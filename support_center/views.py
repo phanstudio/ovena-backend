@@ -26,6 +26,9 @@ from support_center.services import (
     get_active_faq_queryset, create_support_ticket, 
     create_support_ticket_message, Role
 )
+from rest_framework.viewsets import GenericViewSet
+from rest_framework.decorators import action
+from rest_framework.mixins import ListModelMixin, CreateModelMixin, RetrieveModelMixin
 
 
 class SupportPagination(LimitOffsetPagination):
@@ -59,9 +62,17 @@ class DriverFAQListView(BaseDriverSupportAPIView):
         qs = get_active_faq_queryset()
         return Response({"detail": "FAQ list", "data": FAQItemSerializer(qs, many=True).data})
 
-class BaseSupportTicketAPIView(GenericAPIView):
+class BaseSupportTicketViewSet(
+    ListModelMixin,
+    CreateModelMixin,
+    RetrieveModelMixin,
+    GenericViewSet
+):
 
     pagination_class = SupportPagination
+
+    owner_role = None
+    sender_role = None
 
     list_serializer = None
     detail_serializer = None
@@ -69,36 +80,31 @@ class BaseSupportTicketAPIView(GenericAPIView):
     message_serializer = None
     message_create_serializer = None
 
-    owner_role = None # can change the role from str to the role object?
-    sender_role = None
-
-    def get_queryset(self, request):
+    def get_queryset(self):
         return SupportTicket.objects.filter(
-            owner_role=self.owner_role,
-            owner=request.user
+            owner=self.request.user,
+            owner_role=self.owner_role.value
         ).order_by("-created_at")
 
-class SupportTicketListCreateView(BaseSupportTicketAPIView):
+    def get_serializer_class(self):
 
-    @extend_schema(responses=TicketListSerializer)
-    def get(self, request):
-        qs = self.get_queryset(request)
+        if self.action == "list":
+            return self.list_serializer
 
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(qs, request)
+        if self.action == "retrieve":
+            return self.detail_serializer
 
-        ser = self.list_serializer(page, many=True)
+        if self.action == "create":
+            return self.create_serializer
 
-        return paginator.get_paginated_response({
-            "detail": "Support tickets",
-            "data": ser.data
-        })
+        return self.detail_serializer
 
     @extend_schema(
         request=TicketCreateSerializer,
         responses=TicketDetailSerializer
     )
-    def post(self, request):
+    def create(self, request, *args, **kwargs):
+
         serializer = self.create_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -109,6 +115,7 @@ class SupportTicketListCreateView(BaseSupportTicketAPIView):
             message=serializer.validated_data["description"],
             category=serializer.validated_data.get("category", "general"),
             priority=serializer.validated_data.get("priority"),
+            description=serializer.validated_data["description"],
         )
 
         return Response(
@@ -119,61 +126,22 @@ class SupportTicketListCreateView(BaseSupportTicketAPIView):
             status=status.HTTP_201_CREATED
         )
 
-class SupportTicketDetailView(BaseSupportTicketAPIView):
-    def get_ticket(self, request, ticket_id):
-        return get_object_or_404(
-            SupportTicket,
-            id=ticket_id,
-            owner_role=self.owner_role,
-            owner=request.user
-        )
+    @action(detail=True, methods=["get", "post"])
+    def messages(self, request, pk=None):
 
-    @extend_schema(responses=TicketDetailSerializer)
-    def get(self, request, ticket_id):
-        ticket = self.get_ticket(request, ticket_id)
-        return Response({
-            "detail": "Support ticket detail",
-            "data": self.detail_serializer(ticket).data
-        })
+        ticket = self.get_object()
 
-class SupportTicketMessageListCreateView(BaseSupportTicketAPIView):
+        if request.method == "GET":
 
-    def get_ticket(self, request, ticket_id):
-        return get_object_or_404(
-            SupportTicket,
-            id=ticket_id,
-            owner_role=self.owner_role,
-            owner=request.user
-        )
+            qs = SupportTicketMessage.objects.filter(ticket=ticket)
 
-    @extend_schema(responses=TicketMessageSerializer)
-    def get(self, request, ticket_id):
+            paginator = self.pagination_class()
+            page = paginator.paginate_queryset(qs, request)
 
-        ticket = self.get_ticket(request, ticket_id)
-
-        qs = SupportTicketMessage.objects.filter(ticket=ticket).order_by("created_at")
-
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(qs, request)
-
-        return paginator.get_paginated_response({
-            "detail": "Ticket messages",
-            "data": self.message_serializer(page, many=True).data
-        })
-
-    @extend_schema(
-        request=TicketMessageCreateSerializer,
-        responses=TicketMessageSerializer
-    )
-    def post(self, request, ticket_id):
-
-        ticket = self.get_ticket(request, ticket_id)
-
-        if ticket.status == SupportTicket.STATUS_CLOSED:
-            return Response(
-                {"detail": "Ticket is closed"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return paginator.get_paginated_response({
+                "detail": "Ticket messages",
+                "data": self.message_serializer(page, many=True).data
+            })
 
         serializer = self.message_create_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -194,9 +162,9 @@ class SupportTicketMessageListCreateView(BaseSupportTicketAPIView):
             status=status.HTTP_201_CREATED
         )
 
-class DriverSupportTicketListCreateView(
+class DriverSupportTicketViewSet(
     BaseDriverSupportAPIView,
-    SupportTicketListCreateView
+    BaseSupportTicketViewSet
 ):
 
     owner_role = Role.OWNER_DRIVER
@@ -208,9 +176,15 @@ class DriverSupportTicketListCreateView(
     message_serializer = TicketMessageSerializer
     message_create_serializer = TicketMessageCreateSerializer
 
-class BusinessSupportTicketListCreateView(
+    @extend_schema(methods=["GET"], responses=TicketMessageSerializer(many=True))
+    @extend_schema(methods=["POST"], request=TicketMessageCreateSerializer, responses=TicketMessageSerializer)
+    @action(detail=True, methods=["get", "post"])
+    def messages(self, request, pk=None):
+        return super().messages(request, pk=pk)
+
+class BusinessSupportTicketViewSet(
     BaseBusinessSupportAPIView,
-    SupportTicketListCreateView
+    BaseSupportTicketViewSet
 ):
 
     owner_role = Role.OWNER_BUSINESS_ADMIN
@@ -222,9 +196,11 @@ class BusinessSupportTicketListCreateView(
     message_serializer = BusinessTicketMessageSerializer
     message_create_serializer = BusinessTicketMessageCreateSerializer
 
-
-
-
+    @extend_schema(methods=["GET"], responses=BusinessTicketMessageSerializer(many=True))
+    @extend_schema(methods=["POST"], request=BusinessTicketMessageCreateSerializer, responses=BusinessTicketMessageSerializer)
+    @action(detail=True, methods=["get", "post"])
+    def messages(self, request, pk=None):
+        return super().messages(request, pk=pk)
 
 # we need system views
 # we need customer views

@@ -29,7 +29,7 @@ urlpatterns = [
     path("list-branches/", views.BranchListView.as_view(), name="list-branches"),
     path("branch/edit/", views.BranchCreateUpdateView.as_view(), name="branch-edit"),
     path("branches/", include(branch_urlpatterns)),
-    path("", include("support_center.business_urls")),
+    path("", include("support_center.urls.buisness")),
     path("staff/list", views.StaffListView.as_view(), name="staff-list"),
     path("staff/revoke", views.StaffRevokeView.as_view(), name="staff-revoke"),
 ]

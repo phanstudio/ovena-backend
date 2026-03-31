@@ -46,7 +46,7 @@ def create_support_ticket(
         priority:str = SupportTicket.PRIORITY_LOW, category:str = "general",
         subject:str, message:str, description:str = "", 
     ):
-    check_user_role(role)
+    check_user_role(user, role)
     ticket = SupportTicket.objects.create(
         owner=user,
         owner_role=role.value,
@@ -77,7 +77,7 @@ def check_user_role(user:User, role:Role|SenderRole):
     # leaving space for support role checks
 
 def create_user_reply(user:User, role:Role|SenderRole, ticket:SupportTicket, **kwargs):
-    check_user_role(role)
+    check_user_role(user, role)
     return create_support_ticket_message(role, ticket, user=user, **kwargs)
 
 def create_system_reply(ticket:SupportTicket, message: str):
