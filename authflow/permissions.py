@@ -33,4 +33,9 @@ class IsBusinessAgent(permissions.BasePermission):
         return False
 
 def valid_staff(request): # can i return revoked
-    return ((not request.user.primaryagent.revoked) and has_role(request, PROFILE_BUSINESS_STAFF))
+    primaryagent = getattr(request.user, "primaryagent", None)
+    return bool(
+        primaryagent
+        and not primaryagent.revoked
+        and has_role(request, PROFILE_BUSINESS_STAFF)
+    )

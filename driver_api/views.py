@@ -4,7 +4,6 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.generics import GenericAPIView, ListAPIView
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -43,7 +42,6 @@ from driver_api.services import (
 )
 from driver_api.tasks import process_withdrawal, process_withdrawal_request
 from notifications.services import get_driver_unread_count
-from payments.webhooks.paystack import handle_paystack_webhook
 from support_center.services import get_driver_open_ticket_count
 
 class BaseDriverAPIView(APIView):
@@ -347,19 +345,3 @@ class DriverAnalysisPerformanceView(BaseDriverAPIView):
             granularity=vd.get("granularity", "day"),
         )
         return Response({"detail": "Performance analysis", "data": data})
-
-
-class PaystackWithdrawalWebhookView(APIView):
-    authentication_classes = []
-    permission_classes = []
-
-    def post(self, request):
-        status_code, detail = handle_paystack_webhook(
-            payload_bytes=request.body or b"",
-            signature=request.headers.get("x-paystack-signature", ""),
-            parsed_body=request.data,
-            transfer_only=True,
-            request_id=request.headers.get("X-Request-ID", ""),
-        )
-        return Response({"detail": detail}, status=status_code)
-

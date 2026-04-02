@@ -5,7 +5,6 @@ class AdminUpdateSerializer(serializers.Serializer):
     full_name = serializers.CharField(required=False, allow_blank=True)
     email = serializers.CharField(required=False, allow_blank=True)
 
-
 class BusinessMetricsQuerySerializer(serializers.Serializer):
     RANGE_CHOICES = ("today", "7d", "30d", "custom")
     range = serializers.ChoiceField(choices=RANGE_CHOICES, default="30d")
@@ -20,7 +19,6 @@ class BusinessMetricsQuerySerializer(serializers.Serializer):
                 raise serializers.ValidationError("from_date cannot be after to_date.")
         return attrs
 
-
 class BusinessTransactionHistoryQuerySerializer(BusinessMetricsQuerySerializer):
     transaction_type = serializers.ChoiceField(
         choices=("all", "credit", "debit", "reversal", "withdrawal"),
@@ -29,7 +27,6 @@ class BusinessTransactionHistoryQuerySerializer(BusinessMetricsQuerySerializer):
     )
     withdrawal_status = serializers.CharField(required=False, allow_blank=True)
     
-
 
 class AdminTransactionPinSerializer(serializers.Serializer):
     current_pin = serializers.CharField(required=False, allow_blank=True, min_length=4, max_length=4)

@@ -3,13 +3,13 @@ from django.urls import path, include
 # from menu.views import BatchGenerateUploadURLView, RegisterMenusPhase3View
 
 from business_api import views
+from .routers import BaseBranchRouter
+
+router = BaseBranchRouter()
 
 branch_urlpatterns = [
+    *router.register("hours", views.BranchOperatingHoursView),
     # no branch (admin = all, staff = own) # might add all later
-    path("hours/", views.BranchOperatingHoursView.as_view()),
-
-    # specific branch
-    path("<int:branch_id>/hours/", views.BranchOperatingHoursView.as_view()),
 ]
 
 urlpatterns = [

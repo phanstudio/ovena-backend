@@ -1,14 +1,14 @@
 from django.urls import path, include
 import menu.views as views
 import menu.views.business as bmenuview
+from business_api.routers import BaseBranchRouter
+
+router = BaseBranchRouter("")
 
 
 business_urls =[
-    path("business/menu-list", bmenuview.MenuView.as_view(), name="business-menu-list"),
-
-    # branch things
-    path("availability/bulk-update/", bmenuview.AvaliabilityView.as_view(), name="update-availability"),
-    path("availability/", bmenuview.AvailabilityListView.as_view(), name="availability"),
+    *router.register("availability", bmenuview.AvailabilityListView),
+    *router.register("availability/bulk-update", bmenuview.AvaliabilityView)
 ]
 
 urlpatterns = [

@@ -2,20 +2,26 @@ from rest_framework import serializers
 from accounts.models import (
     Branch, PrimaryAgent
 )
+from addresses.serializers import LocationFieldMixin
 
-class BranchlistSerializer(serializers.ModelSerializer):
+class BranchlistSerializer(LocationFieldMixin, serializers.ModelSerializer):
+    location = serializers.SerializerMethodField()
     class Meta:
         model = Branch
         fields = [
             "id",
             "name",
             "created_at",
+            "address",
+            "location"
         ]
 
-class PrimaryAgentBranchSerializer(serializers.ModelSerializer):
+class PrimaryAgentBranchSerializer(LocationFieldMixin, serializers.ModelSerializer):
     branch_name = serializers.CharField(source="branch.name", read_only=True)
     branch_id = serializers.IntegerField(source="branch.id", read_only=True)
-    branch_location = serializers.SerializerMethodField()
+    branch_address = serializers.CharField(source="branch.address", read_only=True)
+    branch_location = serializers.SerializerMethodField(method_name="get_location")
+    location_field = "branch.location"
     user_name = serializers.CharField(source="user.name", read_only=True)
 
     class Meta:
@@ -27,16 +33,8 @@ class PrimaryAgentBranchSerializer(serializers.ModelSerializer):
             "branch_id",
             "branch_name",
             "branch_location",
+            "branch_address"
         ]
-
-    def get_branch_location(self, obj):
-        # Returns a dict of lat/lng
-        if obj.branch.location:
-            return {
-                "latitude": obj.branch.location.y,
-                "longitude": obj.branch.location.x,
-            }
-        return None
 
 class BuisnessResponse(serializers.Serializer):
     detail = serializers.CharField()

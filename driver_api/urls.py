@@ -13,6 +13,5 @@ urlpatterns = [
     path("withdrawals/eligibility/", views.DriverWithdrawEligibilityView.as_view(), name="driver-withdrawals-eligibility"),
     path("withdrawals/", views.DriverWithdrawListCreateView.as_view(), name="driver-withdrawals"),
     path("withdrawals/<int:withdrawal_id>/", views.DriverWithdrawDetailView.as_view(), name="driver-withdrawal-detail"),
-    path("withdrawals/paystack/webhook/", views.PaystackWithdrawalWebhookView.as_view(), name="driver-withdrawals-paystack-webhook"),
     path("analysis/performance/", views.DriverAnalysisPerformanceView.as_view(), name="driver-analysis-performance"),
 ]

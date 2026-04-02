@@ -452,6 +452,7 @@ class PasswordResetView(GenericAPIView):
 
         return Response({"message": "Password updated successfully"})
 
+@extend_schema(auth=[])
 class StaffLoginView(GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = InS.LinkStaffLoginSerializer
@@ -471,13 +472,13 @@ class StaffLoginView(GenericAPIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        if not buisness_staff.revoked:
+        if buisness_staff.revoked:
             return Response(
                 {"error": "Account revoked"},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # if not user or not user.check_password(vd["password"]):
+        # if not user or not user.check_password(vd["password"]): # add this later after we remove
         #     return Response(
         #         {"error": "Invalid credentials"},
         #         status=status.HTTP_401_UNAUTHORIZED

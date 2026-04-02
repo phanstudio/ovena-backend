@@ -20,7 +20,7 @@ from accounts.models import (
 )
 from business_api.serializers import InS, OpS
 from addresses.utils import checkset_location
-from authflow.authentication import CustomBAdminAuth, CustomBStaffAuth
+from authflow.authentication import CustomBAdminAuth, CustomBusinessAgentsAuth
 from authflow.permissions import IsBusinessAdmin, IsBusinessAgent
 from payments.idempotency import IdempotencyConflictError, begin_idempotent_request, save_idempotent_response
 from payments.models import LedgerEntry, Withdrawal
@@ -31,6 +31,7 @@ from accounts.serializers import InS as acInS
 from drf_spectacular.utils import extend_schema # type: ignore
 from menu.models import Order
 from ratings.models import BranchRating
+from abc import ABC
 
 def _decimal_sum(field_name: str):
     return Coalesce(
@@ -113,6 +114,25 @@ def _select_trunc(start, end):
 
     return TruncWeek
 
+class AbstractBuStAdBranchView(GenericAPIView, ABC):
+    authentication_classes = [
+        # CustomBStaffAuth,
+        # CustomBAdminAuth
+        CustomBusinessAgentsAuth
+    ]
+    permission_classes = [IsBusinessAgent]
+
+    branch = None
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+
+        branch_id = kwargs.get("branch_id")
+
+        try:
+            self.branch = _resolve_branch(request, branch_id)
+        except PermissionDenied as e:
+            raise PermissionDenied(str(e))
 
 class businessLimitOffsetPagination(LimitOffsetPagination):
     default_limit = 20
@@ -260,25 +280,13 @@ class BuisnessUpdateView(BaseBuisAdminAPIView):
         user.save()
         return Response({"detail": "User updated."})
 
-# in the put we are changing everything
-class BranchOperatingHoursView(APIView):
-    authentication_classes = [
-        CustomBStaffAuth, 
-        CustomBAdminAuth
-    ]
-    permission_classes = [IsBusinessAgent]
-
+class BranchOperatingHoursView(AbstractBuStAdBranchView):
     @extend_schema(
         responses=acInS.BranchOperatingHoursSerializer,
         description="Update branch details."
     )
-    def get(self, request, branch_id=None):
-        try:
-            branch = _resolve_branch(request, branch_id)
-        except PermissionDenied as e:
-            return Response({"detail": str(e)}, status=403)
-
-        hours = BranchOperatingHours.objects.filter(branch=branch).order_by("day")
+    def get(self, request, *args, **kwargs):
+        hours = BranchOperatingHours.objects.filter(branch=self.branch).order_by("day")
         serializer = acInS.BranchOperatingHoursSerializer(hours, many=True)
         return Response(serializer.data)
 
@@ -287,19 +295,14 @@ class BranchOperatingHoursView(APIView):
         responses={200: OpS.BuisnessResponse},
         description="Update branch details."
     )
-    def put(self, request, branch_id):
-        try:
-            branch = _resolve_branch(request, branch_id)
-        except PermissionDenied as e:
-            return Response({"detail": str(e)}, status=403)
-
+    def put(self, request, *args, **kwargs):
         serializer = acInS.BranchOperatingHoursSerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
 
         with transaction.atomic():
-            BranchOperatingHours.objects.filter(branch=branch).delete()
+            BranchOperatingHours.objects.filter(branch=self.branch).delete()
             BranchOperatingHours.objects.bulk_create([
-                BranchOperatingHours(branch=branch, **h)
+                BranchOperatingHours(branch=self.branch, **h)
                 for h in serializer.validated_data
             ])
 

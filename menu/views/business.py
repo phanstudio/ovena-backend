@@ -13,6 +13,7 @@ from accounts.models import User
 from authflow.permissions import IsBusinessAdmin, IsBusinessStaff
 from authflow.authentication import CustomBAdminAuth, CustomBStaffAuth
 from django.db import transaction
+from business_api.views import AbstractBuStAdBranchView
 
 import logging
 from django.db.models import Q
@@ -87,19 +88,14 @@ class BaseBuisStaffAPIView(GenericAPIView):
         return branch, error
 
 # not sure if it wil be this direct sha must likely not be
-class AvailabilityListView(BaseBuisStaffAPIView):
+class AvailabilityListView(AbstractBuStAdBranchView):
     serializer_class = InS.ItemAvailabilityListSerializer
     pagination_class = StandardResultsSetPagination
  
-    def get(self, request):
-
-        branch, error = self.get_branch_staff(request)
-        if error:
-            return error
-
+    def get(self, request, *args, **kwargs):
         queryset = (
             BaseItemAvailability.objects
-            .filter(branch=branch)
+            .filter(branch=self.branch)
             .select_related("base_item")
         )
 
@@ -148,25 +144,20 @@ class AvailabilityListView(BaseBuisStaffAPIView):
 
         return Response(serializer.data)
 
-class AvaliabilityView(BaseBuisStaffAPIView):
+class AvaliabilityView(AbstractBuStAdBranchView):
     queryset = BaseItemAvailability.objects.all()
     serializer_class = InS.BulkItemAvailabilityUpdateSerializer
 
-    def patch(self, request):
+    def patch(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        user = request.user
-        branch, error = self.get_branch_staff(user)
-        if error:
-            return error
 
         items = serializer.validated_data["items"]
 
         base_item_ids = [item["id"] for item in items]
 
         availabilities = BaseItemAvailability.objects.filter(
-            branch=branch,
+            branch=self.branch,
             base_item_id__in=base_item_ids
         )
 
@@ -190,3 +181,109 @@ class AvaliabilityView(BaseBuisStaffAPIView):
             "detail": "Bulk availability updated",
             "updated_count": len(updated_objects)
         })
+
+
+# class AvailabilityListView(BaseBuisStaffAPIView):
+#     serializer_class = InS.ItemAvailabilityListSerializer
+#     pagination_class = StandardResultsSetPagination
+ 
+#     def get(self, request):
+
+#         branch, error = self.get_branch_staff(request)
+#         if error:
+#             return error
+
+#         queryset = (
+#             BaseItemAvailability.objects
+#             .filter(branch=branch)
+#             .select_related("base_item")
+#         )
+
+#         # -------------------
+#         # FILTER: availability
+#         # -------------------
+#         is_available = request.query_params.get("available")
+#         if is_available is not None:
+#             queryset = queryset.filter(
+#                 is_available=is_available.lower() == "true"
+#             )
+
+#         # -------------------
+#         # FILTER: search (name)
+#         # -------------------
+#         search = request.query_params.get("search")
+#         if search:
+#             queryset = queryset.filter(
+#                 base_item__name__icontains=search
+#             )
+
+#         # -------------------
+#         # FILTER: category
+#         # -------------------
+#         category = request.query_params.get("category")
+#         if category:
+#             category_ids = [int(c) for c in category.split(",")]
+
+#             queryset = queryset.filter(
+#                 base_item__menu_items__category_id__in=category_ids
+#             ).distinct()
+
+#         # -------------------
+#         # ORDERING
+#         # -------------------
+#         queryset = queryset.order_by("base_item__name")
+
+#         # -------------------
+#         # PAGINATION
+#         # -------------------
+#         page = self.paginate_queryset(queryset)
+#         serializer = self.get_serializer(page or queryset, many=True)
+
+#         if page is not None:
+#             return self.get_paginated_response(serializer.data)
+
+#         return Response(serializer.data)
+
+# class AvaliabilityView(BaseBuisStaffAPIView):
+#     queryset = BaseItemAvailability.objects.all()
+#     serializer_class = InS.BulkItemAvailabilityUpdateSerializer
+
+#     def patch(self, request):
+#         serializer = self.get_serializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+
+#         user = request.user
+#         branch, error = self.get_branch_staff(user)
+#         if error:
+#             return error
+
+#         items = serializer.validated_data["items"]
+
+#         base_item_ids = [item["id"] for item in items]
+
+#         availabilities = BaseItemAvailability.objects.filter(
+#             branch=branch,
+#             base_item_id__in=base_item_ids
+#         )
+
+#         availability_map = {a.base_item_id: a for a in availabilities}
+
+#         updated_objects = []
+
+#         for item in items:
+#             obj = availability_map.get(item["id"])
+#             if obj:
+#                 obj.is_available = item["is_available"]
+#                 updated_objects.append(obj)
+
+#         with transaction.atomic():
+#             BaseItemAvailability.objects.bulk_update(
+#                 updated_objects,
+#                 ["is_available"]
+#             )
+
+#         return Response({
+#             "detail": "Bulk availability updated",
+#             "updated_count": len(updated_objects)
+#         })
+

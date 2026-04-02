@@ -1,11 +1,9 @@
-from django.conf import settings
 from rest_framework.authentication import BaseAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication as SimpleJWTAuth
 from rest_framework_simplejwt.exceptions import AuthenticationFailed, InvalidToken
 from django.utils.translation import gettext_lazy as _
 from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.utils import get_md5_hash_password
-# from accounts.services.roles import has_role
 from accounts.services.profiles import (
     PROFILE_BUSINESS_ADMIN,
     PROFILE_CUSTOMER,
