@@ -9,7 +9,7 @@ router = BaseBranchRouter("")
 business_urls =[
     *router.register("availability", bmenuview.AvailabilityListView),
     *router.register("availability/bulk-update", bmenuview.AvaliabilityView),
-    path("business/menu-list", bmenuview.MenuView.as_view(), name="business-menu-list"),
+    path("business/menu-list/", bmenuview.MenuView.as_view(), name="business-menu-list"),
 ]
 
 urlpatterns = [
