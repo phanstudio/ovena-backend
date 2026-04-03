@@ -1,6 +1,6 @@
 from django.urls import path, include
 from .views import (
-    VerifyOTPView, UserProfileView, DeleteAccountView, UpdateBranch, Delete2AccountView,
+    VerifyOTPView, UserProfileView, DeleteAccountView, Delete2AccountView,
     OAuthExchangeView, RegisterCustomer, UpdateCustomer, LinkApproveView,
     jwt_views, SendEmailOTPView, VerifyEmailOTPView, SendPhoneOTPView,
     PasswordResetView, AdminLoginView, DriverLoginView, LinkRequestCreateView, 
@@ -64,7 +64,6 @@ urlpatterns = [
     path("send-email-otp/", SendEmailOTPView.as_view(), name="send-email-otp"),
     path("verify-email-otp/", VerifyEmailOTPView.as_view(), name="verify-email-otp"),
 
-    path("branches/<int:branch_id>/update/", UpdateBranch.as_view()),
     path("", include(token_urls)),
     path("onboard/", include(onboarding_urls)),
     path("onboard/driver/", include(driver_onboarding_urls)),

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 import json
+from phonenumber_field.serializerfields import PhoneNumberField # type: ignore
 
 # from accounts.models import (
 #     DriverProfile, DriverCred, DriverAvailability,
@@ -30,7 +31,7 @@ COMPLIANCE_QUESTIONS = [
 class OnboardingPhase1InputSerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=80)
     last_name = serializers.CharField(max_length=80)
-    phone_number = serializers.CharField(max_length=18)
+    phone_number = PhoneNumberField()
     password = serializers.CharField()
     email = serializers.EmailField()
     gender = serializers.ChoiceField(choices=["male", "female", "other", "na"])
@@ -39,7 +40,7 @@ class OnboardingPhase1InputSerializer(serializers.Serializer):
 
     # Next of kin (stored in DriverCred)
     next_of_kin_name = serializers.CharField(max_length=160)
-    next_of_kin_phone = serializers.CharField(max_length=18)
+    next_of_kin_phone = PhoneNumberField()
     next_of_kin_address = serializers.CharField()  # stored in answers
     referre_code = serializers.CharField(required=False, allow_blank=True, max_length=20)
 
@@ -65,7 +66,7 @@ class OnboardingPhase1OutputSerializer(serializers.Serializer):
     status = serializers.CharField()
     first_name = serializers.CharField()
     last_name = serializers.CharField()
-    phone_number = serializers.CharField()
+    phone_number = PhoneNumberField()
     email = serializers.EmailField()
     gender = serializers.CharField()
     birth_date = serializers.DateField()

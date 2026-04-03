@@ -1,5 +1,3 @@
-
-from django.conf import settings
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -43,6 +41,7 @@ from driver_api.services import (
 from driver_api.tasks import process_withdrawal, process_withdrawal_request
 from notifications.services import get_driver_unread_count
 from support_center.services import get_driver_open_ticket_count
+from authflow.services.phone_number import get_phone_number
 
 class BaseDriverAPIView(APIView):
     authentication_classes = [CustomDriverAuth]
@@ -106,7 +105,7 @@ class DriverProfileView(BaseDriverAPIView):
             "gender": driver.gender, 
             "birth_date": driver.birth_date, # mfr
             "residential_address": driver.residential_address, # mfr
-            "phone_number": request.user.phone_number or "", # mfr
+            "phone_number": get_phone_number(request.user) or "", # mfr
             "email": request.user.email or "", # mfr
             "vehicle_make": driver.vehicle_make or "",
             "vehicle_type": driver.vehicle_type or "",

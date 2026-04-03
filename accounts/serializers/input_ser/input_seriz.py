@@ -1,15 +1,21 @@
 from rest_framework import serializers
+from phonenumber_field.serializerfields import PhoneNumberField # type: ignore
+from enum import Enum
+
+class SendType(Enum):
+    PHONE = "phone"
+    EMAIL = "email"
 
 class AdminLoginSerializer(serializers.Serializer):
-    phone_number = serializers.CharField()
+    phone_number = PhoneNumberField()
     password = serializers.CharField()
 
 class DriverLoginSerializer(serializers.Serializer):
-    phone_number = serializers.CharField()
+    phone_number = PhoneNumberField()
     password = serializers.CharField()
 
 class PasswordResetSerializer(serializers.Serializer):
-    phone_number = serializers.CharField()
+    phone_number = PhoneNumberField()
     new_password = serializers.CharField()
     otp_code = serializers.CharField()
 
@@ -21,7 +27,7 @@ class LinkApproveSerializer(serializers.Serializer):
     otp = serializers.CharField()
     device_id = serializers.CharField()
     branch_id = serializers.IntegerField()
-    phone_number = serializers.CharField()
+    phone_number = PhoneNumberField()
     username = serializers.CharField(required=False, allow_blank=True)
     # password = serializers.CharField()
 
@@ -30,34 +36,44 @@ class LinkStaffLoginSerializer(serializers.Serializer):
     # password = serializers.CharField()
     # branch_id = serializers.CharField() or int
 
-# phone number reated check later
-# import phonenumbers
-# from rest_framework import serializers
+class BaseVerifyOtpSerizer(serializers.Serializer):
+    otp_code = serializers.CharField(required=False, allow_blank=True)
 
-# class PhoneField(serializers.CharField):
-#     def __init__(self, default_region="NG", **kwargs):
-#         super().__init__(**kwargs)
-#         self.default_region = default_region
+class PhonenumberOptSerializer(BaseVerifyOtpSerizer):
+    phone_number = PhoneNumberField()
 
-#     def to_internal_value(self, data):
-#         raw = super().to_internal_value(data).strip()
+class EmailOptSerializer(BaseVerifyOtpSerizer):
+    email = serializers.EmailField()
 
-#         # handle "234xxxxxxxxxx" -> "+234xxxxxxxxxx"
-#         if raw.isdigit() and len(raw) >= 11 and raw.startswith("234"):
-#             raw = "+" + raw
+class PhonenumberSendOptSerializer(serializers.Serializer):
+    phone_number = PhoneNumberField()
 
-#         try:
-#             # If raw doesn't start with +, parse with default region
-#             if raw.startswith("+"):
-#                 num = phonenumbers.parse(raw, None)
-#             else:
-#                 num = phonenumbers.parse(raw, self.default_region)
+class EmailOptSendSerializer(serializers.Serializer):
+    email = serializers.EmailField()
 
-#             if not phonenumbers.is_valid_number(num):
-#                 raise serializers.ValidationError("Invalid phone number")
+class PasswordResetSendSerializer(serializers.Serializer):
+    send_type = serializers.ChoiceField(choices=[e.value for e in SendType])
+    phone_number = PhoneNumberField(required=False, allow_null=True)
+    email = serializers.EmailField(required=False, allow_null=True)
 
-#             # Normalize to E.164
-#             return phonenumbers.format_number(num, phonenumbers.PhoneNumberFormat.E164)
+    def validate(self, data):
+        send_type = data.get("send_type")
+        phone = data.get("phone_number")
+        email = data.get("email")
 
-#         except phonenumbers.NumberParseException:
-#             raise serializers.ValidationError("Invalid phone number")
+        if send_type == SendType.PHONE.value:
+            if not phone:
+                raise serializers.ValidationError({
+                    "phone_number": f"This field is required when send_type is '{send_type}'."
+                })
+
+        elif send_type == SendType.EMAIL.value:
+            if not email:
+                raise serializers.ValidationError({
+                    "email": f"This field is required when send_type is '{send_type}'."
+                })
+
+        return data
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField()

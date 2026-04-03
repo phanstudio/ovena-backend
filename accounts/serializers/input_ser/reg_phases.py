@@ -1,6 +1,7 @@
 from rest_framework import serializers
 import pycountry # type: ignore
 import json
+from phonenumber_field.serializerfields import PhoneNumberField # type: ignore
     
 class RestaurantPhase1Serializer(serializers.Serializer):
     business_name = serializers.CharField(max_length=255)
@@ -8,7 +9,7 @@ class RestaurantPhase1Serializer(serializers.Serializer):
     country = serializers.CharField(max_length=100)
     business_address = serializers.CharField(max_length=500)
     email = serializers.EmailField()
-    phone_number = serializers.CharField(max_length=20)
+    phone_number = PhoneNumberField(max_length=20)
     password = serializers.CharField(write_only=True)
 
     def validate_country(self, value): # ask if they can handel convertion themselves
@@ -35,7 +36,7 @@ class BranchOperatingHoursSerializer(serializers.Serializer):
     is_closed = serializers.BooleanField(default=False)
 
 
-class BranchInputSerializer(serializers.Serializer):
+class BranchInputSerializer(serializers.Serializer): 
     name = serializers.CharField(max_length=200)
     address = serializers.CharField(max_length=500, required=False, default="")
     latitude = serializers.FloatField(required=False)
@@ -104,5 +105,5 @@ class RestaurantPhase2Serializer(serializers.Serializer):
 
 class RegisterBAdminSerializer(serializers.Serializer):
     full_name = serializers.CharField()
-    phone_number = serializers.CharField()
+    phone_number = PhoneNumberField()
     otp_code = serializers.CharField()

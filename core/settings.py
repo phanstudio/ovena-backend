@@ -59,6 +59,7 @@ THIRD_PARTY_APPS = [
     "drf_spectacular_sidecar",
     'corsheaders',
     "anymail",
+    "phonenumber_field",
 ]
 
 LOCAL_APPS = [
@@ -375,6 +376,9 @@ ANYMAIL = {
 PRODUCT_NAME = "Newbutt"
 WEBSITE_URL = "https://newbutt.buzz/"
 EMAIL_LOGO_URL = "https://res.cloudinary.com/daxdh7b3t/image/upload/v1767957815/1f2b751b-cc9a-42cd-a623-05b0febc4472.webp" 
+
+PHONENUMBER_DEFAULT_REGION = "NG"
+PHONENUMBER_DB_FORMAT = "E164"
 
 # TIMEZONE & LANGUAGE
 LANGUAGE_CODE = "en-us"

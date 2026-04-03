@@ -13,6 +13,7 @@ from driver_api.models import (
     SupportFAQItem,
 )
 from support_center.models import SupportTicket, SupportTicketMessage
+from phonenumber_field.serializerfields import PhoneNumberField  # type: ignore
 
 
 class DriverDashboardSerializer(serializers.Serializer):
@@ -29,7 +30,7 @@ class DriverProfileSerializer(serializers.Serializer):
     gender = serializers.CharField(required=False, allow_blank=True)
     birth_date = serializers.DateField(required=False, allow_null=True)
     residential_address = serializers.CharField(required=False, allow_blank=True)
-    phone_number = serializers.CharField(required=False, allow_blank=True)
+    phone_number = PhoneNumberField(required=False, allow_null=True)
     email = serializers.EmailField(required=False, allow_blank=True)
     vehicle_make = serializers.CharField(required=False, allow_blank=True)
     vehicle_type = serializers.CharField(required=False, allow_blank=True)

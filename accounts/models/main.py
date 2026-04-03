@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 from django.contrib.gis.db import models as gis_models
 from django.db import models
 from accounts.services.roles import get_user_roles, has_role_all as role_checker
+from phonenumber_field.modelfields import PhoneNumberField # type: ignore
 
 # if what we are check gets big i'm thing of having a separte model for cert inke in driver but only if it gets out of hand
 # and a main branch option, on creation of jwt for the resturant create add it to the token
@@ -19,7 +20,7 @@ class Business(models.Model):
     business_address = models.CharField(max_length=500, blank=True, default="")
 
     email = models.EmailField(blank=True, null=True)
-    phone_number = models.CharField(max_length=20, blank=True, default="")
+    phone_number = PhoneNumberField(blank=True)#CharField(max_length=20, blank=True, default="")
     business_image = models.ImageField(upload_to="business/images/", null=True, blank=True)
     # business_logo = models.ImageField(upload_to="business/logos/", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -123,7 +124,8 @@ class UserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, null=True, blank=True)
-    phone_number = models.CharField(max_length=18,  null=True, blank=True) #unique=True,
+    phone_number = PhoneNumberField(null=True, blank=True)
+    # models.CharField(max_length=18,  null=True, blank=True) #unique=True,
     name = models.CharField(max_length=150, blank=True, null= True)
     # username = models.CharField(max_length=150, blank=True, null= True)
 

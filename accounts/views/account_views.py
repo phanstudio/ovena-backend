@@ -15,7 +15,6 @@ from django.db import transaction, IntegrityError
 from authflow.services import (
     issue_jwt_for_user, verify, OTPInvalidError, OTPManager
 )
-from django.contrib.gis.geos import Point
 from authflow.authentication import CustomCustomerAuth, CustomBAdminAuth
 from authflow.permissions import IsBusinessAdmin
 from accounts.services.roles import get_user_roles
@@ -23,6 +22,7 @@ from accounts.services.profiles import PROFILE_BUSINESS_ADMIN, get_profile
 from drf_spectacular.utils import extend_schema, inline_serializer # type: ignore
 from rest_framework import serializers as s
 from accounts.serializers import InS, OpS
+from authflow.services.phone_number import get_phone_number
 
 
 class UserProfileView(APIView):
@@ -68,16 +68,11 @@ class UserProfileView(APIView):
             active_profile_type = "businessstaff"
         else:
             return Response({"detail": "No profile found for this user."}, status=status.HTTP_404_NOT_FOUND)
-
+        userserializer = OpS.UserSerializer(user)
         return Response({
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "phone_number": user.phone_number,
-                "name": user.name,
-                "roles": user_roles,
-                "active_profile_type": active_profile_type,
-            },
+            "user": userserializer.data,
+            "roles": user_roles,
+            "active_profile_type": active_profile_type,
             "profile": serializer.data,
         })
 
@@ -94,46 +89,6 @@ class DeleteAccountView(APIView): # will change to a soft delete
         user.delete()
         return Response(status=status.HTTP_204_NO_CONTENT) # remove the delete later
 
-class UpdateBranch(APIView):
-    def patch(self, request, branch_id):
-        lat = request.data.get("lat")
-        long = request.data.get("long")
-        phone_number = request.data.get("phone_number")
-        branch_name = request.data.get("branch_name")
-
-        update_data = {}
-
-        # ✅ Update location ONLY if both lat & long are provided
-        if lat is not None and long is not None:
-            update_data["location"] = Point(float(long), float(lat), srid=4326)
-
-        # ✅ Update phone number only if provided
-        if phone_number is not None:
-            update_data["phone_number"] = phone_number
-
-        # ✅ Update branch name only if provided
-        if branch_name is not None:
-            update_data["name"] = branch_name
-
-        if not update_data:
-            return Response(
-                {"detail": "No fields provided to update"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        updated = Branch.objects.filter(id=branch_id).update(**update_data)
-
-        if not updated:
-            return Response(
-                {"detail": "Branch not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        return Response(
-            {"detail": "Branch updated successfully"},
-            status=status.HTTP_200_OK,
-        )
-
 @extend_schema(
     responses={200: inline_serializer("LinkRequestCreateResponse", fields={"otp": s.CharField()})},
 )
@@ -142,7 +97,7 @@ class LinkRequestCreateView(GenericAPIView):
     permission_classes = [IsBusinessAdmin]
     def post(self, request):
         user = request.user
-        otp = OTPManager.send_blank(user.phone_number) # or id since it can be auto gen
+        otp = OTPManager.send_blank(get_phone_number(user)) # or id since it can be auto gen
         return Response({"otp": otp})
 
 # might add password

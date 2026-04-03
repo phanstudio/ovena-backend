@@ -1,9 +1,33 @@
+from phonenumber_field.serializerfields import PhoneNumberField  # type: ignore
 from rest_framework import serializers
+from accounts.models import User
 
 class AdminUpdateSerializer(serializers.Serializer):
-    phone_number = serializers.CharField(required=False, allow_blank=True)
+    phone_number = PhoneNumberField(required=False, allow_null=True)
     full_name = serializers.CharField(required=False, allow_blank=True)
-    email = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+
+    def validate_email(self, value):
+        if not value:
+            return None
+
+        user = self.context["request"].user
+
+        if User.objects.exclude(pk=user.pk).filter(email=value).exists():
+            raise serializers.ValidationError("Email already in use.")
+
+        return value
+
+    def validate_phone_number(self, value):
+        if not value:
+            return None
+
+        user = self.context["request"].user
+
+        if User.objects.exclude(pk=user.pk).filter(phone_number=value).exists():
+            raise serializers.ValidationError("Phone number already in use.")
+
+        return value
 
 class BusinessMetricsQuerySerializer(serializers.Serializer):
     RANGE_CHOICES = ("today", "7d", "30d", "custom")

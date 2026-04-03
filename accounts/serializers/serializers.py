@@ -15,6 +15,7 @@ from ..models import (
     PrimaryAgent
 )
 from referrals.services import apply_referral_code, ensure_profile_base
+from phonenumber_field.serializerfields import PhoneNumberField # type: ignore
 
 class AddressSerializer(serializers.ModelSerializer):
     # optional: return lat/lon as simple numbers
@@ -84,7 +85,7 @@ class OAuthCodeSerializer(serializers.Serializer):
 class CreateCustomerSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True)
     email = serializers.EmailField(required=False, allow_blank=True)
-    phone_number = serializers.CharField(required=False, allow_blank=True)
+    phone_number = PhoneNumberField(required=False, allow_null=True)
     lat = serializers.FloatField(required=False)
     long = serializers.FloatField(required=False)
     birth_date = serializers.DateField(required=False)
@@ -245,7 +246,7 @@ class CreateCustomerSerializer(serializers.Serializer):
 class UpdateCustomerSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True)
     email = serializers.EmailField(required=False, allow_blank=True)
-    phone_number = serializers.CharField(required=False, allow_blank=True)
+    phone_number = PhoneNumberField(required=False, allow_blank=True)
 
     lat = serializers.FloatField(required=False)
     long = serializers.FloatField(required=False)

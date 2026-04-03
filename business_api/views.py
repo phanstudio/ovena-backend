@@ -266,18 +266,31 @@ class StaffListView(BaseBuisAdminAPIView):
             "data": serializer.data
         })
 
-class BuisnessUpdateView(BaseBuisAdminAPIView):
+class BuisnessAdminUpdateView(BaseBuisAdminAPIView):
     serializer_class = InS.AdminUpdateSerializer
-    def put(self, request):
+    def patch(self, request):
         user:User = request.user
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
     
-        user.name = vd.get("full_name", user.name)
-        user.phone_number = vd.get("phone_number", user.phone_number)
-        user.email = vd.get("email", user.email)
-        user.save()
+        update_fields = []
+
+        if "full_name" in vd:
+            user.name = vd["full_name"]
+            update_fields.append("name")
+
+        if "phone_number" in vd:
+            user.phone_number = vd["phone_number"]
+            update_fields.append("phone_number")
+
+        if "email" in vd:
+            user.email = vd["email"]
+            update_fields.append("email")
+
+        if update_fields:
+            user.save(update_fields=update_fields)
+
         return Response({"detail": "User updated."})
 
 class BranchOperatingHoursView(AbstractBuStAdBranchView):
@@ -307,19 +320,6 @@ class BranchOperatingHoursView(AbstractBuStAdBranchView):
             ])
 
         return Response({"detail": "Operating hours updated."})
-
-# def get(self, request, branch_id=None):
-#     branch = getattr(request, "branch", None)
-
-#     if branch:
-#         queryset = BranchOperatingHours.objects.filter(branch=branch)
-#     else:
-#         queryset = BranchOperatingHours.objects.filter(
-#             branch__business=request.user.business_admin.business
-#         )
-
-#     serializer = InS.BranchOperatingHoursSerializer(queryset, many=True)
-#     return Response(serializer.data)
 
 class RestaurantPaymentView(APIView):
     authentication_classes = [CustomBAdminAuth]
@@ -368,7 +368,6 @@ class RestaurantPaymentView(APIView):
             },
         )
         return Response({"detail": "Payment info updated."})
-
 
 class BusinessWalletBalanceView(APIView):
     authentication_classes = [CustomBAdminAuth]
@@ -675,3 +674,16 @@ class BusinessTransactionHistoryView(BaseBuisAdminAPIView):
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(items, request)
         return paginator.get_paginated_response({"detail": "Transaction history", "data": page})
+
+# def get(self, request, branch_id=None):
+#     branch = getattr(request, "branch", None)
+
+#     if branch:
+#         queryset = BranchOperatingHours.objects.filter(branch=branch)
+#     else:
+#         queryset = BranchOperatingHours.objects.filter(
+#             branch__business=request.user.business_admin.business
+#         )
+
+#     serializer = InS.BranchOperatingHoursSerializer(queryset, many=True)
+#     return Response(serializer.data)

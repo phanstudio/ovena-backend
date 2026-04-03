@@ -1,10 +1,11 @@
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
+from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
-
+from accounts.serializers import InS
 from authflow.services import issue_jwt_for_user
 from django.contrib.auth import get_user_model
 
@@ -49,21 +50,22 @@ class RotateTokenView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
-class LogoutView(APIView):
-    permission_classes = [IsAuthenticated]
-
+class LogoutView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = InS.LogoutSerializer
     def post(self, request):
-        refresh_token = request.data.get("refresh")
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
 
         try:
-            token = RefreshToken(refresh_token)
+            token = RefreshToken(vd["refresh"])
             token.blacklist()
             return Response({"message": "Logged out"})
         except Exception:
             return Response({"error": "Invalid token"}, status=400)
 
-class LogInView(APIView): # can work with password
-    # permission_classes = [IsAuthenticated]
+class LogInView(APIView): # can work with password, will be removed
 
     def post(self, request):
         phone_number = request.data.get("phone_number")
