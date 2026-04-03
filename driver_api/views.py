@@ -12,7 +12,6 @@ from authflow.authentication import CustomDriverAuth
 from authflow.permissions import IsDriver
 from driver_api.models import (
     DriverLedgerEntry,
-    DriverNotification,
     DriverWithdrawalRequest,
     SupportFAQItem,
 )
@@ -20,7 +19,6 @@ from driver_api.serializers import (
     AnalysisPerformanceQuerySerializer,
     DriverAvailabilityUpdateSerializer,
     DriverDashboardSerializer,
-    DriverNotificationSerializer,
     DriverProfileSerializer,
     EarningsSummarySerializer,
     FAQItemSerializer,
@@ -28,7 +26,6 @@ from driver_api.serializers import (
     WithdrawalEligibilitySerializer,
     WithdrawalRequestCreateSerializer,
     WithdrawalRequestSerializer,
-    mark_notifications_read,
 )
 from driver_api.services import (
     create_withdrawal_request,
@@ -39,7 +36,6 @@ from driver_api.services import (
     sync_wallet_from_ledger,
 )
 from driver_api.tasks import process_withdrawal, process_withdrawal_request
-from notifications.services import get_driver_unread_count
 from support_center.services import get_driver_open_ticket_count
 from authflow.services.phone_number import get_phone_number
 
@@ -194,45 +190,6 @@ class DriverFAQListView(BaseDriverAPIView):
     def get(self, request):
         qs = SupportFAQItem.objects.filter(is_active=True, category__is_active=True).select_related("category")
         return Response({"detail": "FAQ list", "data": FAQItemSerializer(qs, many=True).data})
-
-
-class DriverNotificationListView(BaseDriverAPIView):
-    pagination_class = DriverLimitOffsetPagination
-
-    def get(self, request):
-        driver = self.get_driver(request)
-        qs = DriverNotification.objects.filter(driver=driver).order_by("-created_at")
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(qs, request)
-        return paginator.get_paginated_response(
-            {"detail": "Notifications", "data": DriverNotificationSerializer(page, many=True).data}
-        )
-
-
-class DriverNotificationUnreadCountView(BaseDriverAPIView):
-    def get(self, request):
-        driver = self.get_driver(request)
-        count = DriverNotification.objects.filter(driver=driver, is_read=False).count()
-        return Response({"detail": "Unread notification count", "data": {"unread_count": count}})
-
-
-class DriverNotificationMarkReadView(BaseDriverAPIView):
-    def post(self, request, notification_id: int):
-        driver = self.get_driver(request)
-        notification = get_object_or_404(DriverNotification, id=notification_id, driver=driver)
-        if not notification.is_read:
-            notification.is_read = True
-            notification.read_at = timezone.now()
-            notification.save(update_fields=["is_read", "read_at"])
-        return Response({"detail": "Notification marked as read"})
-
-
-class DriverNotificationReadAllView(BaseDriverAPIView):
-    def post(self, request):
-        driver = self.get_driver(request)
-        count = mark_notifications_read(DriverNotification.objects.filter(driver=driver))
-        return Response({"detail": "All notifications marked as read", "data": {"updated": count}})
-
 
 class DriverEarningsSummaryView(BaseDriverAPIView):
     def get(self, request):

@@ -1,11 +1,14 @@
+# notifications/serializers.py
+
 from rest_framework import serializers
+from notifications.models import Notification
 
-from driver_api.models import DriverNotification
 
+class NotificationSerializer(serializers.ModelSerializer):
 
-class DriverNotificationSerializer(serializers.ModelSerializer):
     class Meta:
-        model = DriverNotification
+        model = Notification
+
         fields = [
             "id",
             "notification_type",
@@ -16,4 +19,3 @@ class DriverNotificationSerializer(serializers.ModelSerializer):
             "read_at",
             "created_at",
         ]
-

@@ -5,7 +5,6 @@ from datetime import datetime
 from datetime import timedelta
 from decimal import Decimal
 
-from django.conf import settings
 from django.db import transaction
 from django.db.models import DecimalField, Q, Sum
 from django.db.models.functions import Coalesce, TruncDay, TruncWeek
@@ -20,13 +19,13 @@ from payments.observability.metrics import increment
 from accounts.models import DriverBankAccount, DriverProfile
 from driver_api.models import (
     DriverLedgerEntry,
-    DriverNotification,
     DriverWallet,
     DriverWithdrawalRequest,
 )
 from menu.models import Order
 from driver_api.unified_bridge import process_driver_withdrawal_with_payments
 from support_center.models import SupportTicket
+from notifications.services import create_notification, Notification
 
 MIN_WITHDRAWAL = Decimal("1000.00")
 MAX_RETRY_COUNT = 3
@@ -37,13 +36,14 @@ DAILY_WITHDRAWAL_LIMIT_AMOUNT = Decimal("500000.00")
 PENDING_PAYMENT_WITHDRAWAL_STATUSES = ("pending_batch", "processing")
 
 
+# comback
 def notify_driver(driver: DriverProfile, title: str, body: str, notification_type: str = "generic", payload=None):
-    DriverNotification.objects.create(
-        driver=driver,
+    create_notification(
+        user=driver,
         notification_type=notification_type,
         title=title,
         body=body,
-        payload_json=payload or {},
+        payload=payload or {},
     )
 
 
@@ -327,7 +327,7 @@ def create_withdrawal_request(driver: DriverProfile, amount: Decimal, idempotenc
             driver,
             "Withdrawal approved",
             f"Your withdrawal request of {amount} has been approved and is processing.",
-            notification_type=DriverNotification.TYPE_WITHDRAWAL,
+            notification_type=Notification.TYPE_WITHDRAWAL,
             payload={"withdrawal_id": withdrawal.id},
         )
     else:
@@ -335,7 +335,7 @@ def create_withdrawal_request(driver: DriverProfile, amount: Decimal, idempotenc
             driver,
             "Withdrawal rejected",
             "Your withdrawal request did not pass eligibility checks.",
-            notification_type=DriverNotification.TYPE_WITHDRAWAL,
+            notification_type=Notification.TYPE_WITHDRAWAL,
             payload={"withdrawal_id": withdrawal.id, "checks": decision.checks},
         )
 
@@ -382,7 +382,7 @@ def mark_withdrawal_paid(withdrawal: DriverWithdrawalRequest):
         withdrawal.driver,
         "Withdrawal paid",
         f"Withdrawal of {withdrawal.amount} has been paid successfully.",
-        notification_type=DriverNotification.TYPE_WITHDRAWAL,
+        notification_type=Notification.TYPE_WITHDRAWAL,
         payload={"withdrawal_id": withdrawal.id},
     )
     return withdrawal
@@ -408,7 +408,7 @@ def mark_withdrawal_failed(withdrawal: DriverWithdrawalRequest, reason: str, man
         withdrawal.driver,
         "Withdrawal failed",
         reason,
-        notification_type=DriverNotification.TYPE_WITHDRAWAL,
+        notification_type=Notification.TYPE_WITHDRAWAL,
         payload={"withdrawal_id": withdrawal.id, "manual_review": manual},
     )
     return withdrawal
@@ -526,7 +526,3 @@ def parse_range(range_key: str, from_date=None, to_date=None):
         end = timezone.make_aware(datetime.combine(to_date, datetime.max.time()))
         return start, end
     return now - timedelta(days=30), now
-
-
-
-

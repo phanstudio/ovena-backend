@@ -1,65 +1,72 @@
-from django.shortcuts import get_object_or_404
-from django.utils import timezone
-from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework.pagination import LimitOffsetPagination
+from rest_framework.viewsets import GenericViewSet
+from rest_framework.mixins import ListModelMixin
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from notifications.serializers import NotificationSerializer
+from notifications.services import (
+    get_user_notifications_queryset,
+    get_unread_count,
+    get_notification_for_user,
+    mark_notification_read,
+    mark_all_notifications_read,
+)
 
-from accounts.models import DriverProfile
-from authflow.authentication import CustomDriverAuth
-from authflow.permissions import IsDriver
-from driver_api.models import DriverNotification
-from notifications.serializers import DriverNotificationSerializer
-from notifications.services import get_driver_notifications_queryset, get_driver_unread_count, mark_notifications_read
-
-
-class DriverNotificationPagination(LimitOffsetPagination):
+class NotificationPagination(LimitOffsetPagination):
     default_limit = 20
     max_limit = 100
 
+class NotificationViewSet(
+    GenericViewSet,
+    ListModelMixin,
+):
+    permission_classes = [IsAuthenticated]
+    serializer_class = NotificationSerializer
 
-class BaseDriverNotificationAPIView(APIView):
-    authentication_classes = [CustomDriverAuth]
-    permission_classes = [IsDriver]
+    def get_queryset(self):
+        return get_user_notifications_queryset(self.request.user)
 
-    def get_driver(self, request) -> DriverProfile:
-        profile = request.user.driver_profile
-        if not profile:
-            profile = get_object_or_404(DriverProfile, user=request.user)
-        return profile
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
 
+        return Response({
+            "detail": "Notifications",
+            "data": response.data
+        })
 
-class DriverNotificationListView(BaseDriverNotificationAPIView):
-    pagination_class = DriverNotificationPagination
+    @action(detail=False, methods=["get"])
+    def unread_count(self, request):
 
-    def get(self, request):
-        driver = self.get_driver(request)
-        qs = get_driver_notifications_queryset(driver)
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(qs, request)
-        return paginator.get_paginated_response(
-            {"detail": "Notifications", "data": DriverNotificationSerializer(page, many=True).data}
+        return Response({
+            "detail": "Unread notification count",
+            "data": {
+                "unread_count": get_unread_count(request.user)
+            }
+        })
+
+    @action(detail=True, methods=["post"])
+    def mark_read(self, request, pk=None):
+
+        notification = get_notification_for_user(
+            request.user,
+            pk
         )
 
+        mark_notification_read(notification)
 
-class DriverNotificationUnreadCountView(BaseDriverNotificationAPIView):
-    def get(self, request):
-        driver = self.get_driver(request)
-        return Response({"detail": "Unread notification count", "data": {"unread_count": get_driver_unread_count(driver)}})
+        return Response({
+            "detail": "Notification marked as read"
+        })
 
+    @action(detail=False, methods=["post"])
+    def read_all(self, request):
 
-class DriverNotificationMarkReadView(BaseDriverNotificationAPIView):
-    def post(self, request, notification_id: int):
-        driver = self.get_driver(request)
-        notification = get_object_or_404(DriverNotification, id=notification_id, driver=driver)
-        if not notification.is_read:
-            notification.is_read = True
-            notification.read_at = timezone.now()
-            notification.save(update_fields=["is_read", "read_at"])
-        return Response({"detail": "Notification marked as read"})
+        count = mark_all_notifications_read(request.user)
 
-
-class DriverNotificationReadAllView(BaseDriverNotificationAPIView):
-    def post(self, request):
-        driver = self.get_driver(request)
-        count = mark_notifications_read(DriverNotification.objects.filter(driver=driver))
-        return Response({"detail": "All notifications marked as read", "data": {"updated": count}})
+        return Response({
+            "detail": "All notifications marked as read",
+            "data": {
+                "updated": count
+            }
+        })

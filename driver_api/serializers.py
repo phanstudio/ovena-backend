@@ -1,12 +1,8 @@
 from decimal import Decimal
-
-from django.utils import timezone
 from rest_framework import serializers
-
 from accounts.models import DriverAvailability
 from driver_api.models import (
     DriverLedgerEntry,
-    DriverNotification,
     DriverWallet,
     DriverWithdrawalRequest,
     SupportFAQCategory,
@@ -116,21 +112,6 @@ class TicketMessageCreateSerializer(serializers.Serializer):
     )
 
 
-class DriverNotificationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DriverNotification
-        fields = [
-            "id",
-            "notification_type",
-            "title",
-            "body",
-            "payload_json",
-            "is_read",
-            "read_at",
-            "created_at",
-        ]
-
-
 class WalletSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverWallet
@@ -208,11 +189,5 @@ class AnalysisPerformanceQuerySerializer(serializers.Serializer):
             if attrs["from_date"] > attrs["to_date"]:
                 raise serializers.ValidationError("from_date cannot be after to_date")
         return attrs
-
-
-def mark_notifications_read(queryset):
-    now = timezone.now()
-    return queryset.filter(is_read=False).update(is_read=True, read_at=now)
-
 
 
