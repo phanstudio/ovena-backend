@@ -58,3 +58,7 @@ drf-spectacular-sidecar
 
 # moitoring
 django-prometheus
+
+# formating
+# phonenumbers
+django-phonenumber-field[phonenumbers]
