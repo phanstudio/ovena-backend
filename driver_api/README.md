@@ -7,7 +7,6 @@ This app is the driver-side operations domain.
 - `DriverWallet`: driver balance snapshot.
 - `DriverLedgerEntry`: driver money movement log.
 - `DriverWithdrawalRequest`: driver payout request lifecycle.
-- `DriverNotification`: driver-facing notifications.
 - Support domain models currently live here too:
 - `SupportFAQCategory`
 - `SupportFAQItem`
@@ -36,7 +35,7 @@ This app is the driver-side operations domain.
 ## Architectural note
 
 - Support models are physically here, but `support_center` is the API layer around them.
-- Notifications data is physically here, but `notifications` is the API layer around it.
+- Notifications are stored in the `notifications` app; `driver_api` only triggers notifications via services.
 
 ## Remember this when coming back
 

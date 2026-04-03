@@ -38,6 +38,7 @@ from driver_api.services import (
 from driver_api.tasks import process_withdrawal, process_withdrawal_request
 from support_center.services import get_driver_open_ticket_count
 from authflow.services.phone_number import get_phone_number
+from notifications.services import get_unread_count
 
 class BaseDriverAPIView(APIView):
     authentication_classes = [CustomDriverAuth]
@@ -85,7 +86,7 @@ class DriverDashboardView(BaseDriverAPIView):
                 "pending_balance": wallet.pending_balance,
             },
             "active_order": active_order,
-            "unread_notifications": get_driver_unread_count(driver),
+            "unread_notifications": get_unread_count(request.user),
             "open_tickets": get_driver_open_ticket_count(driver),
         }
         return Response({"detail": "Driver dashboard loaded", "data": payload})

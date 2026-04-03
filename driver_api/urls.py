@@ -7,7 +7,7 @@ urlpatterns = [
     path("profile/", views.DriverProfileView.as_view(), name="driver-profile"),
     path("availability/", views.DriverAvailabilityView.as_view(), name="driver-availability"),
     path("", include("support_center.urls.driver")),
-    path("", include("notifications.driver_urls")),
+    path("", include("notifications.urls.driver")),
     path("earnings/summary/", views.DriverEarningsSummaryView.as_view(), name="driver-earnings-summary"),
     path("earnings/history/", views.DriverEarningsHistoryView.as_view(), name="driver-earnings-history"),
     path("withdrawals/eligibility/", views.DriverWithdrawEligibilityView.as_view(), name="driver-withdrawals-eligibility"),

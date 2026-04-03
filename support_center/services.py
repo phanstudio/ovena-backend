@@ -23,7 +23,7 @@ def get_active_faq_queryset():
 
 def get_driver_open_ticket_count(driver: User) -> int:
     return SupportTicket.objects.filter(
-        owner=driver,
+        owner_id=driver.user_id,
         owner_role=SupportTicket.OWNER_DRIVER,
         status__in=[SupportTicket.STATUS_OPEN, SupportTicket.STATUS_IN_PROGRESS],
     ).count()

@@ -30,8 +30,8 @@ urlpatterns = [
     path("branch/edit/", views.BranchCreateUpdateView.as_view(), name="branch-edit"),
     path("branches/", include(branch_urlpatterns)),
     path("", include("support_center.urls.buisness")),
+    path("", include("notifications.urls.buisness")),
     path("staff/list/", views.StaffListView.as_view(), name="staff-list"),
     path("staff/revoke/", views.StaffRevokeView.as_view(), name="staff-revoke"),
     path("admin/update/", views.BuisnessAdminUpdateView.as_view(), name="buis-admin-update"),
 ]
-

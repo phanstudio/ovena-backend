@@ -169,18 +169,6 @@ class BranchConsumer(BaseConsumer): # supports primary and linked staff
             'data': event['data']
         }))
     
-    # @database_sync_to_async
-    # def get_active_orders(self):
-    #     """Get all active orders for this branch"""
-    #     orders = Order.objects.filter(
-    #         branch_id=self.branch_id,
-    #         status__in=['pending', 'confirmed', 'payment_pending', 'preparing', 'ready']
-    #     ).select_related('orderer__user').values(
-    #         'id', 'order_number', 'status', 'created_at',
-    #         'orderer__user__name'
-    #     )
-    #     return list(orders)
-
     @database_sync_to_async
     def get_active_orders(self):
         orders = Order.objects.filter(

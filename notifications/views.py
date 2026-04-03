@@ -4,6 +4,9 @@ from rest_framework.mixins import ListModelMixin
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from authflow.authentication import CustomDriverAuth, CustomBusinessAgentsAuth
+from authflow.permissions import IsDriver, IsBusinessAgent
+
 from notifications.serializers import NotificationSerializer
 from notifications.services import (
     get_user_notifications_queryset,
@@ -13,15 +16,17 @@ from notifications.services import (
     mark_all_notifications_read,
 )
 
+
 class NotificationPagination(LimitOffsetPagination):
     default_limit = 20
     max_limit = 100
 
-class NotificationViewSet(
+
+class BaseNotificationViewSet(
     GenericViewSet,
     ListModelMixin,
 ):
-    permission_classes = [IsAuthenticated]
+    pagination_class = NotificationPagination
     serializer_class = NotificationSerializer
 
     def get_queryset(self):
@@ -37,7 +42,6 @@ class NotificationViewSet(
 
     @action(detail=False, methods=["get"])
     def unread_count(self, request):
-
         return Response({
             "detail": "Unread notification count",
             "data": {
@@ -47,7 +51,6 @@ class NotificationViewSet(
 
     @action(detail=True, methods=["post"])
     def mark_read(self, request, pk=None):
-
         notification = get_notification_for_user(
             request.user,
             pk
@@ -70,3 +73,16 @@ class NotificationViewSet(
                 "updated": count
             }
         })
+
+
+class NotificationViewSet(BaseNotificationViewSet):
+    permission_classes = [IsAuthenticated]
+
+
+class DriverNotificationViewSet(BaseNotificationViewSet):
+    authentication_classes = [CustomDriverAuth]
+    permission_classes = [IsDriver]
+
+class BuisnessNotificationViewSet(BaseNotificationViewSet):
+    authentication_classes = [CustomBusinessAgentsAuth]
+    permission_classes = [IsBusinessAgent]

@@ -25,7 +25,7 @@ from driver_api.models import (
 from menu.models import Order
 from driver_api.unified_bridge import process_driver_withdrawal_with_payments
 from support_center.models import SupportTicket
-from notifications.services import create_notification, Notification
+from notifications.services import create_notification
 
 MIN_WITHDRAWAL = Decimal("1000.00")
 MAX_RETRY_COUNT = 3
@@ -39,7 +39,7 @@ PENDING_PAYMENT_WITHDRAWAL_STATUSES = ("pending_batch", "processing")
 # comback
 def notify_driver(driver: DriverProfile, title: str, body: str, notification_type: str = "generic", payload=None):
     create_notification(
-        user=driver,
+        user_id=driver.user_id,
         notification_type=notification_type,
         title=title,
         body=body,
@@ -327,7 +327,7 @@ def create_withdrawal_request(driver: DriverProfile, amount: Decimal, idempotenc
             driver,
             "Withdrawal approved",
             f"Your withdrawal request of {amount} has been approved and is processing.",
-            notification_type=Notification.TYPE_WITHDRAWAL,
+            notification_type="withdrawal",
             payload={"withdrawal_id": withdrawal.id},
         )
     else:
@@ -335,7 +335,7 @@ def create_withdrawal_request(driver: DriverProfile, amount: Decimal, idempotenc
             driver,
             "Withdrawal rejected",
             "Your withdrawal request did not pass eligibility checks.",
-            notification_type=Notification.TYPE_WITHDRAWAL,
+            notification_type="withdrawal",
             payload={"withdrawal_id": withdrawal.id, "checks": decision.checks},
         )
 
@@ -382,7 +382,7 @@ def mark_withdrawal_paid(withdrawal: DriverWithdrawalRequest):
         withdrawal.driver,
         "Withdrawal paid",
         f"Withdrawal of {withdrawal.amount} has been paid successfully.",
-        notification_type=Notification.TYPE_WITHDRAWAL,
+        notification_type="withdrawal",
         payload={"withdrawal_id": withdrawal.id},
     )
     return withdrawal
@@ -408,7 +408,7 @@ def mark_withdrawal_failed(withdrawal: DriverWithdrawalRequest, reason: str, man
         withdrawal.driver,
         "Withdrawal failed",
         reason,
-        notification_type=Notification.TYPE_WITHDRAWAL,
+        notification_type="withdrawal",
         payload={"withdrawal_id": withdrawal.id, "manual_review": manual},
     )
     return withdrawal

@@ -1,6 +1,6 @@
 # Notifications App
 
-This app is the driver-notification API layer.
+This app owns the notifications domain (storage + API surface).
 
 ## What this app owns
 
@@ -9,21 +9,20 @@ This app is the driver-notification API layer.
 
 ## Important architectural note
 
-- The `DriverNotification` model is not defined here.
-- The data model currently lives in `driver_api.models`.
-- This app is a focused delivery layer around that model.
+- Notifications are stored in `notifications.models.Notification` and scoped by `AUTH_USER_MODEL`.
+- Driver-specific auth is exposed via `notifications.driver_urls` (used by `driver_api.urls`).
 
 ## Mental model
 
-- `driver_api` owns notification data.
-- `notifications` owns the read/list API surface.
+- Any app can create notifications by calling `notifications.services.create_notification(...)`.
+- Clients read/list/mark-read notifications through `notifications` endpoints.
 
 ## Relationships that matter
 
-- Everything here is scoped to `accounts.DriverProfile`.
-- Views use the driver auth context and then query `driver_api.DriverNotification`.
+- Everything is scoped to `request.user`.
+- Role-specific endpoints differ only by auth/permissions (not by data model).
 
 ## Remember this when coming back
 
-- If you are changing notification storage, check `driver_api`.
+- If you are changing notification storage, check `notifications.models`.
 - If you are changing notification endpoints or payload shape, check this app.
