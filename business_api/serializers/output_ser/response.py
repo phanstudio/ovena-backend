@@ -13,7 +13,10 @@ class BranchlistSerializer(LocationFieldMixin, serializers.ModelSerializer):
             "name",
             "created_at",
             "address",
-            "location"
+            "location",
+            "delivery_method",
+            "pre_order_open_period",
+            "final_order_time",
         ]
 
 class PrimaryAgentBranchSerializer(LocationFieldMixin, serializers.ModelSerializer):
