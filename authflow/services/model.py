@@ -2,8 +2,7 @@ from django.db import models
 from ulid import ULID # type: ignore
 
 def generate_ulid():
-    return str(ULID.new())
-
+    return str(ULID())
 # Create your models here.
 class ULIDField(models.CharField):
 
@@ -14,9 +13,7 @@ class ULIDField(models.CharField):
         super().__init__(*args, **kwargs)
 
 # from django_ulid.models import ULIDField
-# add later
-# def generate_id() -> str:
-#     return str(ulid.new())
+
 class AbstractBaseModel(models.Model):
     id = ULIDField(primary_key=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
