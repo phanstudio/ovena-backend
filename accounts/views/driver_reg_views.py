@@ -28,6 +28,7 @@ from authflow.services import issue_jwt_for_user
 from ulid import ULID # type: ignore
 from referrals.services import apply_referral_code, ensure_profile_base
 from drf_spectacular.utils import extend_schema # type: ignore
+from authflow.services.phone_number import get_phone_number
 
 # transaction atomics.
 
@@ -264,7 +265,7 @@ class OnboardingPhase1View(GenericAPIView):
         answers["phase_1"] = {
             "first_name": data["first_name"],
             "last_name": data["last_name"],
-            "phone_number": data["phone_number"],
+            "phone_number": get_phone_number(data["phone_number"]),
             "email": data["email"],
             "gender": data["gender"],
             "birth_date": str(data["birth_date"]),
