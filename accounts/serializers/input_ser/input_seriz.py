@@ -15,7 +15,8 @@ class DriverLoginSerializer(serializers.Serializer):
     password = serializers.CharField()
 
 class PasswordResetSerializer(serializers.Serializer):
-    phone_number = PhoneNumberField()
+    phone_number = PhoneNumberField(required=False, allow_null=True)
+    email = serializers.EmailField(required=False, allow_null=True)
     new_password = serializers.CharField()
     otp_code = serializers.CharField()
 
@@ -23,10 +24,13 @@ class AdminChangePasswordSerializer(serializers.Serializer):
     password = serializers.CharField()
     new_password = serializers.CharField()
 
+class LinkRequestSerializer(serializers.Serializer):
+    branch_id = serializers.IntegerField()
+
 class LinkApproveSerializer(serializers.Serializer):
     otp = serializers.CharField()
     device_id = serializers.CharField()
-    branch_id = serializers.IntegerField()
+    # branch_id = serializers.IntegerField()
     phone_number = PhoneNumberField()
     username = serializers.CharField(required=False, allow_blank=True)
     # password = serializers.CharField()
@@ -52,7 +56,7 @@ class EmailOptSendSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
 class PasswordResetSendSerializer(serializers.Serializer):
-    send_type = serializers.ChoiceField(choices=[e.value for e in SendType])
+    send_type = serializers.ChoiceField(choices=[e.value for e in SendType], default="email")
     phone_number = PhoneNumberField(required=False, allow_null=True)
     email = serializers.EmailField(required=False, allow_null=True)
 

@@ -24,7 +24,6 @@ from rest_framework import serializers as s
 from accounts.serializers import InS, OpS
 from authflow.services.phone_number import get_phone_number
 
-
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -95,9 +94,13 @@ class DeleteAccountView(APIView): # will change to a soft delete
 class LinkRequestCreateView(GenericAPIView):
     authentication_classes = [CustomBAdminAuth]
     permission_classes = [IsBusinessAdmin]
+    serializer_class = InS.LinkRequestSerializer
     def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
         user = request.user
-        otp = OTPManager.send_blank(get_phone_number(user)) # or id since it can be auto gen
+        otp = OTPManager.send_blank(f"{get_phone_number(user)};{vd['branch_id']}") # or id since it can be auto gen
         return Response({"otp": otp})
 
 # might add password
@@ -121,13 +124,15 @@ class LinkApproveView(GenericAPIView):
             identifier = OTPManager.verify(otp_code=vd["otp"])
         except OTPInvalidError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+        phone_number, branch_id = identifier.split(";")
 
         branch = (
             Branch.objects
             .select_related("business__admin__user")
             .filter(
-                id=vd["branch_id"],
-                business__admin__user__phone_number=identifier
+                id=branch_id,
+                business__admin__user__phone_number=phone_number
             )
             .first()
         )
@@ -341,39 +346,6 @@ class AdminChangePasswordView(GenericAPIView):
         user.save(update_fields=["password"])
         return Response({ "message": "Password Changed" })
 
-# @extend_schema(
-#     responses={
-#         200: inline_serializer("AdminLoginResponse", fields={
-#             "message": s.CharField(),
-#             "access": s.CharField(),
-#             "refresh": s.CharField(),
-#         })
-#     },
-# )
-# class AdminTransactionpinView(GenericAPIView):
-    authentication_classes = [CustomBAdminAuth]
-    permission_classes = [IsBusinessAdmin]
-    serializer_class = InS.AdminChangePasswordSerializer
-
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        vd = serializer.validated_data
-
-        user:User = request.user
-        if user.check_password(vd["password"]):
-            return Response(
-                {"error": "Invalid password"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-        
-        user.set_password(vd["new_password"])
-        user.save(update_fields=["password"])
-        return Response({
-            "message": "Password Changed",
-        })
-
-
 @extend_schema(
     responses={200: inline_serializer("PasswordResetResponse", fields={
         "message": s.CharField(),
@@ -404,6 +376,7 @@ class PasswordResetView(GenericAPIView):
         # force re-login on all devices
         # if you store a token version on the user model you can invalidate all JWTs
         # simplest approach: tell frontend to discard tokens and re-login
+        # force login flow
 
         return Response({"message": "Password updated successfully"})
 

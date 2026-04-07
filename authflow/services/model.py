@@ -1,8 +1,10 @@
 from django.db import models
 from ulid import ULID # type: ignore
+# from django_ulid.models import ULIDField
 
 def generate_ulid():
     return str(ULID())
+
 # Create your models here.
 class ULIDField(models.CharField):
 
@@ -11,8 +13,6 @@ class ULIDField(models.CharField):
         kwargs.setdefault("default", generate_ulid)
         kwargs.setdefault("editable", False)
         super().__init__(*args, **kwargs)
-
-# from django_ulid.models import ULIDField
 
 class AbstractBaseModel(models.Model):
     id = ULIDField(primary_key=True, db_index=True)

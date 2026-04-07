@@ -60,7 +60,7 @@ class VerifyEmailOTPView(GenericAPIView):
     """
     Verifies OTP, creates user if not exists, and returns JWT tokens
     """
-    serializer_class = InS.PhonenumberOptSerializer
+    serializer_class = InS.EmailOptSerializer
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
