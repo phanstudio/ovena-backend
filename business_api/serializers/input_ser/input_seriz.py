@@ -1,6 +1,6 @@
 from phonenumber_field.serializerfields import PhoneNumberField  # type: ignore
 from rest_framework import serializers
-from accounts.models import User
+from accounts.models import User, BusinessAdmin
 
 class AdminUpdateSerializer(serializers.Serializer):
     phone_number = PhoneNumberField(required=False, allow_null=True)
@@ -51,7 +51,6 @@ class BusinessTransactionHistoryQuerySerializer(BusinessMetricsQuerySerializer):
     )
     withdrawal_status = serializers.CharField(required=False, allow_blank=True)
     
-
 class AdminTransactionPinSerializer(serializers.Serializer):
     current_pin = serializers.CharField(required=False, allow_blank=True, min_length=4, max_length=4)
     pin = serializers.RegexField(regex=r"^\d{4}$")
@@ -61,7 +60,7 @@ class AdminTransactionPinSerializer(serializers.Serializer):
         if attrs["pin"] != attrs["confirm_pin"]:
             raise serializers.ValidationError("pin and confirm_pin must match.")
 
-        business_admin = self.context.get("business_admin")
+        business_admin: BusinessAdmin = self.context.get("business_admin")
         if business_admin and business_admin.has_transaction_pin and not attrs.get("current_pin"):
             raise serializers.ValidationError({"current_pin": "current_pin is required to update the transaction pin."})
         if business_admin and business_admin.has_transaction_pin and attrs.get("current_pin"):
