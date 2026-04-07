@@ -271,7 +271,7 @@ class OnboardingPhase1View(GenericAPIView):
             "birth_date": str(data["birth_date"]),
             "residential_address": data["residential_address"],
             "next_of_kin_name": data["next_of_kin_name"],
-            "next_of_kin_phone": data["next_of_kin_phone"],
+            "next_of_kin_phone": get_phone_number(data["next_of_kin_phone"]),
             "next_of_kin_address": data["next_of_kin_address"],
         }
         answers["phase_1_complete"] = True
