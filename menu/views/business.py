@@ -88,60 +88,104 @@ class BaseBuisStaffAPIView(GenericAPIView):
         return branch, error
 
 # not sure if it wil be this direct sha must likely not be
+# class AvailabilityListView(AbstractBuStAdBranchView):
+#     serializer_class = InS.ItemAvailabilityListSerializer
+#     pagination_class = StandardResultsSetPagination
+ 
+#     def get(self, request, *args, **kwargs):
+#         queryset = (
+#             BaseItemAvailability.objects
+#             .filter(branch=self.branch)
+#             .select_related("base_item")
+#         )
+
+#         # -------------------
+#         # FILTER: availability
+#         # -------------------
+#         is_available = request.query_params.get("available")
+#         if is_available is not None:
+#             queryset = queryset.filter(
+#                 is_available=is_available.lower() == "true"
+#             )
+
+#         # -------------------
+#         # FILTER: search (name)
+#         # -------------------
+#         search = request.query_params.get("search")
+#         if search:
+#             queryset = queryset.filter(
+#                 base_item__name__icontains=search
+#             )
+
+#         # -------------------
+#         # FILTER: category
+#         # -------------------
+#         category = request.query_params.get("category")
+#         if category:
+#             category_ids = [int(c) for c in category.split(",")]
+
+#             queryset = queryset.filter(
+#                 base_item__menu_items__category_id__in=category_ids
+#             ).distinct()
+
+#         # -------------------
+#         # ORDERING
+#         # -------------------
+#         queryset = queryset.order_by("base_item__name")
+
+#         # -------------------
+#         # PAGINATION
+#         # -------------------
+#         page = self.paginate_queryset(queryset)
+#         serializer = self.get_serializer(page or queryset, many=True)
+
+#         if page is not None:
+#             return self.get_paginated_response(serializer.data)
+
+#         return Response(serializer.data)
+
 class AvailabilityListView(AbstractBuStAdBranchView):
     serializer_class = InS.ItemAvailabilityListSerializer
     pagination_class = StandardResultsSetPagination
- 
+
     def get(self, request, *args, **kwargs):
         queryset = (
             BaseItemAvailability.objects
             .filter(branch=self.branch)
             .select_related("base_item")
+            .prefetch_related("base_item__menu_items")
         )
 
-        # -------------------
-        # FILTER: availability
-        # -------------------
+        # availability filter
         is_available = request.query_params.get("available")
         if is_available is not None:
             queryset = queryset.filter(
-                is_available=is_available.lower() == "true"
+                is_available=is_available.lower() in ["true", "1", "yes"]
             )
 
-        # -------------------
-        # FILTER: search (name)
-        # -------------------
+        # search filter
         search = request.query_params.get("search")
         if search:
             queryset = queryset.filter(
                 base_item__name__icontains=search
             )
 
-        # -------------------
-        # FILTER: category
-        # -------------------
+        # category filter
         category = request.query_params.get("category")
         if category:
             category_ids = [int(c) for c in category.split(",")]
-
             queryset = queryset.filter(
                 base_item__menu_items__category_id__in=category_ids
             ).distinct()
 
-        # -------------------
-        # ORDERING
-        # -------------------
         queryset = queryset.order_by("base_item__name")
 
-        # -------------------
-        # PAGINATION
-        # -------------------
         page = self.paginate_queryset(queryset)
-        serializer = self.get_serializer(page or queryset, many=True)
-
         if page is not None:
+            serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
+        serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
 class AvaliabilityView(AbstractBuStAdBranchView):
