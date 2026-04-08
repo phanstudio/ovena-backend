@@ -65,7 +65,8 @@ def broadcast_to_branch(branch_id, event_data):
 def broadcast_to_driver_pool(event_data):
     """Broadcast to all online drivers"""
     channel_layer = get_channel_layer()
-    group_name = get_driver_pool_group_name()
+    # group_name = get_driver_pool_group_name()
+    group_name = f"orders_{get_driver_pool_group_name()}"  # add prefix
     
     async_to_sync(channel_layer.group_send)(
         group_name,

@@ -76,6 +76,10 @@ class BaseConsumer(AsyncWebsocketConsumer):
             return get_profile(user, PROFILE_BUSINESS_STAFF)
         return None
 
+    async def health(self, message_type):
+        if message_type == "ping":
+            await self.send(text_data=json.dumps({"type": "pong"}))
+
 
 class BranchConsumer(BaseConsumer): # supports primary and linked staff
     """
@@ -152,6 +156,7 @@ class BranchConsumer(BaseConsumer): # supports primary and linked staff
                 'type': 'active_orders',
                 'data': active_orders
             }))
+        await self.health(message_type)
     
     # Handler for branch notifications
     async def branch_notification(self, event):
@@ -316,6 +321,7 @@ class DriverOrdersConsumer(BaseConsumer):
                 'type': 'my_orders',
                 'data': my_orders
             }))
+        await self.health(message_type)
     
     # Handlers
     async def driver_orders_notification(self, event):
@@ -476,6 +482,8 @@ class ChatConsumer(BaseConsumer):
         elif message_type == 'mark_read':
             message_ids = data.get('message_ids', [])
             await self.mark_messages_read(message_ids)
+        
+        await self.health(message_type)
     
     # Handler
     async def chat_message(self, event):
@@ -658,6 +666,7 @@ class OrderConsumer(BaseConsumer):
                 'type': 'order.status',
                 'data': order_data
             }))
+        await self.health(message_type)
     
     # Handlers for group messages
     async def order_update(self, event):
@@ -824,6 +833,8 @@ class DriverLocationConsumer(BaseConsumer):
         elif message_type == 'status_change':
             is_available = data.get('is_available', False)
             await self.set_driver_availability(is_available)
+        
+        await self.health(message_type)
     
     # Handler for driver notifications
     async def driver_location_notification(self, event):
