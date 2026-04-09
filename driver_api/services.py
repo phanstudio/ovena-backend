@@ -206,7 +206,7 @@ def evaluate_withdrawal_eligibility(driver: DriverProfile, amount: Decimal | Non
     bank = getattr(driver, "bank_account", None)
 
     blocking_ticket = SupportTicket.objects.filter(
-        driver=driver,
+        owner_id=driver.user_id,
         owner_role=SupportTicket.OWNER_DRIVER,
         status__in=[SupportTicket.STATUS_OPEN, SupportTicket.STATUS_IN_PROGRESS],
         is_blocking=True,
