@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -14,6 +14,7 @@
       --accent: #3fa9f5;
       --danger: #ff5d5d;
       --ok: #4ad295;
+      --warn: #f5a623;
       --border: #2a3140;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       --sans: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
@@ -31,286 +32,625 @@
       padding: 20px 24px;
       border-bottom: 1px solid var(--border);
       background: linear-gradient(90deg, #131822, #12161d);
-      position: sticky;
-      top: 0;
-      z-index: 10;
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: flex-start; gap: 16px;
     }
-    h1 { margin: 0 0 6px 0; font-size: 20px; }
-    p { margin: 0; color: var(--muted); }
-    .wrap { padding: 16px 24px 28px; }
+    header .title { flex: 1; }
+    h1 { margin: 0 0 4px 0; font-size: 20px; }
+    header p { margin: 0; color: var(--muted); font-size: 13px; }
+    .wrap { padding: 14px 20px 28px; }
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
-      gap: 16px;
+      gap: 14px;
     }
     .panel {
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 14px;
-      min-height: 520px;
     }
-    .panel h2 { margin: 0 0 8px 0; font-size: 16px; }
-    .row { display: flex; gap: 8px; margin-bottom: 8px; }
-    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
-    input, select, textarea, button {
-      font: inherit;
-    }
+    .panel h2 { margin: 0 0 10px 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+    .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    .field { display: flex; flex-direction: column; flex: 1; min-width: 80px; }
+    label { font-size: 11px; color: var(--muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.04em; }
+    input, select, textarea, button { font: inherit; }
     input, select, textarea {
       width: 100%;
-      padding: 8px 10px;
-      border-radius: 8px;
+      padding: 7px 10px;
+      border-radius: 7px;
       border: 1px solid var(--border);
       background: var(--panel-2);
       color: var(--text);
+      font-size: 13px;
     }
-    textarea { min-height: 64px; font-family: var(--mono); }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    textarea { min-height: 56px; font-family: var(--mono); font-size: 12px; resize: vertical; }
     button {
-      padding: 8px 12px;
-      border-radius: 8px;
+      padding: 7px 11px;
+      border-radius: 7px;
       border: 1px solid var(--border);
       background: #202736;
       color: var(--text);
       cursor: pointer;
+      font-size: 12px;
+      transition: opacity 0.15s;
+      white-space: nowrap;
     }
+    button:hover { opacity: 0.85; }
+    button:active { opacity: 0.7; }
     button.primary { background: var(--accent); border-color: transparent; color: #0e1116; font-weight: 600; }
-    button.danger { background: var(--danger); border-color: transparent; color: #0e1116; font-weight: 600; }
-    button.ok { background: var(--ok); border-color: transparent; color: #0e1116; font-weight: 600; }
+    button.danger  { background: var(--danger); border-color: transparent; color: #0e1116; font-weight: 600; }
+    button.ok      { background: var(--ok);     border-color: transparent; color: #0e1116; font-weight: 600; }
+    button.warn    { background: var(--warn);   border-color: transparent; color: #0e1116; font-weight: 600; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* WS status pill */
+    .ws-status {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; color: var(--muted);
+      padding: 2px 8px; border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      margin-left: auto;
+    }
+    .ws-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .ws-dot.connected    { background: var(--ok); box-shadow: 0 0 5px var(--ok); }
+    .ws-dot.connecting   { background: var(--warn); animation: pulse 1s infinite; }
+    .ws-dot.reconnecting { background: var(--warn); animation: pulse 0.5s infinite; }
+    .ws-dot.error        { background: var(--danger); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
     .log {
       background: #0c1017;
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 8px;
-      height: 200px;
+      height: 210px;
       overflow: auto;
       font-family: var(--mono);
-      font-size: 12px;
+      font-size: 11.5px;
       white-space: pre-wrap;
+      word-break: break-word;
     }
-    .small { font-size: 12px; color: var(--muted); }
-    .spacer { height: 6px; }
+    .log-line { line-height: 1.5; }
+    .log-line.err  { color: #ff7f7f; }
+    .log-line.ok   { color: #6de3af; }
+    .log-line.warn { color: #f5c96a; }
+    .log-line.ws   { color: #82c8f5; }
+    .log-line.send { color: #c8a8f5; }
+
+    .divider { height: 1px; background: var(--border); margin: 8px 0; }
+    .spacer  { height: 6px; }
     .wide { grid-column: 1 / -1; }
+    .small { font-size: 12px; color: var(--muted); }
+    .badge {
+      font-size: 10px; padding: 1px 6px; border-radius: 4px;
+      background: var(--panel-2); border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .ws-controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .log-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .log-header label { margin: 0; }
+    .clear-btn { margin-left: auto; padding: 2px 7px; font-size: 11px; }
+
+    /* Global WS status bar */
+    .ws-bar {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      padding: 8px 12px; background: var(--panel-2);
+      border: 1px solid var(--border); border-radius: 8px;
+      margin-bottom: 12px; font-size: 12px; align-items: center;
+    }
+    .ws-bar-item { display: flex; align-items: center; gap: 6px; }
+
+    /* Location fields */
+    .loc-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 8px; }
   </style>
 </head>
 <body>
-  <header>
+<header>
+  <div class="title">
     <h1>Ovena Order Flow Harness</h1>
-    <p>Three-role tester (Customer, Branch, Driver) with REST + WebSocket. Use this to document and catch flow bugs.</p>
-  </header>
+    <p>Three-role tester (Customer · Branch · Driver) — REST + WebSocket with auto-reconnect</p>
+  </div>
+</header>
 
-  <div class="wrap">
-    <div class="panel wide">
-      <div class="row">
-        <div style="flex:1">
-          <label>API Base</label>
-          <input id="apiBase" value="http://localhost:8000/api" />
-        </div>
-        <div style="flex:1">
-          <label>WS Base</label>
-          <input id="wsBase" value="ws://localhost:8000" />
-        </div>
-        <div style="flex:1">
-          <label>Current Order ID</label>
-          <input id="currentOrderId" placeholder="auto" />
-        </div>
+<div class="wrap">
+
+  <!-- Config Row -->
+  <div class="panel wide" style="margin-bottom:14px; padding:12px 14px;">
+    <div class="row" style="margin-bottom:6px;">
+      <div class="field">
+        <label>API Base URL</label>
+        <input id="apiBase" value="http://localhost:8000/api" />
       </div>
-      <div class="small">Paste tokens below. Use the role dropdown to choose Bearer/SubBearer. You can also paste a full prefixed token if you want.</div>
+      <div class="field">
+        <label>WS Base URL</label>
+        <input id="wsBase" value="ws://localhost:8000" />
+      </div>
+      <div class="field">
+        <label>Current Order ID</label>
+        <input id="currentOrderId" placeholder="auto-filled on create" />
+      </div>
+      <div class="field" style="flex:0.4;">
+        <label>Max Retries</label>
+        <input id="maxRetries" type="number" value="5" min="0" max="20" />
+      </div>
     </div>
-
-    <div class="grid">
-      <!-- CUSTOMER -->
-      <div class="panel">
-        <h2>Customer</h2>
-        <div class="row">
-          <div style="flex:0.4">
-            <label>Token Type</label>
-            <select id="custTokenType">
-              <option>Bearer</option>
-            </select>
-          </div>
-          <div style="flex:1">
-            <label>Access Token</label>
-            <input id="custToken" placeholder="paste access token" />
-          </div>
-        </div>
-
-        <div class="row">
-          <div style="flex:1">
-            <label>Branch ID</label>
-            <input id="custBranchId" placeholder="e.g. 1" />
-          </div>
-          <div style="flex:1">
-            <label>Menu Item ID</label>
-            <input id="custMenuItemId" placeholder="e.g. 10" />
-          </div>
-          <div style="flex:1">
-            <label>Quantity</label>
-            <input id="custQty" value="1" />
-          </div>
-        </div>
-
-        <div class="row">
-          <div style="flex:1">
-            <label>Variant Option IDs (comma)</label>
-            <input id="custVariants" placeholder="e.g. 3,4" />
-          </div>
-          <div style="flex:1">
-            <label>Addon IDs (comma)</label>
-            <input id="custAddons" placeholder="e.g. 7,9" />
-          </div>
-        </div>
-
-        <div class="row">
-          <div style="flex:1">
-            <label>Coupon Code</label>
-            <input id="custCoupon" placeholder="optional" />
-          </div>
-        </div>
-
-        <div class="row">
-          <button class="primary" onclick="createOrder()">Create Order</button>
-          <button onclick="connectCustomerWS()">Connect Order WS</button>
-          <button onclick="disconnectWS('customer')">Disconnect WS</button>
-        </div>
-
-        <div class="spacer"></div>
-        <label>Customer Log</label>
-        <div id="custLog" class="log"></div>
-      </div>
-
-      <!-- BRANCH -->
-      <div class="panel">
-        <h2>Branch</h2>
-        <div class="row">
-          <div style="flex:0.4">
-            <label>Token Type</label>
-            <select id="branchTokenType">
-              <option>Bearer</option>
-              <option>SubBearer</option>
-            </select>
-          </div>
-          <div style="flex:1">
-            <label>Access Token</label>
-            <input id="branchToken" placeholder="paste access token" />
-          </div>
-        </div>
-
-        <div class="row">
-          <!-- <div style="flex:1">
-            <label>Branch ID</label>
-            <input id="branchId" placeholder="e.g. 1" />
-          </div> -->
-          <div style="flex:1">
-            <label>Order ID</label>
-            <input id="branchOrderId" placeholder="auto" />
-          </div>
-        </div>
-
-        <div class="row">
-          <button class="primary" onclick="branchAction('accept')">Accept Order</button>
-          <button class="ok" onclick="branchAction('made')">Mark Ready</button>
-          <button class="danger" onclick="branchAction('cancel')">Cancel</button>
-        </div>
-
-        <div class="row">
-          <button onclick="connectBranchWS()">Connect Branch WS</button>
-          <button onclick="disconnectWS('branch')">Disconnect WS</button>
-        </div>
-
-        <div class="spacer"></div>
-        <label>Branch Log</label>
-        <div id="branchLog" class="log"></div>
-      </div>
-
-      <!-- DRIVER -->
-      <div class="panel">
-        <h2>Driver</h2>
-        <div class="row">
-          <div style="flex:0.4">
-            <label>Token Type</label>
-            <select id="driverTokenType">
-              <option>Bearer</option>
-            </select>
-          </div>
-          <div style="flex:1">
-            <label>Access Token</label>
-            <input id="driverToken" placeholder="paste access token" />
-          </div>
-        </div>
-
-        <div class="row">
-          <div style="flex:1">
-            <label>Order ID</label>
-            <input id="driverOrderId" placeholder="auto" />
-          </div>
-          <div style="flex:1">
-            <label>Delivery Code</label>
-            <input id="driverCode" placeholder="from create order" />
-          </div>
-        </div>
-
-        <div class="row">
-          <button class="primary" onclick="driverAction('accept')">Accept</button>
-          <button onclick="driverAction('reject')">Reject</button>
-          <button class="ok" onclick="driverAction('deliver')">Deliver</button>
-        </div>
-
-        <div class="row">
-          <button onclick="connectDriverOrdersWS()">Connect Driver WS</button>
-          <button onclick="connectDriverLocationWS()">Connect Location WS</button>
-          <button onclick="disconnectWS('driverOrders')">Disconnect Orders WS</button>
-          <button onclick="disconnectWS('driverLocation')">Disconnect Location WS</button>
-        </div>
-
-        <div class="row">
-          <button onclick="sendLocationUpdate()">Send Location</button>
-          <button onclick="sendStatusUpdate()"><span id="statusIndi">🔴</span> IsAvailable</button>
-        </div>
-
-        <div class="spacer"></div>
-        <label>Driver Log</label>
-        <div id="driverLog" class="log"></div>
-      </div>
+    <!-- Global WS status bar -->
+    <div class="ws-bar" id="globalWsBar">
+      <strong style="color:var(--muted);font-size:11px;">WS STATUS:</strong>
+      <div class="ws-bar-item"><div class="ws-dot" id="gd-customer"></div><span>Customer Orders</span></div>
+      <div class="ws-bar-item"><div class="ws-dot" id="gd-branch"></div><span>Branch</span></div>
+      <div class="ws-bar-item"><div class="ws-dot" id="gd-driverOrders"></div><span>Driver Orders</span></div>
+      <div class="ws-bar-item"><div class="ws-dot" id="gd-driverLocation"></div><span>Driver Location</span></div>
     </div>
   </div>
 
+  <div class="grid">
+
+    <!-- ─── CUSTOMER ─────────────────────────────────────────── -->
+    <div class="panel">
+      <h2>
+        Customer
+        <div class="ws-status" id="ws-status-customer">
+          <div class="ws-dot" id="ws-dot-customer"></div>
+          <span id="ws-label-customer">disconnected</span>
+        </div>
+      </h2>
+
+      <div class="row">
+        <div class="field" style="flex:0.45">
+          <label>Token Type</label>
+          <select id="custTokenType"><option>Bearer</option></select>
+        </div>
+        <div class="field">
+          <label>Access Token</label>
+          <input id="custToken" placeholder="paste access token" type="password" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field"><label>Branch ID</label><input id="custBranchId" placeholder="e.g. 1" /></div>
+        <div class="field"><label>Menu Item ID</label><input id="custMenuItemId" placeholder="e.g. 10" /></div>
+        <div class="field"><label>Qty</label><input id="custQty" value="1" type="number" min="1" /></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Variant Option IDs (comma)</label><input id="custVariants" placeholder="e.g. 3,4" /></div>
+        <div class="field"><label>Addon IDs (comma)</label><input id="custAddons" placeholder="e.g. 7,9" /></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Coupon Code</label><input id="custCoupon" placeholder="optional" /></div>
+      </div>
+
+      <div class="row">
+        <button class="primary" onclick="createOrder()">Create Order</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="ws-controls">
+        <button onclick="wsConnect('customer')" id="btn-connect-customer">Connect WS</button>
+        <button onclick="wsDisconnect('customer')" id="btn-disconnect-customer" disabled>Disconnect</button>
+        <span class="badge" id="retry-badge-customer" title="reconnect attempts"></span>
+      </div>
+
+      <div class="spacer"></div>
+      <div class="log-header">
+        <label>Customer Log</label>
+        <button class="clear-btn" onclick="clearLog('custLog')">Clear</button>
+      </div>
+      <div id="custLog" class="log"></div>
+    </div>
+
+    <!-- ─── BRANCH ─────────────────────────────────────────── -->
+    <div class="panel">
+      <h2>
+        Branch
+        <div class="ws-status" id="ws-status-branch">
+          <div class="ws-dot" id="ws-dot-branch"></div>
+          <span id="ws-label-branch">disconnected</span>
+        </div>
+      </h2>
+
+      <div class="row">
+        <div class="field" style="flex:0.45">
+          <label>Token Type</label>
+          <select id="branchTokenType">
+            <option>Bearer</option>
+            <option>SubBearer</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Access Token</label>
+          <input id="branchToken" placeholder="paste access token" type="password" autocomplete="off" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Order ID</label><input id="branchOrderId" placeholder="auto" /></div>
+      </div>
+
+      <div class="row">
+        <button class="primary" onclick="branchAction('accept')">Accept</button>
+        <button class="ok"      onclick="branchAction('made')">Mark Ready</button>
+        <button class="danger"  onclick="branchAction('cancel')">Cancel</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="ws-controls">
+        <button onclick="wsConnect('branch')" id="btn-connect-branch">Connect WS</button>
+        <button onclick="wsDisconnect('branch')" id="btn-disconnect-branch" disabled>Disconnect</button>
+        <span class="badge" id="retry-badge-branch"></span>
+      </div>
+
+      <div class="spacer"></div>
+      <div class="log-header">
+        <label>Branch Log</label>
+        <button class="clear-btn" onclick="clearLog('branchLog')">Clear</button>
+      </div>
+      <div id="branchLog" class="log"></div>
+    </div>
+
+    <!-- ─── DRIVER ─────────────────────────────────────────── -->
+    <div class="panel">
+      <h2>Driver</h2>
+
+      <div class="row">
+        <div class="field" style="flex:0.45">
+          <label>Token Type</label>
+          <select id="driverTokenType"><option>Bearer</option></select>
+        </div>
+        <div class="field">
+          <label>Access Token</label>
+          <input id="driverToken" placeholder="paste access token" type="password" autocomplete="off" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Order ID</label><input id="driverOrderId" placeholder="auto" /></div>
+        <div class="field"><label>Delivery Code</label><input id="driverCode" placeholder="auto from create" /></div>
+      </div>
+
+      <div class="row">
+        <button class="primary" onclick="driverAction('accept')">Accept</button>
+        <button          onclick="driverAction('reject')">Reject</button>
+        <button class="ok"      onclick="driverAction('deliver')">Deliver</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Driver Orders WS -->
+      <div style="margin-bottom:4px;" class="small">Orders WS
+        <span class="ws-status" id="ws-status-driverOrders" style="margin-left:6px;">
+          <div class="ws-dot" id="ws-dot-driverOrders"></div>
+          <span id="ws-label-driverOrders">disconnected</span>
+        </span>
+      </div>
+      <div class="ws-controls" style="margin-bottom:8px;">
+        <button onclick="wsConnect('driverOrders')" id="btn-connect-driverOrders">Connect</button>
+        <button onclick="wsDisconnect('driverOrders')" id="btn-disconnect-driverOrders" disabled>Disconnect</button>
+        <span class="badge" id="retry-badge-driverOrders"></span>
+      </div>
+
+      <!-- Driver Location WS -->
+      <div style="margin-bottom:4px;" class="small">Location WS
+        <span class="ws-status" id="ws-status-driverLocation" style="margin-left:6px;">
+          <div class="ws-dot" id="ws-dot-driverLocation"></div>
+          <span id="ws-label-driverLocation">disconnected</span>
+        </span>
+      </div>
+      <div class="ws-controls" style="margin-bottom:8px;">
+        <button onclick="wsConnect('driverLocation')" id="btn-connect-driverLocation">Connect</button>
+        <button onclick="wsDisconnect('driverLocation')" id="btn-disconnect-driverLocation" disabled>Disconnect</button>
+        <span class="badge" id="retry-badge-driverLocation"></span>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Location payload -->
+      <div class="small" style="margin-bottom:4px;">Location Payload</div>
+      <div class="loc-grid">
+        <div class="field"><label>Lat</label><input id="locLat" value="8.9875577" /></div>
+        <div class="field"><label>Lng</label><input id="locLng" value="7.3649545" /></div>
+        <div class="field"><label>Heading</label><input id="locHeading" value="90" /></div>
+        <div class="field"><label>Speed</label><input id="locSpeed" value="8" /></div>
+        <div class="field"><label>Accuracy</label><input id="locAccuracy" value="5" /></div>
+      </div>
+      <div class="row">
+        <button onclick="sendLocationUpdate()">📍 Send Location</button>
+        <button onclick="sendStatusUpdate()"><span id="statusIndi">🔴</span> IsAvailable</button>
+      </div>
+
+      <div class="spacer"></div>
+      <div class="log-header">
+        <label>Driver Log</label>
+        <button class="clear-btn" onclick="clearLog('driverLog')">Clear</button>
+      </div>
+      <div id="driverLog" class="log"></div>
+    </div>
+
+  </div><!-- /grid -->
+</div><!-- /wrap -->
+
 <script>
-  const sockets = {
-    customer: null,
-    branch: null,
-    driverOrders: null,
-    driverLocation: null,
+// ═══════════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════════
+const WS_CHANNELS = {
+  customer:       { log: 'custLog',    prefix: 'WS orders',    buildUrl: buildCustomerUrl   },
+  branch:         { log: 'branchLog',  prefix: 'WS branch',    buildUrl: buildBranchUrl     },
+  driverOrders:   { log: 'driverLog',  prefix: 'WS driverOrd', buildUrl: buildDriverOrdersUrl },
+  driverLocation: { log: 'driverLog',  prefix: 'WS driverLoc', buildUrl: buildDriverLocUrl  },
+};
+
+// Reconnection config
+const RECONNECT_BASE_MS  = 1000;   // first retry delay
+const RECONNECT_MAX_MS   = 30000;  // cap
+const RECONNECT_JITTER   = 0.2;    // ±20 % jitter
+const HEARTBEAT_INTERVAL = 25000;  // send ping every 25 s
+const HEARTBEAT_TIMEOUT  = 10000;  // close if no pong within 10 s
+
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+const state = {};   // keyed by channel name
+Object.keys(WS_CHANNELS).forEach(k => state[k] = makeChannelState());
+
+function makeChannelState() {
+  return {
+    socket:          null,
+    retryCount:      0,
+    retryTimer:      null,
+    heartbeatTimer:  null,
+    pongTimer:       null,
+    intentional:     false,  // true = user-initiated close, don't retry
   };
-  let IsAvailable = false
+}
 
-  function log(id, msg) {
-    const el = document.getElementById(id);
-    const line = `[${new Date().toISOString()}] ${msg}\n`;
-    el.textContent = line + el.textContent;
+let isAvailable = false;
+
+// ═══════════════════════════════════════════════════════════
+//  LOGGING
+// ═══════════════════════════════════════════════════════════
+function log(elId, msg, type = '') {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const ts = new Date().toTimeString().slice(0, 8);
+  const div = document.createElement('div');
+  div.className = 'log-line' + (type ? ' ' + type : '');
+  div.textContent = `[${ts}] ${msg}`;
+  el.prepend(div);
+}
+
+function clearLog(elId) {
+  const el = document.getElementById(elId);
+  if (el) el.innerHTML = '';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  URL BUILDERS
+// ═══════════════════════════════════════════════════════════
+function wsBase()  { return document.getElementById('wsBase').value.trim(); }
+function apiBase() { return document.getElementById('apiBase').value.trim(); }
+
+function buildCustomerUrl() {
+  const orderId = document.getElementById('currentOrderId').value.trim();
+  const token   = getToken('custTokenType', 'custToken');
+  if (!orderId) { log('custLog', 'Missing order ID', 'warn'); return null; }
+  if (!token)   { log('custLog', 'Missing token', 'warn'); return null; }
+  return `${wsBase()}/ws/orders/${orderId}/?token=${encodeURIComponent(token)}`;
+}
+
+function buildBranchUrl() {
+  const token = getToken('branchTokenType', 'branchToken');
+  if (!token) { log('branchLog', 'Missing token', 'warn'); return null; }
+  return `${wsBase()}/ws/branch/?token=${encodeURIComponent(token)}`;
+}
+
+function buildDriverOrdersUrl() {
+  const token = getToken('driverTokenType', 'driverToken');
+  if (!token) { log('driverLog', 'Missing token', 'warn'); return null; }
+  return `${wsBase()}/ws/driver/orders/?token=${encodeURIComponent(token)}`;
+}
+
+function buildDriverLocUrl() {
+  const token = getToken('driverTokenType', 'driverToken');
+  if (!token) { log('driverLog', 'Missing token', 'warn'); return null; }
+  return `${wsBase()}/ws/driver/location/?token=${encodeURIComponent(token)}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TOKEN HELPER
+// ═══════════════════════════════════════════════════════════
+function getToken(typeId, tokenId) {
+  const prefix = document.getElementById(typeId).value.trim();
+  let token = document.getElementById(tokenId).value.trim();
+  if (!token) return null;
+  const low = token.toLowerCase();
+  if (low.startsWith('bearer ') || low.startsWith('subbearer ')) return token;
+  return `${prefix} ${token}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UI STATE
+// ═══════════════════════════════════════════════════════════
+function setWsUi(key, status, extra) {
+  // status: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error'
+  const dot   = document.getElementById('ws-dot-' + key);
+  const label = document.getElementById('ws-label-' + key);
+  const gdot  = document.getElementById('gd-' + key);
+  const bConn = document.getElementById('btn-connect-' + key);
+  const bDisc = document.getElementById('btn-disconnect-' + key);
+  const badge = document.getElementById('retry-badge-' + key);
+
+  const dotEl = [dot, gdot].filter(Boolean);
+  dotEl.forEach(d => {
+    d.className = 'ws-dot';
+    if (status !== 'disconnected') d.classList.add(status);
+  });
+  if (label) label.textContent = extra || status;
+  if (bConn) bConn.disabled = (status === 'connected' || status === 'connecting' || status === 'reconnecting');
+  if (bDisc) bDisc.disabled = (status === 'disconnected' || status === 'error');
+  if (badge) {
+    const r = state[key].retryCount;
+    badge.textContent = r > 0 ? `retry ${r}` : '';
+    badge.style.display = r > 0 ? '' : 'none';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HEARTBEAT
+// ═══════════════════════════════════════════════════════════
+function startHeartbeat(key) {
+  stopHeartbeat(key);
+  const s = state[key];
+  s.heartbeatTimer = setInterval(() => {
+    if (!s.socket || s.socket.readyState !== WebSocket.OPEN) return;
+    try {
+      s.socket.send(JSON.stringify({ type: 'ping' }));
+    } catch(e) { /* ignore */ }
+    // Expect a pong within HEARTBEAT_TIMEOUT
+    s.pongTimer = setTimeout(() => {
+      const ch = WS_CHANNELS[key];
+      log(ch.log, `${ch.prefix}: pong timeout — closing`, 'warn');
+      if (s.socket) s.socket.close(4001, 'pong timeout');
+    }, HEARTBEAT_TIMEOUT);
+  }, HEARTBEAT_INTERVAL);
+}
+
+function stopHeartbeat(key) {
+  const s = state[key];
+  if (s.heartbeatTimer) { clearInterval(s.heartbeatTimer); s.heartbeatTimer = null; }
+  if (s.pongTimer)      { clearTimeout(s.pongTimer);       s.pongTimer      = null; }
+}
+
+function resetPongTimer(key) {
+  const s = state[key];
+  if (s.pongTimer) { clearTimeout(s.pongTimer); s.pongTimer = null; }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CORE WebSocket CONNECT / RECONNECT
+// ═══════════════════════════════════════════════════════════
+function wsConnect(key) {
+  const ch    = WS_CHANNELS[key];
+  const s     = state[key];
+
+  // Clear any pending retry
+  if (s.retryTimer) { clearTimeout(s.retryTimer); s.retryTimer = null; }
+
+  // Close existing socket cleanly if present
+  if (s.socket && s.socket.readyState < WebSocket.CLOSING) {
+    s.intentional = true;
+    s.socket.close(1000, 'reconnecting');
   }
 
-  function getToken(typeId, tokenId) {
-    const prefix = document.getElementById(typeId).value.trim();
-    let token = document.getElementById(tokenId).value.trim();
-    if (!token) return null;
-    if (token.toLowerCase().startsWith('bearer ') || token.toLowerCase().startsWith('subbearer ')) {
-      return token;
+  const url = ch.buildUrl();
+  if (!url) return;
+
+  s.intentional = false;
+  setWsUi(key, 'connecting');
+  log(ch.log, `${ch.prefix}: connecting…`, 'ws');
+
+  const ws = new WebSocket(url);
+  s.socket = ws;
+
+  ws.onopen = () => {
+    s.retryCount = 0;
+    setWsUi(key, 'connected', 'connected');
+    log(ch.log, `${ch.prefix}: connected ✓`, 'ok');
+    startHeartbeat(key);
+  };
+
+  ws.onmessage = e => {
+    let parsed = null;
+    try { parsed = JSON.parse(e.data); } catch { /* raw */ }
+
+    // Handle pong
+    if (parsed && (parsed.type === 'pong' || parsed.type === 'ping')) {
+      resetPongTimer(key);
+      log(ch.log, `${ch.prefix}: ↩ ${parsed.type}`, 'ws');
+      return;
     }
-    return `${prefix} ${token}`;
+
+    const display = parsed ? JSON.stringify(parsed, null, 2) : e.data;
+    log(ch.log, `${ch.prefix}: ← ${display}`, 'ws');
+  };
+
+  ws.onerror = e => {
+    log(ch.log, `${ch.prefix}: error — ${e.message || 'connection error'}`, 'err');
+    setWsUi(key, 'error', 'error');
+  };
+
+  ws.onclose = e => {
+    stopHeartbeat(key);
+    const reason = e.reason ? ` (${e.reason})` : '';
+    log(ch.log, `${ch.prefix}: closed — code ${e.code}${reason}`, s.intentional ? '' : 'warn');
+
+    if (s.intentional) {
+      setWsUi(key, 'disconnected');
+      s.retryCount = 0;
+      return;
+    }
+
+    // Abnormal close — schedule reconnect
+    const maxRetries = parseInt(document.getElementById('maxRetries').value, 10) || 5;
+    if (s.retryCount >= maxRetries) {
+      log(ch.log, `${ch.prefix}: max retries (${maxRetries}) reached. Give up.`, 'err');
+      setWsUi(key, 'error', `failed (${s.retryCount}x)`);
+      return;
+    }
+
+    const delay = Math.min(RECONNECT_BASE_MS * Math.pow(2, s.retryCount), RECONNECT_MAX_MS);
+    const jitter = delay * RECONNECT_JITTER * (Math.random() * 2 - 1);
+    const wait = Math.round(delay + jitter);
+    s.retryCount++;
+
+    setWsUi(key, 'reconnecting', `retry ${s.retryCount} in ${(wait/1000).toFixed(1)}s`);
+    log(ch.log, `${ch.prefix}: reconnecting in ${(wait/1000).toFixed(1)}s (attempt ${s.retryCount}/${maxRetries})`, 'warn');
+
+    s.retryTimer = setTimeout(() => wsConnect(key), wait);
+  };
+}
+
+function wsDisconnect(key) {
+  const s  = state[key];
+  const ch = WS_CHANNELS[key];
+  stopHeartbeat(key);
+  if (s.retryTimer) { clearTimeout(s.retryTimer); s.retryTimer = null; }
+  s.retryCount = 0;
+  if (s.socket && s.socket.readyState < WebSocket.CLOSING) {
+    s.intentional = true;
+    s.socket.close(1000, 'user disconnect');
+    log(ch.log, `${ch.prefix}: disconnected by user`, '');
   }
+  setWsUi(key, 'disconnected');
+}
 
-  async function apiFetch(role, path, method, body) {
-    const apiBase = document.getElementById('apiBase').value.trim();
-    let token = null;
-    if (role === 'customer') token = getToken('custTokenType', 'custToken');
-    if (role === 'branch') token = getToken('branchTokenType', 'branchToken');
-    if (role === 'driver') token = getToken('driverTokenType', 'driverToken');
+// ═══════════════════════════════════════════════════════════
+//  REST HELPER
+// ═══════════════════════════════════════════════════════════
+async function apiFetch(role, path, method, body) {
+  const base = apiBase();
+  let token = null;
+  if (role === 'customer') token = getToken('custTokenType', 'custToken');
+  if (role === 'branch')   token = getToken('branchTokenType', 'branchToken');
+  if (role === 'driver')   token = getToken('driverTokenType', 'driverToken');
 
-    const res = await fetch(`${apiBase}${path}`, {
+  try {
+    const res = await fetch(`${base}${path}`, {
       method,
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': token } : {})
+        ...(token ? { Authorization: token } : {})
       },
       body: body ? JSON.stringify(body) : undefined
     });
@@ -318,157 +658,126 @@
     let data = null;
     try { data = JSON.parse(text); } catch { data = { raw: text }; }
     return { status: res.status, data };
+  } catch (err) {
+    return { status: 0, data: { error: err.message } };
   }
+}
 
-  function setOrderId(orderId) {
-    if (!orderId) return;
-    document.getElementById('currentOrderId').value = orderId;
-    document.getElementById('branchOrderId').value = orderId;
-    document.getElementById('driverOrderId').value = orderId;
+// ═══════════════════════════════════════════════════════════
+//  ORDER ID SYNC
+// ═══════════════════════════════════════════════════════════
+function setOrderId(orderId) {
+  if (!orderId) return;
+  ['currentOrderId', 'branchOrderId', 'driverOrderId'].forEach(id => {
+    document.getElementById(id).value = orderId;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CUSTOMER ACTIONS
+// ═══════════════════════════════════════════════════════════
+async function createOrder() {
+  const branchId   = Number(document.getElementById('custBranchId').value);
+  const menuItemId = Number(document.getElementById('custMenuItemId').value);
+  const qty        = Number(document.getElementById('custQty').value || 1);
+  const coupon     = document.getElementById('custCoupon').value.trim();
+  const variants   = document.getElementById('custVariants').value.trim();
+  const addons     = document.getElementById('custAddons').value.trim();
+
+  const payload = {
+    branch_id: branchId,
+    ...(coupon ? { coupon_code: coupon } : {}),
+    items: [{
+      menu_item_id: menuItemId,
+      quantity: qty,
+      variant_option_ids: variants ? variants.split(',').map(v => Number(v.trim())).filter(Boolean) : [],
+      addon_ids:          addons   ? addons.split(',').map(a => Number(a.trim())).filter(Boolean) : [],
+    }]
+  };
+
+  log('custLog', `POST /menu/order/ →\n${JSON.stringify(payload, null, 2)}`, 'send');
+  const res = await apiFetch('customer', '/menu/order/', 'POST', payload);
+  const type = res.status >= 200 && res.status < 300 ? 'ok' : 'err';
+  log('custLog', `← ${res.status}\n${JSON.stringify(res.data, null, 2)}`, type);
+
+  if (res.data?.order_id) setOrderId(res.data.order_id);
+  if (res.data?.delivery_passphrase) {
+    document.getElementById('driverCode').value = res.data.delivery_passphrase;
   }
+}
 
-  async function createOrder() {
-    const branchId = Number(document.getElementById('custBranchId').value);
-    const menuItemId = Number(document.getElementById('custMenuItemId').value);
-    const qty = Number(document.getElementById('custQty').value || 1);
-    const coupon = document.getElementById('custCoupon').value.trim();
-    const variants = document.getElementById('custVariants').value.trim();
-    const addons = document.getElementById('custAddons').value.trim();
+// ═══════════════════════════════════════════════════════════
+//  BRANCH ACTIONS
+// ═══════════════════════════════════════════════════════════
+async function branchAction(action) {
+  const orderId = Number(
+    document.getElementById('branchOrderId').value ||
+    document.getElementById('currentOrderId').value
+  );
+  log('branchLog', `POST /menu/restaurant-order/ (${action}) order=${orderId}`, 'send');
+  const res = await apiFetch('branch', '/menu/restaurant-order/', 'POST', { action, order_id: orderId });
+  const type = res.status >= 200 && res.status < 300 ? 'ok' : 'err';
+  log('branchLog', `← ${res.status}\n${JSON.stringify(res.data, null, 2)}`, type);
+}
 
-    const payload = {
-      branch_id: branchId,
-      coupon_code: coupon || undefined,
-      items: [
-        {
-          menu_item_id: menuItemId,
-          quantity: qty,
-          variant_option_ids: variants ? variants.split(',').map(v => Number(v.trim())).filter(Boolean) : [],
-          addon_ids: addons ? addons.split(',').map(a => Number(a.trim())).filter(Boolean) : [],
-        }
-      ]
-    };
+// ═══════════════════════════════════════════════════════════
+//  DRIVER ACTIONS
+// ═══════════════════════════════════════════════════════════
+async function driverAction(action) {
+  const orderId = Number(
+    document.getElementById('driverOrderId').value ||
+    document.getElementById('currentOrderId').value
+  );
+  const code = document.getElementById('driverCode').value.trim();
+  const body  = { action, order_id: orderId };
+  if (action === 'deliver') body.order_code = code;
 
-    const res = await apiFetch('customer', '/menu/order/', 'POST', payload);
-    log('custLog', `POST /menu/order/ -> ${res.status}\n${JSON.stringify(res.data, null, 2)}`);
-    if (res.data && res.data.order_id) {
-      setOrderId(res.data.order_id);
-    }
-    if (res.data && res.data.delivery_passphrase) {
-      document.getElementById('driverCode').value = res.data.delivery_passphrase;
-    }
+  log('driverLog', `POST /menu/driver-order/ (${action}) order=${orderId}`, 'send');
+  const res = await apiFetch('driver', '/menu/driver-order/', 'POST', body);
+  const type = res.status >= 200 && res.status < 300 ? 'ok' : 'err';
+  log('driverLog', `← ${res.status}\n${JSON.stringify(res.data, null, 2)}`, type);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DRIVER LOCATION / STATUS SENDS
+// ═══════════════════════════════════════════════════════════
+function wsSend(key, payload) {
+  const s  = state[key];
+  const ch = WS_CHANNELS[key];
+  if (!s.socket || s.socket.readyState !== WebSocket.OPEN) {
+    log(ch.log, `${ch.prefix}: not connected — cannot send`, 'err');
+    return false;
   }
+  const msg = JSON.stringify(payload);
+  s.socket.send(msg);
+  log(ch.log, `${ch.prefix}: → ${msg}`, 'send');
+  return true;
+}
 
-  async function branchAction(action) {
-    const orderId = Number(document.getElementById('branchOrderId').value || document.getElementById('currentOrderId').value);
-    const res = await apiFetch('branch', '/menu/restaurant-order/', 'POST', { action, order_id: orderId });
-    log('branchLog', `POST /menu/restaurant-order/ (${action}) -> ${res.status}\n${JSON.stringify(res.data, null, 2)}`);
+function sendLocationUpdate() {
+  wsSend('driverLocation', {
+    type:     'location_update',
+    lat:      parseFloat(document.getElementById('locLat').value)     || 8.9875577,
+    lng:      parseFloat(document.getElementById('locLng').value)     || 7.3649545,
+    heading:  parseFloat(document.getElementById('locHeading').value) || 90,
+    speed:    parseFloat(document.getElementById('locSpeed').value)   || 8,
+    accuracy: parseFloat(document.getElementById('locAccuracy').value)|| 5,
+  });
+}
+
+function sendStatusUpdate() {
+  const newAvail = !isAvailable;
+  const sent = wsSend('driverLocation', { type: 'status', is_available: newAvail });
+  if (sent) {
+    isAvailable = newAvail;
+    document.getElementById('statusIndi').textContent = isAvailable ? '🟢' : '🔴';
   }
+}
 
-  async function driverAction(action) {
-    const orderId = Number(document.getElementById('driverOrderId').value || document.getElementById('currentOrderId').value);
-    const code = document.getElementById('driverCode').value.trim();
-    const body = { action, order_id: orderId };
-    if (action === 'deliver') body.order_code = code;
-
-    const res = await apiFetch('driver', '/menu/driver-order/', 'POST', body);
-    log('driverLog', `POST /menu/driver-order/ (${action}) -> ${res.status}\n${JSON.stringify(res.data, null, 2)}`);
-  }
-
-  function connectCustomerWS() {
-    const wsBase = document.getElementById('wsBase').value.trim();
-    const orderId = document.getElementById('currentOrderId').value.trim();
-    const token = getToken('custTokenType', 'custToken');
-    if (!orderId || !token) return log('custLog', 'Missing order_id or token');
-
-    const url = `${wsBase}/ws/orders/${orderId}/?token=${encodeURIComponent(token)}`;
-    sockets.customer = new WebSocket(url);
-    sockets.customer.onmessage = e => log('custLog', `WS ${e.data}`);
-    sockets.customer.onopen = () => log('custLog', 'WS connected');
-    sockets.customer.onclose = () => log('custLog', 'WS closed');
-  }
-
-  function connectBranchWS() {
-    const wsBase = document.getElementById('wsBase').value.trim();
-    // const branchId = document.getElementById('branchId').value.trim();
-    const token = getToken('branchTokenType', 'branchToken');
-    //if (!branchId || !token) return log('branchLog', 'Missing branch_id or token');
-    if (!token) return log('branchLog', 'Missing token');
-
-    // if (tokenType === 'sub') {
-    //   formattedToken = `SubBearer ${token}`;
-    // }
-
-
-    const url = `${wsBase}/ws/branch/?token=${encodeURIComponent(token)}`;
-    sockets.branch = new WebSocket(url);
-    sockets.branch.onmessage = e => log('branchLog', `WS ${e.data}`);
-    sockets.branch.onopen = () => log('branchLog', 'WS connected');
-    sockets.branch.onclose = () => log('branchLog', 'WS closed');
-  }
-
-  function connectDriverOrdersWS() {
-    const wsBase = document.getElementById('wsBase').value.trim();
-    const token = getToken('driverTokenType', 'driverToken');
-    if (!token) return log('driverLog', 'Missing token');
-
-    const url = `${wsBase}/ws/driver/orders/?token=${encodeURIComponent(token)}`;
-    sockets.driverOrders = new WebSocket(url);
-    sockets.driverOrders.onmessage = e => log('driverLog', `WS orders ${e.data}`);
-    sockets.driverOrders.onopen = () => log('driverLog', 'WS orders connected');
-    sockets.driverOrders.onclose = () => log('driverLog', 'WS orders closed');
-  }
-
-  function connectDriverLocationWS() {
-    const wsBase = document.getElementById('wsBase').value.trim();
-    const token = getToken('driverTokenType', 'driverToken');
-    if (!token) return log('driverLog', 'Missing token');
-
-    const url = `${wsBase}/ws/driver/location/?token=${encodeURIComponent(token)}`;
-    sockets.driverLocation = new WebSocket(url);
-    sockets.driverLocation.onmessage = e => log('driverLog', `WS location ${e.data}`);
-    sockets.driverLocation.onopen = () => log('driverLog', 'WS location connected');
-    sockets.driverLocation.onclose = () => log('driverLog', 'WS location closed');
-  }
-
-  function sendLocationUpdate() {
-    if (!sockets.driverLocation || sockets.driverLocation.readyState !== 1) {
-      return log('driverLog', 'Location WS not connected');
-    }
-    // "latitude": 6.5244,    "longitude": 3.3792,
-    const payload = {
-      type: 'location_update',
-      lat: 6.5244,
-      lng: 3.3792,
-      heading: 90,
-      speed: 8,
-      accuracy: 5
-    };
-    sockets.driverLocation.send(JSON.stringify(payload));
-    log('driverLog', `Sent location_update ${JSON.stringify(payload)}`);
-  }
-
-  function sendStatusUpdate() {
-    if (!sockets.driverLocation || sockets.driverLocation.readyState !== 1) {
-      return log('driverLog', 'Location WS not connected');
-    }
-    const newAvailability = !IsAvailable;
-    const payload = {
-      type: 'status',
-      is_available: newAvailability,
-    };
-    const status = document.getElementById('statusIndi');
-    sockets.driverLocation.send(JSON.stringify(payload));
-    IsAvailable = newAvailability;
-    status.textContent = IsAvailable ? '🟢' : '🔴';
-    log('driverLog', `Sent Status ${JSON.stringify(payload)}`);
-  }
-
-  function disconnectWS(key) {
-    if (sockets[key]) {
-      sockets[key].close();
-      sockets[key] = null;
-    }
-  }
+// ═══════════════════════════════════════════════════════════
+//  INIT — set all WS indicators to disconnected
+// ═══════════════════════════════════════════════════════════
+Object.keys(WS_CHANNELS).forEach(k => setWsUi(k, 'disconnected'));
 </script>
 </body>
 </html>

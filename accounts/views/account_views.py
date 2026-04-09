@@ -184,6 +184,8 @@ class LinkApproveView(GenericAPIView):
             status=status.HTTP_201_CREATED,
         )
 
+# add delete linked user
+
 # add transfer of ownershp later
 class RegisterCustomer(APIView):
     permission_classes = [IsAuthenticated]

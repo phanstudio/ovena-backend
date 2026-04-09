@@ -162,6 +162,7 @@ class BaseSupportTicketViewSet(
             status=status.HTTP_201_CREATED
         )
 
+    # @extend_schema()
     @action(detail=True, methods=["post"])
     def reopen(self, request, pk=None):
         ticket = self.get_object()
@@ -202,6 +203,7 @@ class BaseSupportTicketViewSet(
             status=status.HTTP_200_OK
         )
 
+    # @extend_schema()
     @action(detail=True, methods=["post"])
     def close(self, request, pk=None):
         ticket = self.get_object()
