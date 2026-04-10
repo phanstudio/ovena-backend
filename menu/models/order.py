@@ -11,7 +11,7 @@ from payments.models import Sale
 
 
 # ===== UPDATE EXISTING MODELS =====
-
+# do we add total that will hold the (subtotal - discount) or something like that
 class Order(models.Model): # do we add a coupon snap shot or not also a discount amount snapshot?
     STATUS_CHOICES = [
         ("pending", "Pending"),  # waiting for branch confirmation

@@ -18,12 +18,35 @@ class VariantGroupSerializer(serializers.ModelSerializer):
 
 class MenuItemAddonSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
+    base_item_id = serializers.IntegerField(source="base_item.id", read_only=True)
+    is_available = serializers.SerializerMethodField()
+
     class Meta:
         model = MenuItemAddon
-        fields = ["id", "name", "price"]
+        fields = [
+            # "id",
+            "base_item_id",
+            "name", "price",
+            "is_available",
+        ]
     
     def get_name(self, obj):
         return obj.base_item.name
+    
+    def get_is_available(self, obj):
+        branch = self.context.get("branch")
+
+        if not branch:
+            return True
+
+        availability = obj.base_item.item_availabilities.filter(
+            branch=branch
+        ).first()
+
+        if availability:
+            return availability.is_available
+
+        return True
 
 class MenuItemAddonGroupSerializer(serializers.ModelSerializer):
     addons = MenuItemAddonSerializer(many=True, read_only=True)
@@ -42,14 +65,11 @@ class MenuItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = MenuItem
         fields = [
-            "id",
+            # "id",
             "base_item_id",
-            "custom_name",
-            "description",
-            "price",
-            "image",
-            "is_available",
-            "variant_groups",
+            "custom_name", "description",
+            "price", "image",
+            "is_available", "variant_groups",
             "addon_groups",
         ]
 

@@ -393,6 +393,8 @@ class BusinessWalletWithdrawalView(APIView):
             return Response({"error": "amount_kobo is required"}, status=status.HTTP_400_BAD_REQUEST)
         if not idempotency_key:
             return Response({"error": "Idempotency-Key header is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not business_admin.has_transaction_pin:
+            return Response({"error": "No transaction_pin saved"}, status=status.HTTP_400_BAD_REQUEST)
         if business_admin.has_transaction_pin and not business_admin.check_transaction_pin(transaction_pin):
             return Response({"error": "Valid transaction_pin is required"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -506,10 +508,12 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
             field_name="created_at",
         )
 
+        total_used = "subtotal" # "grand_total"
+
         order_totals = orders.aggregate(
-            total_orders_amount=_decimal_sum("grand_total"),
+            # total_orders_amount=_decimal_sum("grand_total"),
             subtotal_amount=_decimal_sum("subtotal"),
-            delivery_amount=_decimal_sum("delivery_price"),
+            # delivery_amount=_decimal_sum("delivery_price"),
             discount_amount=_decimal_sum("discount_total"),
             orders_count=Count("id"),
         )
@@ -522,7 +526,7 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
             orders.values("branch_id", "branch__name")
             .annotate(
                 total_orders=Count("id"),
-                total_amount=_decimal_sum("grand_total"),
+                total_amount=_decimal_sum(total_used), # we need to add the discounts
             )
             .order_by("-total_amount", "-total_orders", "branch__name")
             .first()
@@ -532,7 +536,7 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
             orders.annotate(bucket=_trunc("effective_at"))
             .values("bucket")
             .annotate(
-                amount=_decimal_sum("grand_total"),
+                amount=_decimal_sum(total_used),
                 orders_count=Count("id"),
             )
             .order_by("bucket")
@@ -543,9 +547,10 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
             "revenue_breakdown": {
                 "total_revenue_kobo": revenue_kobo,
                 "total_revenue_ngn": revenue_kobo / 100,
-                "total_orders_amount": order_totals["total_orders_amount"],
+                # "total_orders_amount": order_totals["total_orders_amount"],
                 "subtotal_amount": order_totals["subtotal_amount"],
-                "online_delivery_amount": order_totals["delivery_amount"],
+                "total": order_totals["subtotal_amount"] + order_totals["discount_amount"],
+                # "online_delivery_amount": order_totals["delivery_amount"],
                 "discount_amount": order_totals["discount_amount"],
                 "orders_count": order_totals["orders_count"],
             },
