@@ -5,26 +5,27 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from accounts.models import User
 from authflow.services.model import ULIDField
+from .accounts import AbstractPayoutAccount
 
-
-class UserAccount(models.Model):
+class UserAccount(AbstractPayoutAccount):
     """
-    Payment-specific extension of the core accounts.User model.
-
-    Holds provider-specific payout details so we don't have to put
-    Paystack/bank fields directly on the main User table.
+    Payment-specific extension of the core User model.
+    Used for individual actors: drivers, referral users, etc.
     """
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="payment_account")
-    paystack_recipient_code = models.CharField(max_length=100, blank=True)
-    bank_account_number = models.CharField(max_length=20, blank=True)
-    bank_code = models.CharField(max_length=10, blank=True)
-    bank_account_name = models.CharField(max_length=255, blank=True)
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="payment_account",
+    )
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        db_table = "payments_user_account"
 
-    def __str__(self):
+    def get_recipient_code(self) -> str:
+        return self.paystack_recipient_code or ""
+
+    def __str__(self) -> str:
         return f"{self.bank_account_name} ({self.bank_code})"
 
 

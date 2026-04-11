@@ -25,6 +25,8 @@ from authflow.permissions import IsBusinessAdmin, IsBusinessAgent
 from payments.idempotency import IdempotencyConflictError, begin_idempotent_request, save_idempotent_response
 from payments.models import LedgerEntry, Withdrawal
 from payments.payouts.services import create_withdrawal_request, get_balance_summary
+from payments.services.base import ensure_valid_cred
+from payments.integrations.paystack.errors import PaystackAPIError
 from payments.payouts.tasks import process_withdrawal
 from rest_framework.pagination import LimitOffsetPagination
 from accounts.serializers import InS as acInS
@@ -339,7 +341,7 @@ class RestaurantPaymentView(APIView):
         return Response(
             {
                 "bank": payment.bank_name,
-                "bank_code": payment.bank_code,
+                # "bank_code": payment.bank_code,
                 "account_number": payment.account_number,
                 "account_name": payment.account_name,
                 "bvn": payment.bvn or "",
@@ -357,14 +359,24 @@ class RestaurantPaymentView(APIView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
+        try:
+            # account_name = ensure_valid_cred(
+            #     bank_code=vd["bank_code"],
+            #     bank_account_number=vd["account_number"],
+            # )
+            account_name = vd["account_number"]
+        except PaystackAPIError as e:
+            return Response({"error": e})
+
         BusinessPayoutAccount.objects.update_or_create(
             business=admin.business,
             defaults={
                 "bank_name": vd["bank"],
                 "bank_code": vd.get("bank_code", ""),
                 "account_number": vd["account_number"],
-                "account_name": vd["account_name"],
-                "bvn": vd["bvn"],
+                "account_name": account_name,
+                "bvn": vd["bvn"][-4:],
+                # "paystack_recipient_code": recipient_code,
             },
         )
         return Response({"detail": "Payment info updated."})
@@ -376,11 +388,7 @@ class BusinessWalletBalanceView(APIView):
     def get(self, request):
         return Response(get_balance_summary(str(request.user.id), role="business_owner"))
 
-
-class BusinessWalletWithdrawalView(APIView):
-    authentication_classes = [CustomBAdminAuth]
-    permission_classes = [IsBusinessAdmin]
-
+class BusinessWalletWithdrawalView(BaseBuisAdminAPIView):
     def post(self, request):
         business_admin = get_object_or_404(BusinessAdmin, user=request.user)
         amount_kobo = request.data.get("amount_kobo")
@@ -437,6 +445,20 @@ class BusinessWalletWithdrawalView(APIView):
         except ValueError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+# add eligability
+# class DriverWithdrawEligibilityView(BaseBuisAdminAPIView):
+#     def get(self, request):
+#         # business_admin = self.get_buisnessadmn(request)
+#         decision = evaluate_withdrawal_eligibility(driver=driver)
+#         payload = {
+#             "eligible": decision.eligible,
+#             "minimum_amount": decision.minimum_amount,
+#             "max_amount": decision.max_amount,
+#             "available_balance": decision.available_balance,
+#             "checks": decision.checks,
+#         }
+#         return Response({"detail": "Withdrawal eligibility", "data": WithdrawalEligibilitySerializer(payload).data})
+
 
 class BusinessWalletWithdrawalHistoryView(APIView):
     authentication_classes = [CustomBAdminAuth]
@@ -463,9 +485,9 @@ class BusinessDashboardView(BaseBuisAdminAPIView):
         today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_orders = _filter_period(all_orders, today_start, timezone.now())
 
-        all_totals = all_orders.aggregate(amount_made=_decimal_sum("grand_total"), sales_count=Count("id"))
-        today_totals = today_orders.aggregate(today_sales=_decimal_sum("grand_total"), sales_count=Count("id"))
-        shipment_totals = filtered_orders.aggregate(amount=_decimal_sum("grand_total"), count=Count("id"))
+        all_totals = all_orders.aggregate(amount_made=_decimal_sum("items_total"), sales_count=Count("id")) # this should be subtotal sha not grand because it includes the discount
+        today_totals = today_orders.aggregate(today_sales=_decimal_sum("items_total"), sales_count=Count("id"))
+        shipment_totals = filtered_orders.aggregate(amount=_decimal_sum("items_total"), count=Count("id"))
 
         data = {
             "username": request.user.name or request.user.email or request.user.phone_number or "",
@@ -508,10 +530,10 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
             field_name="created_at",
         )
 
-        total_used = "subtotal" # "grand_total"
+        total_used = "items_total"
 
         order_totals = orders.aggregate(
-            # total_orders_amount=_decimal_sum("grand_total"),
+            total_orders_amount=_decimal_sum(total_used),
             subtotal_amount=_decimal_sum("subtotal"),
             # delivery_amount=_decimal_sum("delivery_price"),
             discount_amount=_decimal_sum("discount_total"),
@@ -547,9 +569,8 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
             "revenue_breakdown": {
                 "total_revenue_kobo": revenue_kobo,
                 "total_revenue_ngn": revenue_kobo / 100,
-                # "total_orders_amount": order_totals["total_orders_amount"],
+                "total_orders_amount": order_totals["total_orders_amount"],
                 "subtotal_amount": order_totals["subtotal_amount"],
-                "total": order_totals["subtotal_amount"] + order_totals["discount_amount"],
                 # "online_delivery_amount": order_totals["delivery_amount"],
                 "discount_amount": order_totals["discount_amount"],
                 "orders_count": order_totals["orders_count"],

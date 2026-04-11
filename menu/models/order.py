@@ -29,14 +29,19 @@ class Order(models.Model): # do we add a coupon snap shot or not also a discount
     orderer = models.ForeignKey(CustomerProfile, on_delete=models.CASCADE, related_name="orders")
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="orders")
     driver = models.ForeignKey(DriverProfile, on_delete=models.CASCADE, related_name="orders", blank=True, null=True)
-    
-    # Pricing
-    delivery_price = models.DecimalField(decimal_places=2, max_digits=10, default=0)
-    ovena_commission = models.DecimalField(max_digits=5, decimal_places=2, default=10)
     coupons = models.ForeignKey(Coupons, on_delete=models.CASCADE, related_name="orders", blank=True, null=True)
     
+    # Food totals
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     discount_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    items_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    # Fees
+    delivery_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    ovena_commission = models.DecimalField(max_digits=5, decimal_places=2, default=10)
+    # platform_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    # Checkout total
     grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     
     # Payment

@@ -63,4 +63,7 @@ class PaystackClient:
     
     def verfy_bvn(self, bvn: str) -> dict[str, Any]:
         return self._call(self._client.verification.verify_bvn, {"bvn": bvn})
+    
+    def verfy_account(self, payload: dict[str, Any]) ->  dict[str, Any]:
+        return self._call(self._client.verification.verify_account, payload) 
 

@@ -207,11 +207,3 @@ class DriverBankAccount(models.Model): # should next of kin be used here
     verified_at = models.DateTimeField(null=True, blank=True)
 
     updated_at = models.DateTimeField(auto_now=True)
-
-
-# from django.core.validators import RegexValidator
-
-# PHONE_VALIDATOR = RegexValidator(
-#     regex=r"^\+?\d{7,18}$",
-#     message="Phone number must be digits, optionally starting with +, 7-18 chars."
-# )

@@ -7,6 +7,8 @@ from accounts.models import(
     User, Business, Branch, 
     BusinessAdmin, BusinessPayoutAccount, BranchOperatingHours, BusinessCerd, BusinessOnboardStatus
 )
+from payments.services.base import ensure_valid_cred
+from payments.integrations.paystack.errors import PaystackAPIError
 from django.db import transaction, IntegrityError
 from authflow.services import (
     issue_jwt_for_user
@@ -194,17 +196,47 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
             # Payment info
             payment_data = vd.get("payment", {})
             if payment_data:
+                try:
+                    # account_name = ensure_valid_cred(
+                    #     bank_code=payment_data["bank_code"],
+                    #     bank_account_number=payment_data["account_number"],
+                    # )
+                    account_name = vd["account_number"]
+                except PaystackAPIError as e:
+                    return Response({"error": e})
                 BusinessPayoutAccount.objects.update_or_create(
                     business=restaurant,
                     defaults={
                         "bank_name": payment_data["bank"],
                         "bank_code": payment_data.get("bank_code", ""),
                         "account_number": payment_data["account_number"],
-                        "account_name": payment_data["account_name"],
+                        "account_name": account_name,
                         "bvn": payment_data["bvn"][-4:],
                     },
                 )
-            
+                
+                # ── Bank account verification via Paystack ──
+                # bank_code should come from a banks list endpoint (Paystack /bank)
+                # For now, accept it as an optional field alongside account_number
+                # bank_result = {}#verify_bank_account_paystack(data["account_number"], bank_code)
+                # bank_account.is_verified = True#bank_result["success"]
+                # bank_account.verified_at = timezone.now()
+                # bank_account.save()
+
+                # UserAccount.objects.update_or_create(
+                #     user=user,
+                #     defaults={
+                #         "bank_account_name": payment_data["bank"],
+                #         "bank_code": payment_data.get("bank_code", ""),
+                #         "bank_account_number": payment_data["account_number"],
+                #         "account_name": payment_data["account_name"],
+                #         "bvn": payment_data["bvn"][-4:],
+                #     },
+                # )
+                # paystack_recipient_code = models.CharField(max_length=100, blank=True)
+                # updated_at = models.DateTimeField(auto_now=True)
+
+                        
             
             # Branches + operating hours
             branches_data = vd.get("branches", [])

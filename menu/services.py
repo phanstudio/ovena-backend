@@ -114,18 +114,29 @@ class CouponService(): # does this affect the order or the order item the valid 
             subtotal=Sum("line_total"),
             discount_total=Sum("discount_amount"),
         )
+
         subtotal = agg["subtotal"] or Decimal("0")
         discount_total = agg["discount_total"] or Decimal("0")
 
-        grand_total = Decimal(subtotal) - Decimal(discount_total)
+        items_total = Decimal(subtotal) - Decimal(discount_total)
+
+        grand_total = (
+            items_total
+            + Decimal(order.delivery_price or 0)
+            + (items_total * Decimal(order.ovena_commission) / Decimal("100"))
+        )
+
         order.subtotal = subtotal
         order.discount_total = discount_total
-        order.grand_total = (
-            grand_total
-            + Decimal(order.delivery_price or 0)
-            + (grand_total * Decimal(order.ovena_commission) / Decimal("100.0"))
-        )
-        order.save(update_fields=["subtotal", "discount_total", "grand_total"])
+        order.items_total = items_total
+        order.grand_total = grand_total
+
+        order.save(update_fields=[
+            "subtotal",
+            "discount_total",
+            "items_total",
+            "grand_total",
+        ])
 
     @staticmethod
     def apply_coupon_to_order(coupon: Coupons, order: Order):

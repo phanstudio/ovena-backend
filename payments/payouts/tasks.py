@@ -185,18 +185,13 @@ def ensure_paystack_recipient_for_business_admin(business_admin_id: int):
     payout = BusinessPayoutAccount.objects.filter(business=admin.business).first()
     if not payout:
         return "missing-payout-account"
-    if not payout.bank_code or not payout.account_number or not payout.account_name:
+    if not payout.bank_code or not payout.bank_account_number or not payout.bank_account_name:
         return "incomplete-payout-account"
-
-    account, _ = UserAccount.objects.get_or_create(user=admin.user)
-    account.bank_account_number = payout.account_number
-    account.bank_code = payout.bank_code
-    account.bank_account_name = payout.account_name
 
     payload = {
         "type": "nuban",
-        "name": payout.account_name,
-        "account_number": payout.account_number,
+        "name": payout.bank_account_name,
+        "account_number": payout.bank_account_number,
         "bank_code": payout.bank_code,
         "currency": "NGN",
     }
@@ -204,9 +199,8 @@ def ensure_paystack_recipient_for_business_admin(business_admin_id: int):
     recipient = client.create_transfer_recipient(payload).get("data", {})
     code = recipient.get("recipient_code", "")
     if not code:
-        account.save(update_fields=["bank_account_number", "bank_code", "bank_account_name", "updated_at"])
         return "missing-recipient-code"
 
-    account.paystack_recipient_code = code
-    account.save(update_fields=["paystack_recipient_code", "bank_account_number", "bank_code", "bank_account_name", "updated_at"])
+    payout.paystack_recipient_code = code
+    payout.save(update_fields=["paystack_recipient_code", "updated_at"])
     return code
