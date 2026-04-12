@@ -36,6 +36,6 @@ def _sync_business_admin_paystack_recipient(sender, instance: BusinessPayoutAcco
     admin = getattr(instance.business, "admin", None)
     if not admin:
         return
-    if not instance.bank_code or not instance.account_number or not instance.account_name:
+    if not instance.bank_code or not instance.bank_account_number or not instance.bank_account_name:
         return
     ensure_paystack_recipient_for_business_admin.delay(admin.id)
