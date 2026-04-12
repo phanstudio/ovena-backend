@@ -201,7 +201,7 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
                     #     bank_code=payment_data["bank_code"],
                     #     bank_account_number=payment_data["account_number"],
                     # )
-                    account_name = vd["account_number"]
+                    account_name = payment_data["account_number"]
                 except PaystackAPIError as e:
                     return Response({"error": e})
                 BusinessPayoutAccount.objects.update_or_create(
