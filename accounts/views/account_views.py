@@ -363,10 +363,11 @@ class PasswordResetView(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
-        try:
-            identifier = verify(vd["otp_code"], vd["phone_number"])
-        except OTPInvalidError as e:
-            return Response({"error": str(e)}, status=400)
+        # try:
+        #     identifier = verify(vd["otp_code"], vd["phone_number"])
+        # except OTPInvalidError as e:
+        #     return Response({"error": str(e)}, status=400)
+        identifier = vd["phone_number"]
 
         user = User.objects.filter(phone_number=identifier).first()
         if not user:
