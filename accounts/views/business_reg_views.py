@@ -209,34 +209,11 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
                     defaults={
                         "bank_name": payment_data["bank"],
                         "bank_code": payment_data.get("bank_code", ""),
-                        "account_number": payment_data["account_number"],
-                        "account_name": account_name,
+                        "bank_account_number": payment_data["account_number"],
+                        "bank_account_name": account_name,
                         "bvn": payment_data["bvn"][-4:],
                     },
                 )
-                
-                # ── Bank account verification via Paystack ──
-                # bank_code should come from a banks list endpoint (Paystack /bank)
-                # For now, accept it as an optional field alongside account_number
-                # bank_result = {}#verify_bank_account_paystack(data["account_number"], bank_code)
-                # bank_account.is_verified = True#bank_result["success"]
-                # bank_account.verified_at = timezone.now()
-                # bank_account.save()
-
-                # UserAccount.objects.update_or_create(
-                #     user=user,
-                #     defaults={
-                #         "bank_account_name": payment_data["bank"],
-                #         "bank_code": payment_data.get("bank_code", ""),
-                #         "bank_account_number": payment_data["account_number"],
-                #         "account_name": payment_data["account_name"],
-                #         "bvn": payment_data["bvn"][-4:],
-                #     },
-                # )
-                # paystack_recipient_code = models.CharField(max_length=100, blank=True)
-                # updated_at = models.DateTimeField(auto_now=True)
-
-                        
             
             # Branches + operating hours
             branches_data = vd.get("branches", [])
