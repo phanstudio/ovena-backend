@@ -79,6 +79,7 @@ class DriverDashboardView(BaseDriverAPIView):
                 "total_deliveries": driver.total_deliveries,
                 "is_online": driver.is_online,
                 "is_available": driver.is_available,
+                "referral_code": driver.referral_code,
             },
             "wallet": {
                 "current_balance": wallet.current_balance,
@@ -92,7 +93,7 @@ class DriverDashboardView(BaseDriverAPIView):
         return Response({"detail": "Driver dashboard loaded", "data": payload})
 
 
-class DriverProfileView(BaseDriverAPIView):
+class DriverProfileView(BaseDriverAPIView): # delete later
     @extend_schema(responses=DriverProfileSerializer)
     def get(self, request):
         driver = self.get_driver(request)
