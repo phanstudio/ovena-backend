@@ -335,15 +335,15 @@ class RestaurantPaymentView(APIView):
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
 
         try:
-            payment = admin.business.payout
+            payment:BusinessPayoutAccount = admin.business.payout
         except BusinessPayoutAccount.DoesNotExist:
             return Response({"detail": "No payment info set."}, status=status.HTTP_404_NOT_FOUND)
         return Response(
             {
                 "bank": payment.bank_name,
                 # "bank_code": payment.bank_code,
-                "account_number": payment.account_number,
-                "account_name": payment.account_name,
+                "account_number": payment.bank_account_number,
+                "account_name": payment.bank_account_name,
                 "bvn": payment.bvn or "",
             }
         )
