@@ -327,10 +327,9 @@ class AdminLoginView(GenericAPIView):
         })
     },
 )
-class AdminChangePasswordView(GenericAPIView):
-    authentication_classes = [CustomBAdminAuth]
-    permission_classes = [IsBusinessAdmin]
-    serializer_class = InS.AdminChangePasswordSerializer
+class ChangePasswordView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = InS.ChangePasswordSerializer
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)

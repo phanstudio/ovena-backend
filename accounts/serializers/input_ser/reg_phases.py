@@ -107,4 +107,5 @@ class RestaurantPhase2Serializer(serializers.Serializer):
 class RegisterBAdminSerializer(serializers.Serializer):
     full_name = serializers.CharField()
     phone_number = PhoneNumberField()
+    email = serializers.EmailField()
     otp_code = serializers.CharField()

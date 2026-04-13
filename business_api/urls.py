@@ -22,6 +22,7 @@ urlpatterns = [
     path("analysis/store/", views.BusinessStoreAnalysisView.as_view(), name="business-store-analysis"),
     path("wallet/transaction-pin/", views.BusinessTransactionPinView.as_view(), name="business-transaction-pin"),
     path("payment/", views.RestaurantPaymentView.as_view(), name="business-payment"),
+    path("payment/verify/", views.RestaurantPaymentReceiverView.as_view(), name="business-payment-verify"),
     path("wallet/balance/", views.BusinessWalletBalanceView.as_view(), name="business-wallet-balance"),
     path("wallet/transactions/", views.BusinessTransactionHistoryView.as_view(), name="business-wallet-transactions"),
     path("wallet/withdraw/", views.BusinessWalletWithdrawalView.as_view(), name="business-wallet-withdraw"),
@@ -34,4 +35,5 @@ urlpatterns = [
     path("staff/list/", views.StaffListView.as_view(), name="staff-list"),
     path("staff/revoke/", views.StaffRevokeView.as_view(), name="staff-revoke"),
     path("admin/update/", views.BuisnessAdminUpdateView.as_view(), name="buis-admin-update"),
+    path("admin/update/verify/", views.BuisnessAdminUpdateReceiverView.as_view(), name="buis-admin-update-verify"),
 ]

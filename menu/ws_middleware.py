@@ -1,85 +1,96 @@
-"""
-WebSocket authentication middleware
-Place in: orders/ws_middleware.py
-"""
 from channels.db import database_sync_to_async
 from channels.middleware import BaseMiddleware
 from django.contrib.auth.models import AnonymousUser
-from django.conf import settings
-import jwt
 from urllib.parse import parse_qs
-import asyncio
+from authflow.authentication import CustomJWtAuth
+from rest_framework_simplejwt.tokens import AccessToken
+
 
 @database_sync_to_async
 def get_user_from_token(token):
-    """
-    Decode JWT token and get user
-    Adjust this based on your authentication system
-    """
     try:
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        
-        # Decode JWT
-        payload = jwt.decode(
-            token,
-            settings.SECRET_KEY, 
-            algorithms=['HS256']
-        )
+        access = AccessToken(token)
+        auth = CustomJWtAuth()
+        return auth.get_user(access)
+    except Exception:
+        return AnonymousUser()
 
-        user_id = payload.get('user_id')
-        if user_id:
-            user = User.objects.select_related(
-                'customer_profile',
-                'driver_profile',
-                'primaryagent__branch'
-            ).get(id=user_id)
-            return user
-            
-    except (jwt.ExpiredSignatureError, jwt.DecodeError, User.DoesNotExist):
-        pass
-    
-    return AnonymousUser()
+# (BaseMiddleware)
+class TokenAuthMiddleware:
 
-class TokenAuthMiddleware(BaseMiddleware):
-    """
-    Simple middleware that just extracts the token
-    Let consumers handle authentication
-    """
-    
+    def __init__(self, app):
+        self.app = app
+
     async def __call__(self, scope, receive, send):
-        # Extract token
-        query_string = scope.get('query_string', b'').decode()
-        query_params = parse_qs(query_string)
-        token = query_params.get('token', [None])[0]
-        token_type = query_params.get('token_type', [None])[0]
-        
-        def _normalize_token(raw):
-            if not raw:
-                return None, None
-            stripped = raw.strip()
-            lowered = stripped.lower()
-            if lowered.startswith("bearer "):
-                return stripped[7:].strip(), "bearer"
-            if lowered.startswith("subbearer "):
-                return stripped[10:].strip(), "sub"
-            return stripped, None
+
+        query = parse_qs(scope["query_string"].decode())
+        token = query.get("token", [None])[0]
 
         if token:
-            token, detected_type = _normalize_token(token)
-            if detected_type:
-                token_type = detected_type
+            scope["user"] = await get_user_from_token(token)
         else:
-            headers = dict(scope.get('headers', []))
-            auth_header = headers.get(b'authorization', b'').decode()
-            if auth_header:
-                token, token_type = _normalize_token(auth_header)
-        
-        # Store token in scope for consumer to use
-        scope['token'] = token
-        scope['token_type'] = token_type.lower() if token_type else None
-        # Set a placeholder user (will be set in consumer)
-        scope['user'] = AnonymousUser()
-        
-        return await super().__call__(scope, receive, send)
+            scope["user"] = AnonymousUser()
+
+        return await self.app(scope, receive, send)
+
+
+# # ws_middleware.py
+# from functools import lru_cache
+# import asyncio
+# from urllib.parse import parse_qs
+# from django.contrib.auth.models import AnonymousUser
+# from rest_framework_simplejwt.tokens import AccessToken
+# from channels.db import database_sync_to_async
+# from authflow.authentication import CustomJWtAuth
+
+# # In-memory token cache to avoid repeated DB hits for the same token
+# _token_cache: dict[str, any] = {}
+# _token_cache_lock = asyncio.Lock()
+
+# @database_sync_to_async
+# def _fetch_user_from_token(token):
+#     try:
+#         access = AccessToken(token)
+#         auth = CustomJWtAuth()
+#         return auth.get_user(access)
+#     except Exception:
+#         return AnonymousUser()
+
+
+# async def get_user_from_token(token: str):
+#     """
+#     Cached token resolution — multiple simultaneous connections
+#     with the same token only hit the DB once.
+#     """
+#     async with _token_cache_lock:
+#         if token in _token_cache:
+#             return _token_cache[token]
+
+#     # DB fetch outside the lock so other tokens aren't blocked
+#     user = await _fetch_user_from_token(token)
+
+#     async with _token_cache_lock:
+#         _token_cache[token] = user  # last-write-wins, acceptable here
+
+#     return user
+
+
+# class TokenAuthMiddleware:
+
+#     def __init__(self, app):
+#         self.app = app
+
+#     async def __call__(self, scope, receive, send):
+#         if scope["type"] != "websocket":
+#             return await self.app(scope, receive, send)
+
+#         query = parse_qs(scope["query_string"].decode())
+#         token = query.get("token", [None])[0]
+
+#         if token:
+#             scope["user"] = await get_user_from_token(token)
+#         else:
+#             scope["user"] = AnonymousUser()
+
+#         return await self.app(scope, receive, send)
 

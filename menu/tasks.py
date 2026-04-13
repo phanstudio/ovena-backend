@@ -15,7 +15,8 @@ from .websocket_utils import (
     notify_order_ready,
     broadcast_to_specific_drivers
 )
-from addresses.events import *
+# from addresses.events import *
+from addresses.events import ORDER_DRIVER_NOT_FOUND, ORDER_DRIVER_ASSIGNED
 from .gis_utils import find_nearest_available_drivers
 import logging
 

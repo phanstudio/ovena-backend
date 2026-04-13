@@ -103,3 +103,6 @@ class BranchInputSerializer(serializers.Serializer):
 class StaffRevokedSerializer(serializers.Serializer):
     agent_id = serializers.IntegerField()
     revoked = serializers.BooleanField()
+
+class RecieverSerializer(serializers.Serializer):
+    otp_code = serializers.CharField()

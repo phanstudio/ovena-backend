@@ -34,6 +34,9 @@ from drf_spectacular.utils import extend_schema # type: ignore
 from menu.models import Order
 from ratings.models import BranchRating
 from abc import ABC
+from authflow.services import OTPManager
+import msgpack
+import zlib
 
 def _decimal_sum(field_name: str):
     return Coalesce(
@@ -115,6 +118,14 @@ def _select_trunc(start, end):
         return TruncDay
 
     return TruncWeek
+
+def encode_dict(data: dict) -> bytes:
+    packed = msgpack.packb(data, use_bin_type=True)
+    return zlib.compress(packed)
+
+def decode_dict(data: bytes) -> dict:
+    unpacked = zlib.decompress(data)
+    return msgpack.unpackb(unpacked, raw=False)
 
 class AbstractBuStAdBranchView(GenericAPIView, ABC):
     authentication_classes = [
@@ -275,19 +286,54 @@ class BuisnessAdminUpdateView(BaseBuisAdminAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
-    
-        update_fields = []
-
-        if "full_name" in vd:
-            user.name = vd["full_name"]
-            update_fields.append("name")
 
         if "phone_number" in vd:
-            user.phone_number = vd["phone_number"]
+            vd["phone_number"] = str(vd["phone_number"])
+        data = encode_dict(vd)
+        code = OTPManager.send_blank(data)
+        print(code)
+        OTPManager.send_code("phone", str(user.phone_number), code)
+        # update_fields = []
+
+        # if "full_name" in vd:
+        #     user.name = vd["full_name"]
+        #     update_fields.append("name")
+
+        # if "phone_number" in vd:
+        #     user.phone_number = vd["phone_number"]
+        #     update_fields.append("phone_number")
+
+        # if "email" in vd:
+        #     user.email = vd["email"]
+        #     update_fields.append("email")
+
+        # if update_fields:
+        #     user.save(update_fields=update_fields)
+
+        return Response({"detail": f"User update request sent. {code} while it is down"})
+
+class BuisnessAdminUpdateReceiverView(BaseBuisAdminAPIView):
+    serializer_class = InS.RecieverSerializer
+    def post(self, request):
+        user:User = request.user
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+    
+        identifier = OTPManager.verify(otp_code=vd["otp_code"])
+        vaild_data = decode_dict(identifier)
+        update_fields = []
+
+        if "full_name" in vaild_data:
+            user.name = vaild_data["full_name"]
+            update_fields.append("name")
+
+        if "phone_number" in vaild_data:
+            user.phone_number = vaild_data["phone_number"]
             update_fields.append("phone_number")
 
-        if "email" in vd:
-            user.email = vd["email"]
+        if "email" in vaild_data:
+            user.email = vaild_data["email"]
             update_fields.append("email")
 
         if update_fields:
@@ -350,32 +396,66 @@ class RestaurantPaymentView(APIView):
 
     def put(self, request):
         user = request.user
-        try:
-            admin = user.business_admin
-        except BusinessAdmin.DoesNotExist:
-            return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+        # admin = user.business_admin
 
         serializer = acInS.RestaurantPaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
+        data = encode_dict(vd)
+        code = OTPManager.send_blank(data)
+        OTPManager.send_code("phone", user.phone_number, code)
+
+        # try:
+        #     # account_name = ensure_valid_cred(
+        #     #     bank_code=vd["bank_code"],
+        #     #     bank_account_number=vd["account_number"],
+        #     # )
+        #     account_name = vd["account_number"]
+        # except PaystackAPIError as e:
+        #     return Response({"error": e})
+
+        # BusinessPayoutAccount.objects.update_or_create(
+        #     business=admin.business,
+        #     defaults={
+        #         "bank_name": vd["bank"],
+        #         "bank_code": vd.get("bank_code", ""),
+        #         "account_number": vd["account_number"],
+        #         "account_name": account_name,
+        #         "bvn": vd["bvn"][-4:],
+        #         # "paystack_recipient_code": recipient_code,
+        #     },
+        # )
+        return Response({"detail": "Payment info updated."})
+
+class RestaurantPaymentReceiverView(BaseBuisAdminAPIView):
+    serializer_class = InS.RecieverSerializer
+    def post(self, request):
+        user:User = request.user
+        admin = user.business_admin
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+    
+        identifier = OTPManager.verify(otp_code=vd["otp_code"])
+        vaild_data = decode_dict(identifier)
 
         try:
             # account_name = ensure_valid_cred(
-            #     bank_code=vd["bank_code"],
-            #     bank_account_number=vd["account_number"],
+            #     bank_code=vaild_data["bank_code"],
+            #     bank_account_number=vaild_data["account_number"],
             # )
-            account_name = vd["account_number"]
+            account_name = vaild_data["account_number"]
         except PaystackAPIError as e:
             return Response({"error": e})
 
         BusinessPayoutAccount.objects.update_or_create(
             business=admin.business,
             defaults={
-                "bank_name": vd["bank"],
-                "bank_code": vd.get("bank_code", ""),
-                "account_number": vd["account_number"],
+                "bank_name": vaild_data["bank"],
+                "bank_code": vaild_data.get("bank_code", ""),
+                "account_number": vaild_data["account_number"],
                 "account_name": account_name,
-                "bvn": vd["bvn"][-4:],
+                "bvn": vaild_data["bvn"][-4:],
                 # "paystack_recipient_code": recipient_code,
             },
         )

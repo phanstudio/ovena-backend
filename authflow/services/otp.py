@@ -100,8 +100,24 @@ class OTPManager:
         elif channel == "phone":
             cls._deliver_sms(identifier, code)
     
+    @classmethod
+    def send_code(cls, channel: str, identifier: str, code:str) -> None:
+        """
+        Rate-limit, generate, store, and deliver an OTP.
+        Raises OTPRateLimitError, OTPGenerationError, or OTPDeliveryError.
+        """
+        if channel not in cls.CHANNELS:
+            raise ValueError(f"Unknown OTP channel '{channel}'. Choose from {cls.CHANNELS}.")
+
+        cls._enforce_rate_limit(channel, identifier)
+
+        if channel == "email":
+            cls._deliver_email(identifier, code)
+        elif channel == "phone":
+            cls._deliver_sms(identifier, code)
+    
     @staticmethod
-    def send_blank(identifier: str) -> None:
+    def send_blank(identifier: str) -> str:
         """
         Rate-limit, generate, store, and deliver an OTP.
         Raises OTPRateLimitError, OTPGenerationError, or OTPDeliveryError.

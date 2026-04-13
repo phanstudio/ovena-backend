@@ -330,7 +330,7 @@ class ResturantOrderView(GenericAPIView):
         return Response(
             {
                 "message": "Order accepted successfully",
-                "authorization_url": payment_url,
+                # "authorization_url": payment_url,
                 "payment_reference": order.payment_reference
             },
             status=status.HTTP_202_ACCEPTED,
@@ -430,7 +430,7 @@ class DriverOrderView(GenericAPIView):
         order_code = request.data.get("order_code")
         user = self.request.user
 
-        if not action or action not in ["accept", "deliver", "reject"]:
+        if not action or action not in ["accept", "deliver", "reject", "pickup"]:
             return Response({"error": "Action required"}, status=status.HTTP_400_BAD_REQUEST)
         
         order = self.get_queryset().filter(id=order_id).first()
@@ -441,6 +441,8 @@ class DriverOrderView(GenericAPIView):
             return self.accept_order(order, user)
         elif action == "deliver":
             return self.complete_order(order, order_code)
+        elif action == "pickup":
+            return self.pickup_order(order, user)
         elif action == "reject":
             return self.reject_order(order)
 
@@ -464,6 +466,39 @@ class DriverOrderView(GenericAPIView):
             actor_id=order.driver_id,
             old_status='driver_assigned',
             new_status='picked_up'
+        )
+        assign_driver(order, user.id)
+
+        # 🔥 Notify customer and branch
+        notify_order_picked_up(order)
+
+        logger.info(f"Order {order.id} accepted by driver {order.driver_id}")
+
+        return Response(
+            {"message": "Order accepted. Head to the restaurant!"},
+            status=status.HTTP_202_ACCEPTED,
+        )
+    
+    def pickup_order(self, order: Order, user: User): # help with this later
+        """Driver accepts order and heads to restaurant"""
+        if order.status != "picked_up":
+            return Response(
+                {"error": "Order not ready for Pick up"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        order.status = "on_the_way"
+        order.picked_up_at = timezone.now()
+        order.save(update_fields=["status", "picked_up_at", "last_modified_at"])
+
+        # Log event
+        OrderEvent.objects.create(
+            order=order,
+            event_type='on_the_way',
+            actor_type='driver',
+            actor_id=order.driver_id,
+            old_status='driver_assigned',
+            new_status='on_the_way'
         )
         assign_driver(order, user.id)
 
@@ -587,3 +622,5 @@ class DriverOrderView(GenericAPIView):
             {"message": "Order rejected. Finding alternative driver..."},
             status=status.HTTP_200_OK
         )
+
+# add order events view?

@@ -20,7 +20,7 @@ class PasswordResetSerializer(serializers.Serializer):
     new_password = serializers.CharField()
     otp_code = serializers.CharField()
 
-class AdminChangePasswordSerializer(serializers.Serializer):
+class ChangePasswordSerializer(serializers.Serializer):
     password = serializers.CharField()
     new_password = serializers.CharField()
 

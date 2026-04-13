@@ -55,6 +55,7 @@ THIRD_PARTY_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_gis',
+    "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
     "drf_spectacular_sidecar",
     'corsheaders',
@@ -91,6 +92,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+# Time
+MINUTE = 60
+HOUR = 60 * MINUTE
+DAY = 24 * HOUR
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -109,7 +115,7 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
 }
 
-CUSTOM_TOKEN_LIFETIME = 60*60*24*30 # 30 days like the refreshtoken
+CUSTOM_TOKEN_LIFETIME = 30*DAY # 30 days like the refreshtoken
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
@@ -125,8 +131,8 @@ TERMII_API_KEY = env("TERMII_API_KEY")
 TERMII_BASE_URL = env("TERMII_BASE_URL")
 TERMII_SENDER_ID = env("TERMII_SENDER_ID")
 MAX_OTP_SENDS = 3
-RATE_LIMIT_WINDOW = 600
-OTP_EXPIRY = 300
+RATE_LIMIT_WINDOW = 10 * MINUTE
+OTP_EXPIRY = 5 * MINUTE
 
 DEFAULT_PAYMENT_EMAIL= env("DEFAULT_EMAIL")
 
@@ -145,7 +151,7 @@ DRIVER_SEARCH_RADIUS_KM = [5, 10, 15]
 DRIVER_LOCATION_STALE_THRESHOLD = 60*60#60 # seconds
 
 MAX_DRIVERS_TO_NOTIFY = 5
-DRIVER_ACCEPTANCE_TIMEOUT = 60 # seconds
+DRIVER_ACCEPTANCE_TIMEOUT = MINUTE/4 # seconds
 
 # OAuth provider config placeholders
 OAUTH_PROVIDERS = {
@@ -164,6 +170,7 @@ OAUTH_PROVIDERS = {
     #     "REDIRECT_URI": "com.yourapp:/oauth2redirect/apple",
     # }
 }
+
 # Channels configuration
 CHANNEL_LAYERS = {
     "default": {
@@ -171,9 +178,9 @@ CHANNEL_LAYERS = {
         "CONFIG": {
             "hosts": [REDIS_URL],  # <-- Use full URL
             "capacity": 1500,
-            "expiry": 10,
+            "expiry": MINUTE,
             "prefix": "ws",
-            "group_expiry": 60,
+            "group_expiry": DAY,
         },
     },
 }

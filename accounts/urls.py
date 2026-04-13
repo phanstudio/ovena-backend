@@ -4,7 +4,7 @@ from .views import (
     OAuthExchangeView, RegisterCustomer, UpdateCustomer, LinkApproveView,
     jwt_views, SendEmailOTPView, VerifyEmailOTPView, SendPhoneOTPView,
     PasswordResetView, AdminLoginView, DriverLoginView, LinkRequestCreateView, 
-    StaffLoginView, PassWordResetSendView
+    StaffLoginView, PassWordResetSendView, ChangePasswordView
 )
 from .views import driver_reg_views
 from .views import business_reg_views
@@ -32,6 +32,7 @@ account_urls = [
     path("password-reset/", PasswordResetView.as_view(), name="password-reset"),
     path("password-reset/send/", PassWordResetSendView.as_view(), name="password-reset-send"),
     path("staff-login/", StaffLoginView.as_view(), name="staff-login"),
+    path("change-password/", ChangePasswordView.as_view(), name="change-password")
 ]
 
 

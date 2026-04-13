@@ -1,16 +1,16 @@
+import json
+import logging
+
 from django.utils import timezone
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from menu.websocket_utils import (
     get_branch_group_name,
     get_driver_pool_group_name,
-    get_order_group_name
+    get_order_group_name,
+    get_chat_group_name,
 )
-from menu.models import Order, ChatMessage
-from rest_framework_simplejwt.tokens import AccessToken
-from django.contrib.auth.models import AnonymousUser
-import json
-from authflow.authentication import CustomJWtAuth
+from menu.models import Order, ChatMessage, OrderEvent
 from accounts.models import User
 from accounts.services.profiles import (
     PROFILE_CUSTOMER,
@@ -18,25 +18,26 @@ from accounts.services.profiles import (
     PROFILE_BUSINESS_STAFF,
     get_profile,
 )
+import asyncio
+from django.db.models import OuterRef, Subquery
+
+logger = logging.getLogger(__name__)
+
+# ── close codes ──────────────────────────────────────────────────────────────
+CLOSE_UNAUTHENTICATED = 4001
+CLOSE_FORBIDDEN       = 4003
+CLOSE_RATE_LIMITED    = 4429
+CLOSE_SERVER_ERROR    = 4500
+CLOSE_GOING_AWAY      = 1001   # normal; client should reconnect
+
+# ── heartbeat tunables ────────────────────────────────────────────────────────
+PING_INTERVAL   = 25   # seconds between server pings
+PONG_TIMEOUT    = 10   # seconds to wait for client pong
 
 
 class BaseConsumer(AsyncWebsocketConsumer):
     """Base consumer with authentication utilities"""
-    
-    async def authenticate_user(self, token):
-        """Authenticate user from JWT token"""
-        if not token:
-            return AnonymousUser()
 
-        raw_token = token.strip()
-        return await self._authenticate_main_token(raw_token)
-
-    @database_sync_to_async
-    def _authenticate_main_token(self, token):
-        access = AccessToken(token)
-        auth = CustomJWtAuth()
-        return auth.get_user(access)
-    
     @database_sync_to_async
     def check_is_driver(self, user):
         """Check if user is a driver"""
@@ -76,10 +77,135 @@ class BaseConsumer(AsyncWebsocketConsumer):
             return get_profile(user, PROFILE_BUSINESS_STAFF)
         return None
 
-    async def health(self, message_type):
-        if message_type == "ping":
-            await self.send(text_data=json.dumps({"type": "pong"}))
+    def _load_json(self, text_data):
+        try:
+            return json.loads(text_data)
+        except json.JSONDecodeError as exc:
+            logger.warning("invalid websocket JSON payload (%s): %s", self.channel_name, exc)
+            return None
+    
+    async def connect(self):
+        # Fast channel-layer health check before doing any DB work
+        if not await self._layer_ok():
+            await self.close(code=CLOSE_SERVER_ERROR)
+            return
 
+        ok = await self.connect_func()
+        if ok:
+            self._ping_seq        = 0
+            self._pong_received   = True   # bootstrap: assume alive
+            self._heartbeat_task  = asyncio.create_task(self._heartbeat_loop())
+
+    async def connect_func(self):
+        ...
+
+    async def disconnect(self, close_code):
+        if hasattr(self, "_heartbeat_task"):
+            self._heartbeat_task.cancel()
+            try:
+                await self._heartbeat_task
+            except asyncio.CancelledError:
+                pass
+        await self.disconnect_func(close_code)
+
+    async def disconnect_func(self, close_code):
+        ...
+
+    async def receive(self, text_data):
+        data = self._load_json(text_data)
+        if data is None:
+            return
+
+        message_type = data.get("type")
+
+        # ── heartbeat ──────────────────────────────────────────────────────
+        if message_type == "pong":
+            seq = data.get("seq")
+            if seq == self._ping_seq:
+                self._pong_received = True
+            return
+
+        if message_type == "ping":
+            # client-initiated ping (some clients do this)
+            await self._send_json({"type": "pong", "seq": data.get("seq", 0)})
+            return
+
+        # ── missed-event replay ────────────────────────────────────────────
+        # if message_type == "replay" and self.SUPPORTS_REPLAY:
+        #     since_ts = data.get("since", 0)
+        #     await self._replay_missed_events(since_ts)
+        #     return
+
+        await self.receive_func(message_type, data)
+
+    async def receive_func(self, message_type, data):
+        ...
+
+    # ── heartbeat loop ────────────────────────────────────────────────────────
+
+    async def _heartbeat_loop(self):
+        """
+        Sends a server ping every PING_INTERVAL seconds.
+        If the client doesn't pong within PONG_TIMEOUT seconds, the
+        connection is considered dead and is closed.
+        """
+        try:
+            while True:
+                await asyncio.sleep(PING_INTERVAL)
+
+                if not self._pong_received:
+                    # Previous ping was not answered — zombie connection
+                    logger.warning(
+                        "No pong from %s (seq=%s) — closing zombie",
+                        self.channel_name, self._ping_seq,
+                    )
+                    await self.close(code=CLOSE_GOING_AWAY)
+                    return
+
+                self._ping_seq      += 1
+                self._pong_received  = False
+
+                await self._send_json({"type": "ping", "seq": self._ping_seq})
+
+                # Give the client PONG_TIMEOUT seconds to reply
+                await asyncio.sleep(PONG_TIMEOUT)
+
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            # Connection already gone
+            pass
+
+    # ── missed-event replay ───────────────────────────────────────────────────
+
+    # async def _replay_missed_events(self, since_ts: float):
+    #     """Override in subclasses to replay from the right groups."""
+    #     pass
+
+    # ── channel-layer health ──────────────────────────────────────────────────
+
+    async def _layer_ok(self) -> bool:
+        try:
+            await asyncio.wait_for(
+                self.channel_layer.group_add("__health__", "__health__"),
+                timeout=2.0,
+            )
+            await self.channel_layer.group_discard("__health__", "__health__")
+            return True
+        except Exception:
+            logger.error("Channel layer health check failed")
+            return False
+
+    async def _send_json(self, payload: dict):
+        try:
+            await self.send(text_data=json.dumps(payload, default=str))
+        except Exception:
+            pass  # connection gone; heartbeat will clean up
+
+    def last_order_event_subquery(self):
+        return OrderEvent.objects.filter(
+            order_id=OuterRef('pk')
+        ).order_by('-timestamp')
 
 class BranchConsumer(BaseConsumer): # supports primary and linked staff
     """
@@ -87,16 +213,8 @@ class BranchConsumer(BaseConsumer): # supports primary and linked staff
     Receives notifications about new orders and updates
     """
     
-    async def connect(self):
-        # Get token from scope
-        token = self.scope.get('token')
-        
-        if not token:
-            await self.close(code=4001)
-            return
-        
-        # Authenticate user
-        self.user = await self.authenticate_user(token)
+    async def connect_func(self):
+        self.user = self.scope["user"]
         if not self.user or self.user.is_anonymous:
             await self.close(code=4001)
             return
@@ -109,13 +227,6 @@ class BranchConsumer(BaseConsumer): # supports primary and linked staff
 
         branch_staff = await self.get_branch_staff(self.user)
         self.branch_id = branch_staff.branch_id
-        #self.scope['url_route']['kwargs']['branch_id']
-        
-        # Verify they belong to this branch
-        staff = await self.get_branch_staff(self.user)
-        if not staff or staff.branch_id != int(self.branch_id):
-            await self.close(code=4003)
-            return
         
         self.branch_group_name = get_branch_group_name(self.branch_id)
         
@@ -127,7 +238,6 @@ class BranchConsumer(BaseConsumer): # supports primary and linked staff
         
         # Join active order groups for this branch
         await self.join_active_order_groups()
-        
         await self.accept()
         
         # Send current active orders
@@ -136,27 +246,23 @@ class BranchConsumer(BaseConsumer): # supports primary and linked staff
             'type': 'active_orders',
             'data': active_orders
         }))
+        return True
     
-    async def disconnect(self, close_code):
+    async def disconnect_func(self, close_code):
         if hasattr(self, "branch_group_name"):
             await self.channel_layer.group_discard(
                 self.branch_group_name,
                 self.channel_name
             )
 
-    
-    async def receive(self, text_data):
+    async def receive_func(self, message_type, data):
         """Handle messages from branch staff"""
-        data = json.loads(text_data)
-        message_type = data.get('type')
-        
         if message_type == 'request_active_orders':
             active_orders = await self.get_active_orders()
             await self.send(text_data=json.dumps({
                 'type': 'active_orders',
                 'data': active_orders
             }))
-        await self.health(message_type)
     
     # Handler for branch notifications
     async def branch_notification(self, event):
@@ -176,22 +282,27 @@ class BranchConsumer(BaseConsumer): # supports primary and linked staff
     
     @database_sync_to_async
     def get_active_orders(self):
+        last_event = self.last_order_event_subquery()
+
         orders = Order.objects.filter(
             branch_id=self.branch_id,
-            status__in=['pending','confirmed','payment_pending','preparing','ready']
-        ).select_related('orderer__user').values(
+            status__in=['pending', 'confirmed', 'payment_pending', 'preparing', 'ready']
+        ).select_related('orderer__user').annotate(
+            last_event_type=Subquery(last_event.values('event_type')[:1]),
+            last_event_time=Subquery(last_event.values('timestamp')[:1]),
+        ).values(
             'id','order_number','status','created_at',
-            'orderer__user__name'
+            'orderer__user__name','last_event_type','last_event_time',
         )
 
-        serialized = []
-        for order in orders:
-            serialized.append({
+        return [
+            {
                 **order,
-                'created_at': order['created_at'].isoformat() if order['created_at'] else None
-            })
-
-        return serialized
+                'created_at': order['created_at'].isoformat() if order['created_at'] else None,
+                'last_event_time': order['last_event_time'].isoformat() if order['last_event_time'] else None,
+            }
+            for order in orders
+        ]
 
     
     async def join_active_order_groups(self):
@@ -218,16 +329,8 @@ class DriverOrdersConsumer(BaseConsumer):
     Shows available orders and order assignments
     """
     
-    async def connect(self):
-        # Get token from scope
-        token = self.scope.get('token')
-        
-        if not token:
-            await self.close(code=4001)
-            return
-        
-        # Authenticate user
-        self.user = await self.authenticate_user(token)
+    async def connect_func(self):
+        self.user = self.scope["user"]
         if not self.user or self.user.is_anonymous:
             await self.close(code=4001)
             return
@@ -269,8 +372,9 @@ class DriverOrdersConsumer(BaseConsumer):
             'type': 'my_orders',
             'data': my_orders
         }))
+        return True
 
-    async def disconnect(self, close_code):
+    async def disconnect_func(self, close_code):
         if hasattr(self, "driver_orders_group"):
             await self.channel_layer.group_discard(
                 self.driver_orders_group,
@@ -297,31 +401,14 @@ class DriverOrdersConsumer(BaseConsumer):
             'data': event['data']
         }))
     
-    # async def disconnect(self, close_code):
-    #     if hasattr(self, "driver_orders_group"):
-    #         await self.channel_layer.group_discard(
-    #             self.driver_orders_group,
-    #             self.channel_name
-    #         )
-
-    #     if hasattr(self, "driver_id"):
-    #         await self.channel_layer.group_discard(
-    #             f"orders_{get_driver_pool_group_name()}",
-    #             self.channel_name
-    #         )
-
-    async def receive(self, text_data):
+    async def receive_func(self, message_type, data):
         """Handle messages from driver"""
-        data = json.loads(text_data)
-        message_type = data.get('type')
-        
         if message_type == 'request_orders':
             my_orders = await self.get_my_orders()
             await self.send(text_data=json.dumps({
                 'type': 'my_orders',
                 'data': my_orders
             }))
-        await self.health(message_type)
     
     # Handlers
     async def driver_orders_notification(self, event):
@@ -340,30 +427,56 @@ class DriverOrdersConsumer(BaseConsumer):
     
     # @database_sync_to_async
     # def get_my_orders(self):
-    #     """Get driver's current and recent orders"""
     #     orders = Order.objects.filter(
     #         driver_id=self.driver_id,
     #         status__in=['driver_assigned', 'picked_up', 'on_the_way']
     #     ).select_related('branch', 'orderer__user').values(
-    #         'id', 'order_number', 'status', 'created_at',
-    #         'branch__name', 'branch__location',
+    #         'id',
+    #         'order_number',
+    #         'status',
+    #         'created_at',
+    #         'branch__name',
+    #         'branch__location',
     #         'orderer__user__name'
     #     )
-    #     return list(orders)
+
+    #     serialized = []
+    #     for order in orders:
+    #         serialized.append({
+    #             'id': order['id'],
+    #             'order_number': order['order_number'],
+    #             'status': order['status'],
+    #             'created_at': order['created_at'].isoformat()
+    #                 if order['created_at'] else None,
+
+    #             'branch': {
+    #                 'name': order['branch__name'],
+    #                 'location': {
+    #                     'lat': order['branch__location'].y,
+    #                     'lng': order['branch__location'].x,
+    #                 } if order['branch__location'] else None
+    #             },
+
+    #             'customer_name': order['orderer__user__name'],
+    #         })
+
+    #     return serialized
 
     @database_sync_to_async
     def get_my_orders(self):
+        last_event = self.last_order_event_subquery()
+
         orders = Order.objects.filter(
             driver_id=self.driver_id,
             status__in=['driver_assigned', 'picked_up', 'on_the_way']
-        ).select_related('branch', 'orderer__user').values(
-            'id',
-            'order_number',
-            'status',
-            'created_at',
-            'branch__name',
-            'branch__location',
-            'orderer__user__name'
+        ).select_related('branch','orderer__user').annotate(
+            last_event_type=Subquery(last_event.values('event_type')[:1]),
+            last_event_time=Subquery(last_event.values('timestamp')[:1]),
+        ).values(
+            'id','order_number','status',
+            'created_at','branch__name',
+            'branch__location','orderer__user__name',
+            'last_event_type','last_event_time',
         )
 
         serialized = []
@@ -372,8 +485,12 @@ class DriverOrdersConsumer(BaseConsumer):
                 'id': order['id'],
                 'order_number': order['order_number'],
                 'status': order['status'],
-                'created_at': order['created_at'].isoformat()
-                    if order['created_at'] else None,
+                'created_at': order['created_at'].isoformat() if order['created_at'] else None,
+
+                'last_event': {
+                    'type': order['last_event_type'],
+                    'timestamp': order['last_event_time'].isoformat() if order['last_event_time'] else None,
+                },
 
                 'branch': {
                     'name': order['branch__name'],
@@ -395,22 +512,14 @@ class ChatConsumer(BaseConsumer):
     Handles 1-on-1 chats between order participants
     """
     
-    async def connect(self):
-        # Get token from scope
-        token = self.scope.get('token')
-        
-        if not token:
-            await self.close(code=4001)
-            return
-        
-        # Authenticate user
-        self.user = await self.authenticate_user(token)
+    async def connect_func(self):
+        self.user = self.scope["user"]
         if not self.user or self.user.is_anonymous:
             await self.close(code=4001)
             return
         
         self.order_id = self.scope["url_route"]["kwargs"]["order_id"]
-        self.chat_group_name = f"order_{self.order_id}_chat"
+        self.chat_group_name = get_chat_group_name(self.order_id)
         
         # Determine user type and ID
         self.user_type, self.user_id = await self.get_user_info()
@@ -439,19 +548,17 @@ class ChatConsumer(BaseConsumer):
             'type': 'message_history',
             'data': recent_messages
         }))
+        return True
     
-    async def disconnect(self, close_code):
+    async def disconnect_func(self, close_code):
         if hasattr(self, "chat_group_name"):
             await self.channel_layer.group_discard(
                 self.chat_group_name,
                 self.channel_name
             )
     
-    async def receive(self, text_data):
-        """Receive chat message"""
-        data = json.loads(text_data)
-        message_type = data.get('type')
-        
+    async def receive_func(self, message_type, data):
+        """Receive chat message"""        
         if message_type == 'send_message':
             recipient_type = data.get('recipient_type')
             message_text = data.get('message')
@@ -482,8 +589,6 @@ class ChatConsumer(BaseConsumer):
         elif message_type == 'mark_read':
             message_ids = data.get('message_ids', [])
             await self.mark_messages_read(message_ids)
-        
-        await self.health(message_type)
     
     # Handler
     async def chat_message(self, event):
@@ -564,8 +669,8 @@ class ChatConsumer(BaseConsumer):
                 'message': message.message,
                 'created_at': message.created_at.isoformat()
             }
-        except Exception as e:
-            print(f"Error saving message: {e}")
+        except Exception:
+            logger.exception("Failed to save chat message for order %s", self.order_id)
             return None
     
     @database_sync_to_async
@@ -605,16 +710,8 @@ class OrderConsumer(BaseConsumer):
     Customers, drivers, and branch staff connect to track a specific order
     """
     
-    async def connect(self):
-        # Get token from scope
-        token = self.scope.get('token')
-        
-        if not token:
-            await self.close(code=4001)
-            return
-        
-        # Authenticate user
-        self.user = await self.authenticate_user(token)
+    async def connect_func(self):
+        self.user = self.scope["user"]
         if not self.user or self.user.is_anonymous:
             await self.close(code=4001)
             return
@@ -644,20 +741,17 @@ class OrderConsumer(BaseConsumer):
             'type': 'order.status',
             'data': order_data
         }))
+        return True
     
-    async def disconnect(self, close_code):
+    async def disconnect_func(self, close_code):
         if hasattr(self, "order_group_name"):
             await self.channel_layer.group_discard(
                 self.order_group_name,
                 self.channel_name
             )
-
-        
-    async def receive(self, text_data):
+ 
+    async def receive_func(self, message_type, data):
         """Handle incoming messages from client"""
-        data = json.loads(text_data)
-        message_type = data.get('type')
-        
         # Handle different message types if needed
         # (Most updates are server-initiated, but client can request status)
         if message_type == 'request_status':
@@ -666,7 +760,6 @@ class OrderConsumer(BaseConsumer):
                 'type': 'order.status',
                 'data': order_data
             }))
-        await self.health(message_type)
     
     # Handlers for group messages
     async def order_update(self, event):
@@ -704,22 +797,70 @@ class OrderConsumer(BaseConsumer):
         except Order.DoesNotExist:
             return False
     
+    # @database_sync_to_async
+    # def get_order_data(self):
+    #     """Get current order data"""
+    #     try:
+    #         order = Order.objects.select_related(
+    #             'orderer__user',
+    #             'branch',
+    #             'driver__user'
+    #         ).get(id=self.order_id)
+            
+    #         # Get driver location if assigned
+    #         driver_location = None
+    #         if order.driver:
+    #             try:
+    #                 from addresses.models import DriverLocation
+    #                 loc:DriverLocation = order.driver.location
+    #                 driver_location = {
+    #                     'lat': loc.location.y,
+    #                     'lng': loc.location.x,
+    #                     'heading': loc.heading,
+    #                     'last_updated': loc.last_updated.isoformat()
+    #                 }
+    #             except:
+    #                 pass
+            
+    #         return {
+    #             'order_id': order.id,
+    #             'order_number': order.order_number,
+    #             'status': order.status,
+    #             'branch': {
+    #                 'id': order.branch.id,
+    #                 'name': order.branch.name,
+    #             },
+    #             'driver': {
+    #                 'id': order.driver.id,
+    #                 'name': order.driver.user.name,
+    #                 'location': driver_location
+    #             } if order.driver else None,
+    #             'created_at': order.created_at.isoformat(),
+    #             'estimated_delivery_time': order.estimated_delivery_time.isoformat() if order.estimated_delivery_time else None,
+    #         }
+    #     except Order.DoesNotExist:
+    #         return None
+
     @database_sync_to_async
     def get_order_data(self):
-        """Get current order data"""
         try:
+            last_event = self.last_order_event_subquery()
+
             order = Order.objects.select_related(
-                'orderer__user',
-                'branch',
-                'driver__user'
-            ).get(id=self.order_id)
-            
-            # Get driver location if assigned
+                'orderer__user','branch','driver__user'
+            ).filter(id=self.order_id).annotate(
+                last_event_type=Subquery(last_event.values('event_type')[:1]),
+                last_event_time=Subquery(last_event.values('timestamp')[:1]),
+            ).first()
+
+            if not order:
+                return None
+
             driver_location = None
             if order.driver:
                 try:
                     from addresses.models import DriverLocation
-                    loc:DriverLocation = order.driver.location
+                    loc = order.driver.location
                     driver_location = {
                         'lat': loc.location.y,
                         'lng': loc.location.x,
@@ -728,23 +869,33 @@ class OrderConsumer(BaseConsumer):
                     }
                 except:
                     pass
-            
+
             return {
                 'order_id': order.id,
                 'order_number': order.order_number,
                 'status': order.status,
+
+                'last_event': {
+                    'type': order.last_event_type,
+                    'timestamp': order.last_event_time.isoformat() if order.last_event_time else None,
+                },
+
                 'branch': {
                     'id': order.branch.id,
                     'name': order.branch.name,
                 },
+
                 'driver': {
                     'id': order.driver.id,
                     'name': order.driver.user.name,
                     'location': driver_location
                 } if order.driver else None,
+
                 'created_at': order.created_at.isoformat(),
-                'estimated_delivery_time': order.estimated_delivery_time.isoformat() if order.estimated_delivery_time else None,
+                'estimated_delivery_time': order.estimated_delivery_time.isoformat()
+                    if order.estimated_delivery_time else None,
             }
+
         except Order.DoesNotExist:
             return None
 
@@ -755,16 +906,8 @@ class DriverLocationConsumer(BaseConsumer):
     Drivers connect here to send GPS updates
     """
     
-    async def connect(self):
-        # Get token from scope
-        token = self.scope.get('token')
-        
-        if not token:
-            await self.close(code=4001)
-            return
-        
-        # Authenticate user
-        self.user = await self.authenticate_user(token)
+    async def connect_func(self):
+        self.user = self.scope["user"]
         if not self.user or self.user.is_anonymous:
             await self.close(code=4001)
             return
@@ -794,8 +937,9 @@ class DriverLocationConsumer(BaseConsumer):
         
         # Mark driver as online
         await self.set_driver_status(is_online=True)
+        return True
     
-    async def disconnect(self, close_code):
+    async def disconnect_func(self, close_code):
         if hasattr(self, "driver_location_group"):
             await self.channel_layer.group_discard(
                 self.driver_location_group,
@@ -810,11 +954,8 @@ class DriverLocationConsumer(BaseConsumer):
         if hasattr(self, "driver_id"):
             await self.set_driver_status(is_online=False)
 
-    async def receive(self, text_data):
+    async def receive_func(self, message_type, data):
         """Receive location updates from driver"""
-        data = json.loads(text_data)
-        message_type = data.get('type')
-
         if message_type == 'location_update':
             lat = data.get('lat')
             lng = data.get('lng')
@@ -822,7 +963,7 @@ class DriverLocationConsumer(BaseConsumer):
             speed = data.get('speed', 0)
             accuracy = data.get('accuracy', 0)
             
-            if lat and lng:
+            if lat is not None and lng is not None:
                 await self.update_driver_location(lat, lng, heading, speed, accuracy)
                 
                 # If driver is on an active order, broadcast to that order group
@@ -833,8 +974,6 @@ class DriverLocationConsumer(BaseConsumer):
         elif message_type == 'status_change':
             is_available = data.get('is_available', False)
             await self.set_driver_availability(is_available)
-        
-        await self.health(message_type)
     
     # Handler for driver notifications
     async def driver_location_notification(self, event):
@@ -851,7 +990,13 @@ class DriverLocationConsumer(BaseConsumer):
             from django.contrib.gis.geos import Point
             from addresses.models import DriverLocation
             
-            point = Point(float(lng), float(lat), srid=4326)
+            try:
+                lng_float = float(lng)
+                lat_float = float(lat)
+            except (TypeError, ValueError) as exc:
+                logger.warning("Invalid location data from driver %s: %s", self.driver_id, exc)
+                return False
+            point = Point(lng_float, lat_float, srid=4326)
             
             location, created = DriverLocation.objects.update_or_create(
                 driver_id=self.driver_id,
@@ -865,8 +1010,8 @@ class DriverLocationConsumer(BaseConsumer):
                 }
             )
             return True
-        except Exception as e:
-            print(f"Error updating driver location: {e}")
+        except Exception:
+            logger.exception("Failed to update location for driver %s", self.driver_id)
             return False
     
     @database_sync_to_async
@@ -882,8 +1027,8 @@ class DriverLocationConsumer(BaseConsumer):
             DriverLocation.objects.filter(driver_id=self.driver_id).update(
                 is_online=is_online
             )
-        except Exception as e:
-            print(f"Error setting driver status: {e}")
+        except Exception:
+            logger.exception("Failed to update online status for driver %s", self.driver_id)
     
     @database_sync_to_async
     def set_driver_availability(self, is_available):
@@ -894,8 +1039,8 @@ class DriverLocationConsumer(BaseConsumer):
                 is_available=is_available
             )
             return True
-        except Exception as e:
-            print(f"Error setting driver availability: {e}")
+        except Exception:
+            logger.exception("Failed to update availability for driver %s", self.driver_id)
             return False
     
     @database_sync_to_async
@@ -905,7 +1050,7 @@ class DriverLocationConsumer(BaseConsumer):
             from menu.models import DriverProfile
             driver = DriverProfile.objects.get(id=self.driver_id)
             return driver.current_order_id
-        except:
+        except Exception:
             return None
     
     async def broadcast_location_to_order(self, order_id, lat, lng, heading):

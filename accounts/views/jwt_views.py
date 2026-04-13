@@ -1,4 +1,4 @@
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
@@ -51,7 +51,7 @@ class RotateTokenView(APIView):
             )
 
 class LogoutView(GenericAPIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     serializer_class = InS.LogoutSerializer
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -60,10 +60,12 @@ class LogoutView(GenericAPIView):
 
         try:
             token = RefreshToken(vd["refresh"])
+            if str(token["user_id"]) != str(request.user.id):
+                return Response({"error": "Token mismatch"}, status=400)
             token.blacklist()
             return Response({"message": "Logged out"})
-        except Exception:
-            return Response({"error": "Invalid token"}, status=400)
+        except Exception as e:
+            return Response({"error": f"Invalid token: {e}"}, status=400)
 
 class LogInView(APIView): # can work with password, will be removed
 
@@ -91,4 +93,3 @@ class LogInView(APIView): # can work with password, will be removed
             "refresh": token["refresh"],
             "access": token["access"],
         }, status=200)
-

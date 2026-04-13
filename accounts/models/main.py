@@ -139,7 +139,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = ["name"]
 
     def __str__(self):
-        return self.email or self.phone_number
+        return self.email or str(self.phone_number)
 
     @property
     def derived_roles(self):

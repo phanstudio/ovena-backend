@@ -50,20 +50,20 @@ class DriverProfileSerializer(serializers.ModelSerializer):
         model = DriverProfile
         fields = [
             "id", "first_name", "last_name", "vehicle_number", "vehicle_type",
-            "gender", "birth_date", "residential_address", "vehicle_make",
+            "gender", "birth_date", "residential_address", "vehicle_make", "referral_code"
         ]
 
 class BuisnessAdminProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessAdmin
         fields = [
-            "id"
+            "id", #"referral_code"
         ]
 
 class PrimaryAgentProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = PrimaryAgent
-        fields = ["id", 
+        fields = ["id", #"referral_code"
         ]
 
 class RestaurantProfileSerializer(serializers.ModelSerializer):
