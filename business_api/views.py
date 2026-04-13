@@ -1,7 +1,7 @@
 from django.conf import settings
 from datetime import datetime, timedelta
 from django.db import transaction
-from django.db.models import Avg, Count, DecimalField, Sum
+from django.db.models import Avg, Count, DecimalField, Sum, IntegerField, Value
 from django.db.models.functions import Coalesce, TruncDay, TruncWeek, TruncHour
 from django.utils import timezone
 from rest_framework import status
@@ -11,12 +11,9 @@ from rest_framework.generics import GenericAPIView
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import PermissionDenied
 from accounts.models import (
-    Branch,
-    BranchOperatingHours,
-    BusinessAdmin,
-    PrimaryAgent,
-    BusinessPayoutAccount,
-    User
+    Branch, BranchOperatingHours,
+    BusinessAdmin, PrimaryAgent,
+    BusinessPayoutAccount, User
 )
 from business_api.serializers import InS, OpS
 from addresses.utils import checkset_location
@@ -31,7 +28,7 @@ from payments.payouts.tasks import process_withdrawal
 from rest_framework.pagination import LimitOffsetPagination
 from accounts.serializers import InS as acInS
 from drf_spectacular.utils import extend_schema # type: ignore
-from menu.models import Order
+from menu.models import Order, OrderItem
 from ratings.models import BranchRating
 from abc import ABC
 from authflow.services import OTPManager
@@ -569,6 +566,11 @@ class BusinessDashboardView(BaseBuisAdminAPIView):
         today_totals = today_orders.aggregate(today_sales=_decimal_sum("items_total"), sales_count=Count("id"))
         shipment_totals = filtered_orders.aggregate(amount=_decimal_sum("items_total"), count=Count("id"))
 
+        # total_orders_filtered = filtered_orders.aggregate(count=Count("id"), amount=_decimal_sum("items_total"))
+        # shipment_totals_filtered = filtered_orders.aggregate(count=Count("id"), amount=_decimal_sum("items_total"))
+
+        # total shipment filtered, total order filtered
+
         data = {
             "username": request.user.name or request.user.email or request.user.phone_number or "",
             "today_sales": today_totals["today_sales"],
@@ -580,6 +582,17 @@ class BusinessDashboardView(BaseBuisAdminAPIView):
                 "count": shipment_totals["count"],
                 "amount": shipment_totals["amount"],
             },
+            # "total_orders": {
+            #     "filter": serializer.validated_data["range"],
+            #     "count": total_orders_filtered["count"],
+            #     "amount": total_orders_filtered["amount"],
+            # },
+
+            # "total_shipments": {
+            #     "filter": serializer.validated_data["range"],
+            #     "count": shipment_totals_filtered["count"],
+            #     "amount": shipment_totals_filtered["amount"],
+            # },
             "has_transaction_pin": business_admin.has_transaction_pin,
         }
         return Response({"detail": "Business dashboard", "data": data})
@@ -615,7 +628,6 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
         order_totals = orders.aggregate(
             total_orders_amount=_decimal_sum(total_used),
             subtotal_amount=_decimal_sum("subtotal"),
-            # delivery_amount=_decimal_sum("delivery_price"),
             discount_amount=_decimal_sum("discount_total"),
             orders_count=Count("id"),
         )
@@ -644,6 +656,31 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
             .order_by("bucket")
         )
 
+        top_product = (
+            OrderItem.objects
+            .filter(order__in=orders)
+            .values(
+                "menu_item_id",
+                "menu_item__custom_name"
+            )
+            .annotate(
+                total_quantity=Coalesce(
+                    Sum("quantity"),
+                    Value(0),
+                    output_field=IntegerField()
+                ),
+                total_revenue=Coalesce(
+                    Sum("line_total"),
+                    Value(0),
+                    output_field=DecimalField(max_digits=12, decimal_places=2)
+                ),
+                order_count=Count("order", distinct=True),
+            )
+            .order_by("-total_revenue", "-total_quantity")
+            .first()
+        )
+
+
         data = {
             "filters": serializer.validated_data,
             "revenue_breakdown": {
@@ -651,7 +688,6 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
                 "total_revenue_ngn": revenue_kobo / 100,
                 "total_orders_amount": order_totals["total_orders_amount"],
                 "subtotal_amount": order_totals["subtotal_amount"],
-                # "online_delivery_amount": order_totals["delivery_amount"],
                 "discount_amount": order_totals["discount_amount"],
                 "orders_count": order_totals["orders_count"],
             },
@@ -664,6 +700,13 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
                 "branch_name": top_branch["branch__name"] if top_branch else None,
                 "orders_count": top_branch["total_orders"] if top_branch else 0,
                 "amount": top_branch["total_amount"] if top_branch else 0,
+            },
+            "top_product": {
+                "menu_item_id": top_product["menu_item_id"] if top_product else None,
+                "name": top_product["menu_item__custom_name"] if top_product else None,
+                "quantity_sold": top_product["total_quantity"] if top_product else 0,
+                "revenue": top_product["total_revenue"] if top_product else 0,
+                "orders": top_product["order_count"] if top_product else 0,
             },
             "trend_revenue": [
                 {
