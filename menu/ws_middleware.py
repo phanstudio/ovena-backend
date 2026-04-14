@@ -25,6 +25,7 @@ class TokenAuthMiddleware:
 
         query = parse_qs(scope["query_string"].decode())
         token = query.get("token", [None])[0]
+        print(token)
 
         if token:
             scope["user"] = await get_user_from_token(token)
