@@ -21,7 +21,13 @@ from authflow.authentication import CustomBAdminAuth, CustomBusinessAgentsAuth
 from authflow.permissions import IsBusinessAdmin, IsBusinessAgent
 from payments.idempotency import IdempotencyConflictError, begin_idempotent_request, save_idempotent_response
 from payments.models import LedgerEntry, Withdrawal
-from payments.payouts.services import create_withdrawal_request, get_balance_summary
+from payments.payouts.services import (
+    create_withdrawal_request, get_balance_summary, 
+    evaluate_eligibility, MINIMUM_BY_ROLE
+)
+from payments.payouts.constants import (
+    DAILY_WITHDRAWAL_LIMIT_AMOUNT,
+)
 from payments.services.base import ensure_valid_cred
 from payments.integrations.paystack.errors import PaystackAPIError
 from payments.payouts.tasks import process_withdrawal
@@ -126,8 +132,6 @@ def decode_dict(data: bytes) -> dict:
 
 class AbstractBuStAdBranchView(GenericAPIView, ABC):
     authentication_classes = [
-        # CustomBStaffAuth,
-        # CustomBAdminAuth
         CustomBusinessAgentsAuth
     ]
     permission_classes = [IsBusinessAgent]
@@ -157,6 +161,14 @@ class BaseBuisAdminAPIView(GenericAPIView):
             return request.user.business_admin
         except BusinessAdmin.DoesNotExist:
             return get_object_or_404(BusinessAdmin, user=request.user)
+
+class SendVerifyView(BaseBuisAdminAPIView):
+    def send(self, vd, user, channel:str="phone"):
+        data = encode_dict(vd)
+        code = OTPManager.send_blank(data)
+        # OTPManager.send_code(channel, str(user.phone_number), code)
+        print(channel, str(user.phone_number), code)
+        return code
 
 class BranchCreateUpdateView(BaseBuisAdminAPIView):
     serializer_class = acInS.BranchInputSerializer
@@ -276,7 +288,7 @@ class StaffListView(BaseBuisAdminAPIView):
             "data": serializer.data
         })
 
-class BuisnessAdminUpdateView(BaseBuisAdminAPIView):
+class BuisnessAdminUpdateView(SendVerifyView):
     serializer_class = InS.AdminUpdateSerializer
     def patch(self, request):
         user:User = request.user
@@ -286,28 +298,9 @@ class BuisnessAdminUpdateView(BaseBuisAdminAPIView):
 
         if "phone_number" in vd:
             vd["phone_number"] = str(vd["phone_number"])
-        data = encode_dict(vd)
-        code = OTPManager.send_blank(data)
-        print(code)
-        OTPManager.send_code("phone", str(user.phone_number), code)
-        # update_fields = []
-
-        # if "full_name" in vd:
-        #     user.name = vd["full_name"]
-        #     update_fields.append("name")
-
-        # if "phone_number" in vd:
-        #     user.phone_number = vd["phone_number"]
-        #     update_fields.append("phone_number")
-
-        # if "email" in vd:
-        #     user.email = vd["email"]
-        #     update_fields.append("email")
-
-        # if update_fields:
-        #     user.save(update_fields=update_fields)
-
-        return Response({"detail": f"User update request sent. {code} while it is down"})
+        code = self.send(vd, user)
+        
+        return Response({"detail": f"User update request sent.The main code: {code}"})
 
 class BuisnessAdminUpdateReceiverView(BaseBuisAdminAPIView):
     serializer_class = InS.RecieverSerializer
@@ -366,9 +359,7 @@ class BranchOperatingHoursView(AbstractBuStAdBranchView):
 
         return Response({"detail": "Operating hours updated."})
 
-class RestaurantPaymentView(APIView):
-    authentication_classes = [CustomBAdminAuth]
-    permission_classes = [IsBusinessAdmin]
+class RestaurantPaymentView(SendVerifyView):
 
     def get(self, request):
         user = request.user
@@ -393,36 +384,11 @@ class RestaurantPaymentView(APIView):
 
     def put(self, request):
         user = request.user
-        # admin = user.business_admin
-
         serializer = acInS.RestaurantPaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
-        data = encode_dict(vd)
-        code = OTPManager.send_blank(data)
-        OTPManager.send_code("phone", user.phone_number, code)
-
-        # try:
-        #     # account_name = ensure_valid_cred(
-        #     #     bank_code=vd["bank_code"],
-        #     #     bank_account_number=vd["account_number"],
-        #     # )
-        #     account_name = vd["account_number"]
-        # except PaystackAPIError as e:
-        #     return Response({"error": e})
-
-        # BusinessPayoutAccount.objects.update_or_create(
-        #     business=admin.business,
-        #     defaults={
-        #         "bank_name": vd["bank"],
-        #         "bank_code": vd.get("bank_code", ""),
-        #         "account_number": vd["account_number"],
-        #         "account_name": account_name,
-        #         "bvn": vd["bvn"][-4:],
-        #         # "paystack_recipient_code": recipient_code,
-        #     },
-        # )
-        return Response({"detail": "Payment info updated."})
+        code = self.send(vd, user)
+        return Response({"detail": f"Payment info updated. The main code: {code}"})
 
 class RestaurantPaymentReceiverView(BaseBuisAdminAPIView):
     serializer_class = InS.RecieverSerializer
@@ -523,18 +489,19 @@ class BusinessWalletWithdrawalView(BaseBuisAdminAPIView):
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 # add eligability
-# class DriverWithdrawEligibilityView(BaseBuisAdminAPIView):
-#     def get(self, request):
-#         # business_admin = self.get_buisnessadmn(request)
-#         decision = evaluate_withdrawal_eligibility(driver=driver)
-#         payload = {
-#             "eligible": decision.eligible,
-#             "minimum_amount": decision.minimum_amount,
-#             "max_amount": decision.max_amount,
-#             "available_balance": decision.available_balance,
-#             "checks": decision.checks,
-#         }
-#         return Response({"detail": "Withdrawal eligibility", "data": WithdrawalEligibilitySerializer(payload).data})
+class BuisnessWithdrawEligibilityView(BaseBuisAdminAPIView):
+    def get(self, request):
+        decision = evaluate_eligibility(
+            user=request.user, amount_kobo=MINIMUM_BY_ROLE.get("business_owner"), role="business_owner"
+        )
+        payload = {
+            "eligible": decision.eligible,
+            "minimum_amount": decision.minimum_amount_kobo/100,
+            "max_amount": DAILY_WITHDRAWAL_LIMIT_AMOUNT/100,
+            "available_balance": decision.available_balance_kobo/100,
+            "checks": decision.checks,
+        }
+        return Response({"detail": "Withdrawal eligibility", "data": payload})
 
 
 class BusinessWalletWithdrawalHistoryView(APIView):
@@ -679,7 +646,6 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
             .order_by("-total_revenue", "-total_quantity")
             .first()
         )
-
 
         data = {
             "filters": serializer.validated_data,

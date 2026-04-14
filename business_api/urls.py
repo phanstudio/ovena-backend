@@ -25,6 +25,7 @@ urlpatterns = [
     path("payment/verify/", views.RestaurantPaymentReceiverView.as_view(), name="business-payment-verify"),
     path("wallet/balance/", views.BusinessWalletBalanceView.as_view(), name="business-wallet-balance"),
     path("wallet/transactions/", views.BusinessTransactionHistoryView.as_view(), name="business-wallet-transactions"),
+    path("wallet/withdraw/eligibility/", views.BuisnessWithdrawEligibilityView.as_view(), name="business-withdrawal-eligibility"),
     path("wallet/withdraw/", views.BusinessWalletWithdrawalView.as_view(), name="business-wallet-withdraw"),
     path("wallet/withdrawals/", views.BusinessWalletWithdrawalHistoryView.as_view(), name="business-wallet-history"),
     path("list-branches/", views.BranchListView.as_view(), name="list-branches"),
