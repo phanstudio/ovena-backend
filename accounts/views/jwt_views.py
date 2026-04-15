@@ -1,4 +1,3 @@
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
@@ -10,7 +9,7 @@ from authflow.services import issue_jwt_for_user
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
-
+# rate limit instead of block
 class RefreshTokenView(APIView):
     def post(self, request):
         refresh_token = request.data.get("refresh")
@@ -51,7 +50,6 @@ class RotateTokenView(APIView):
             )
 
 class LogoutView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
     serializer_class = InS.LogoutSerializer
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -63,9 +61,10 @@ class LogoutView(GenericAPIView):
             if str(token["user_id"]) != str(request.user.id):
                 return Response({"error": "Token mismatch"}, status=400)
             token.blacklist()
-            return Response({"message": "Logged out"})
         except Exception as e:
-            return Response({"error": f"Invalid token: {e}"}, status=400)
+            print(f"error: Invalid token: {e}")
+    
+        return Response({"message": "Logged out"})
 
 class LogInView(APIView): # can work with password, will be removed
 
