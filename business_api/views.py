@@ -407,7 +407,7 @@ class RestaurantPaymentReceiverView(BaseBuisAdminAPIView):
             #     bank_code=vaild_data["bank_code"],
             #     bank_account_number=vaild_data["account_number"],
             # )
-            account_name = vaild_data["account_number"]
+            account_name = vaild_data["account_name"]
         except PaystackAPIError as e:
             return Response({"error": e})
 
