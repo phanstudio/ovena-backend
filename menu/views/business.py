@@ -52,18 +52,28 @@ class BusinessMenuView(APIView):
     authentication_classes = [CustomBAdminAuth]
     permission_classes = [IsBusinessAdmin]
 
-    def get(self, request):
-        user = request.user.business_admin
+    def get_user(self, request):
+        return request.user.business_admin
+
+    def get_branch(self, request, user):
         branch_id = request.query_params.get("branch")
 
-        branch = None
         if branch_id:
-            branch = Branch.objects.filter(
+            return Branch.objects.filter(
                 id=branch_id,
                 business=user.business
             ).first()
 
-        menus = Menu.objects.filter(business_id=user.business_id)\
+        return None
+
+    def get_business_id(self, user):
+        return user.business_id
+
+    def get(self, request):
+        user = self.get_user(request)
+        branch = self.get_branch(request, user)
+
+        menus = Menu.objects.filter(business_id=self.get_buisness_id())\
             .prefetch_related(
                 "categories__items__variant_groups__options",
                 "categories__items__addon_groups__addons",
@@ -76,6 +86,19 @@ class BusinessMenuView(APIView):
         )
 
         return Response(serializer.data)
+
+class BusinessStaffMenuView(BusinessMenuView):
+    authentication_classes = [CustomBStaffAuth]
+    permission_classes = [IsBusinessStaff]
+
+    def get_user(self, request):
+        return request.user.primary_agent
+
+    def get_branch(self, request, user):
+        return user.branch
+
+    def get_business_id(self, user):
+        return user.branch.business_id
 
 # branch thing;
 # how to test searching 
