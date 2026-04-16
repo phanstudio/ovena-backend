@@ -73,7 +73,7 @@ class BusinessMenuView(APIView):
         user = self.get_user(request)
         branch = self.get_branch(request, user)
 
-        menus = Menu.objects.filter(business_id=self.get_business_id())\
+        menus = Menu.objects.filter(business_id=self.get_business_id(user))\
             .prefetch_related(
                 "categories__items__variant_groups__options",
                 "categories__items__addon_groups__addons",
