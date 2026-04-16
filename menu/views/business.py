@@ -7,7 +7,7 @@ from ..models import (
     Menu, MenuItem,
     Branch, BaseItemAvailability,
 )
-from ..pagifications import StandardResultsSetPagination
+from menu.pagifications import StandardResultsSetPagination
 
 from accounts.models import User
 from authflow.permissions import IsBusinessAdmin, IsBusinessStaff
@@ -73,7 +73,7 @@ class BusinessMenuView(APIView):
         user = self.get_user(request)
         branch = self.get_branch(request, user)
 
-        menus = Menu.objects.filter(business_id=self.get_buisness_id())\
+        menus = Menu.objects.filter(business_id=self.get_business_id())\
             .prefetch_related(
                 "categories__items__variant_groups__options",
                 "categories__items__addon_groups__addons",
