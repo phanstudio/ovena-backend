@@ -4,7 +4,8 @@ from .views import (
     OAuthExchangeView, RegisterCustomer, UpdateCustomer, LinkApproveView,
     jwt_views, SendEmailOTPView, VerifyEmailOTPView, SendPhoneOTPView,
     PasswordResetView, AdminLoginView, DriverLoginView, LinkRequestCreateView, 
-    StaffLoginView, PassWordResetSendView, ChangePasswordView
+    StaffLoginView, PassWordResetSendView, ChangePasswordView, 
+    AppAdminRequestCreateView, AppAdminApproveView
 )
 from .views import driver_reg_views
 from .views import business_reg_views
@@ -53,6 +54,11 @@ linked_user_urls = [
     path("request/", LinkRequestCreateView.as_view(), name="linked-user-request-create"),
 ]
 
+app_admin_user_urls = [
+    path("approval/", AppAdminApproveView.as_view(), name="app-admin-approval"),
+    path("request/", AppAdminRequestCreateView.as_view(), name="app-admin-request-create"),
+]
+
 urlpatterns = [
     path("send-otp/", SendPhoneOTPView.as_view(), name="send-otp"),
     path("verify-otp/", VerifyOTPView.as_view(), name="verify-otp"),
@@ -62,7 +68,7 @@ urlpatterns = [
     path("profile/", UserProfileView.as_view(), name="user-profile"),
     path("customer/update/", UpdateCustomer.as_view(), name="user-update"),
     path("profile/delete/", DeleteAccountView.as_view(), name="user-delete"),
-    path("profile/delete2/", Delete2AccountView.as_view(), name="user-delete"),
+    path("profile/delete2/", Delete2AccountView.as_view(), name="user-delete2"),
 
     path("send-email-otp/", SendEmailOTPView.as_view(), name="send-email-otp"),
     path("verify-email-otp/", VerifyEmailOTPView.as_view(), name="verify-email-otp"),
@@ -72,4 +78,5 @@ urlpatterns = [
     path("onboard/driver/", include(driver_onboarding_urls)),
     path("", include(account_urls)),
     path("linked/", include(linked_user_urls)),
+    path("admin/", include(app_admin_user_urls)),
 ]

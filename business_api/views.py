@@ -261,7 +261,10 @@ class StaffRevokeView(BaseBuisAdminAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
-        PrimaryAgent.objects.filter(id = vd["agent_id"]).update(revoked=vd["revoked"])
+        PrimaryAgent.objects.filter(id = vd["agent_id"]).update(
+            revoked=vd["revoked"],
+            revoked_at=timezone.now() if vd["revoked"] else None
+        ) # after a while we want to delete it. also add a revoked at
         action = "revoked" if vd["revoked"] else "unrevoked"
         return Response({"detail": f"agent {action}"})
 

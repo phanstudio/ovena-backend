@@ -22,7 +22,7 @@ class ReferralItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProfileReferral
-        fields = ["id", "created_at", "converted_at", "reward_issued", "referee_user_id"]
+        fields = ["id", "created_at", "converted_at", "is_consumed", "referee_user_id"]
 
 class ReferralPayoutSerializer(serializers.ModelSerializer):
     referrals_used = serializers.IntegerField(read_only=True)

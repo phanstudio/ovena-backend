@@ -35,6 +35,16 @@ class LinkApproveSerializer(serializers.Serializer):
     username = serializers.CharField(required=False, allow_blank=True)
     # password = serializers.CharField()
 
+class AppAdminRequestSerializer(serializers.Serializer):
+    role = serializers.CharField()
+
+class AppAdminApproveSerializer(serializers.Serializer):
+    otp = serializers.CharField()
+    phone_number = PhoneNumberField()
+    password = serializers.CharField()
+    full_name = serializers.CharField()
+    email = serializers.EmailField()
+
 class LinkStaffLoginSerializer(serializers.Serializer):
     device_id = serializers.CharField()
     # password = serializers.CharField()

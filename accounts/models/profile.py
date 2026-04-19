@@ -135,7 +135,8 @@ class PrimaryAgent(models.Model): # only one primary users, so the branch should
         BusinessAdmin, on_delete=models.CASCADE, related_name="linked_staff",
     )
     device_name = models.CharField(max_length=200, unique=True)
-    revoked = models.BooleanField(default=False) # change this to status
+    revoked = models.BooleanField(default=False)
+    revoked_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

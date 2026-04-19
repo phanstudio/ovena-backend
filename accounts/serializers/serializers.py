@@ -80,7 +80,10 @@ class UserSerializer(serializers.ModelSerializer):
 
 class OAuthCodeSerializer(serializers.Serializer):
     provider = serializers.ChoiceField(choices=("google", "apple"))
-    id_token = serializers.CharField()  # noqa: F811
+    id_token = serializers.CharField()
+
+class Delete2Serializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
 
 class CreateCustomerSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True)

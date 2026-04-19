@@ -3,6 +3,8 @@ from phonenumber_field.serializerfields import PhoneNumberField
 from accounts.models import User
 from admin_api.models import AppAdmin
 from django.db import transaction
+from accounts.models import DriverProfile, Business
+from payments.models import Withdrawal
 
 # class UserInfoSerializer(serializers.Serializer):
 #     id = serializers.IntegerField()
@@ -114,3 +116,152 @@ class UpdateAppAdminSerializer(serializers.Serializer):
             instance.save(update_fields=list(profile_updates.keys()))
 
         return instance
+
+
+class AdminUserListSerializer(serializers.ModelSerializer):
+    phone_number = PhoneNumberField()
+    roles = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ["id", "email", "phone_number", "name", "is_active", "is_staff", "roles"]
+
+    def get_roles(self, obj):
+        # Uses the derived roles system (profiles + legacy fallback).
+        try:
+            return sorted(list(obj.derived_roles))
+        except Exception:
+            return []
+
+
+class AdminDriverListSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+    latest_onboarding_status = serializers.CharField(read_only=True, allow_blank=True, default="")
+    latest_onboarding_submitted_at = serializers.DateTimeField(read_only=True, allow_null=True, default=None)
+    pending_documents_count = serializers.IntegerField(read_only=True, default=0)
+    pending_onboarding_submissions_count = serializers.IntegerField(read_only=True, default=0)
+
+    class Meta:
+        model = DriverProfile
+        fields = [
+            "id",
+            "user",
+            "first_name",
+            "last_name",
+            "gender",
+            "is_online",
+            "is_available",
+            "last_location_update",
+            "vehicle_make",
+            "vehicle_type",
+            "vehicle_number",
+            "total_deliveries",
+            "avg_rating",
+            "created_at",
+            "latest_onboarding_status",
+            "latest_onboarding_submitted_at",
+            "pending_documents_count",
+            "pending_onboarding_submissions_count",
+        ]
+
+
+class AdminBusinessListSerializer(serializers.ModelSerializer):
+    admin_user = serializers.SerializerMethodField()
+    branches_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Business
+        fields = [
+            "id",
+            "business_name",
+            "business_type",
+            "country",
+            "business_address",
+            "email",
+            "phone_number",
+            "onboarding_complete",
+            "created_at",
+            "branches_count",
+            "admin_user",
+        ]
+
+    def get_admin_user(self, obj):
+        try:
+            admin = obj.admin
+        except Exception:
+            return None
+        if not admin or not getattr(admin, "user", None):
+            return None
+        return UserSerializer(admin.user).data
+
+
+class AdminBusinessUpdateSerializer(serializers.Serializer):
+    onboarding_complete = serializers.BooleanField(required=False)
+
+
+class AdminWithdrawalSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
+    amount_ngn = serializers.SerializerMethodField()
+    ledger_role = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Withdrawal
+        fields = [
+            "id",
+            "user",
+            "amount",
+            "amount_ngn",
+            "status",
+            "strategy",
+            "idempotency_key",
+            "batch_date",
+            "retry_count",
+            "max_retries",
+            "paystack_transfer_code",
+            "paystack_transfer_ref",
+            "paystack_recipient_code",
+            "ledger_role",
+            "failure_reason",
+            "requested_at",
+            "processed_at",
+            "completed_at",
+        ]
+
+    def get_amount_ngn(self, obj):
+        try:
+            return obj.amount / 100
+        except Exception:
+            return None
+
+    def get_ledger_role(self, obj):
+        try:
+            if obj.ledger_entry_id and obj.ledger_entry:
+                return obj.ledger_entry.role
+        except Exception:
+            pass
+        return ""
+
+
+class AdminWithdrawalMarkFailedSerializer(serializers.Serializer):
+    reason = serializers.CharField()
+
+
+class AdminSendNotificationSerializer(serializers.Serializer):
+    # Either supply user_id (single user), or audience (broadcast segment).
+    user_id = serializers.IntegerField(required=False)
+    audience = serializers.ChoiceField(
+        choices=("all", "customers", "drivers", "business_admins"),
+        required=False,
+    )
+
+    notification_type = serializers.CharField(required=False, allow_blank=True, default="system")
+    title = serializers.CharField()
+    body = serializers.CharField()
+    payload_json = serializers.JSONField(required=False)
+
+    def validate(self, attrs):
+        if not attrs.get("user_id") and not attrs.get("audience"):
+            raise serializers.ValidationError("Provide either user_id or audience.")
+        if attrs.get("user_id") and attrs.get("audience"):
+            raise serializers.ValidationError("Provide only one of user_id or audience.")
+        return attrs

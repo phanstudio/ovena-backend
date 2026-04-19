@@ -10,6 +10,7 @@ import random
 from django.db import transaction
 from .serializers import CouponCreateUpdateSerializer
 from .serializers import CouponWheelSetSerializer
+from admin_api.views import BaseAppAdminAPIView
 
 # time left should be added everywhere
 # change if needed, the cred
@@ -107,11 +108,11 @@ class CouponWheelSpinView(APIView):
 
         return Response({"detail": "Coupon just exhausted. Spin again."}, status=409)
 
-class CouponWheelAdminView(generics.RetrieveAPIView):
+class CouponWheelAdminView(BaseAppAdminAPIView, generics.RetrieveAPIView):
     queryset = CouponWheel.objects.prefetch_related("coupons")
     serializer_class = CouponWheelSerializer
 
-class CouponCreateView(generics.CreateAPIView):
+class CouponCreateView(BaseAppAdminAPIView, generics.CreateAPIView):
     """
     POST /api/admin/coupons/
     """
@@ -119,16 +120,15 @@ class CouponCreateView(generics.CreateAPIView):
     serializer_class = CouponCreateUpdateSerializer
     queryset = Coupons.objects.all()
 
-class CouponUpdateView(generics.UpdateAPIView):
+class CouponUpdateView(BaseAppAdminAPIView, generics.UpdateAPIView):
     """
     PATCH/PUT /api/admin/coupons/<id>/
     """
-    permission_classes = [permissions.IsAuthenticated]
     serializer_class = CouponCreateUpdateSerializer
     queryset = Coupons.objects.all()
 
 # add probabity settings
-class CouponWheelSetterView(generics.UpdateAPIView):
+class CouponWheelSetterView(BaseAppAdminAPIView, generics.UpdateAPIView):
     """
     PATCH /api/admin/coupon-wheels/<id>/
     Body can include:
@@ -136,7 +136,6 @@ class CouponWheelSetterView(generics.UpdateAPIView):
       - coupon_ids: [1,2,3]
       - is_active: true/false  (if true, will deactivate other wheels)
     """
-    permission_classes = [permissions.IsAuthenticated]
     serializer_class = CouponWheelSetSerializer
     queryset = CouponWheel.objects.all()
 
@@ -151,10 +150,9 @@ class CouponWheelSetterView(generics.UpdateAPIView):
 
         serializer.save()
 
-class CouponWheelCreateView(generics.CreateAPIView):
+class CouponWheelCreateView(BaseAppAdminAPIView, generics.CreateAPIView):
     """
     POST /api/admin/coupon-wheels/
     """
-    permission_classes = [permissions.IsAuthenticated]
     serializer_class = CouponWheelSetSerializer
     queryset = CouponWheel.objects.all()
