@@ -1,5 +1,5 @@
 # authflow/schema.py
-from drf_spectacular.extensions import OpenApiAuthenticationExtension
+from drf_spectacular.extensions import OpenApiAuthenticationExtension # type: ignore
 
 
 def _bearer_jwt():
@@ -56,6 +56,13 @@ class CustomBusinessAgentsAuthScheme(OpenApiAuthenticationExtension):
 class CustomBStaffAuthScheme(OpenApiAuthenticationExtension):
     target_class = "authflow.authentication.CustomBStaffAuth"
     name = "BusinessStaffJWT"
+
+    def get_security_definition(self, auto_schema):
+        return _bearer_jwt()
+
+class CustomAppAdminAuthScheme(OpenApiAuthenticationExtension):
+    target_class = "authflow.authentication.CustomAppAdminAuth"
+    name = "AppAdminJWT"
 
     def get_security_definition(self, auto_schema):
         return _bearer_jwt()

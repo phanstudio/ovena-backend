@@ -19,6 +19,7 @@ token_urls = [
 onboarding_urls = [
     # make sure you send otp before
     path("admin/", business_reg_views.RegisterBAdmin.as_view(), name="register-businessadmin"),
+    path("re/admin/", business_reg_views.ReRegisterBAdmin.as_view(), name="reregister-businessadmin"),
     path("phase1/", business_reg_views.RestaurantPhase1RegisterView.as_view(), name="business-register-phase1"),
     path("phase2/", business_reg_views.RestaurantPhase2OnboardingView.as_view(), name="business-register-phase2"),
     path("phase3/", business_reg_views.RegisterMenusPhase3View.as_view(), name="business-register-menus-ob"),

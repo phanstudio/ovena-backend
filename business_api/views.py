@@ -359,6 +359,50 @@ class BranchOperatingHoursView(AbstractBuStAdBranchView):
 
         return Response({"detail": "Operating hours updated."})
 
+# i can add celery to close automatically;
+class BranchClosedView(AbstractBuStAdBranchView):
+    # @extend_schema(
+    #     responses=acInS.BranchOperatingHoursSerializer,
+    #     description="Update branch details."
+    # )
+    def get(self, request, *args, **kwargs):
+        today = datetime.today().weekday()  # 0=Mon, 6=Sun
+
+        hour = BranchOperatingHours.objects.filter(
+            branch=self.branch,
+            day=today
+        ).first()
+
+        if not hour:
+            return Response({"detail": "No operating hours set."}, status=404)
+
+        return Response({
+            "day": today,
+            "is_closed": hour.is_closed
+        })
+
+    def patch(self, request, *args, **kwargs):
+        serializer = acInS.BranchClosedSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        closed = vd["is_closed"]
+        # today = vd["day"]
+
+        today = datetime.today().weekday()  # 0=Mon, 6=Sun
+
+        updated = BranchOperatingHours.objects.filter(
+            branch=self.branch,
+            day=today
+        ).update(is_closed=closed)
+
+        if updated == 0:
+            return Response(
+                {"detail": "No operating hours found for this day."},
+                status=404
+            )
+                
+        return Response({"detail": "Operating hours updated."})
+
 class RestaurantPaymentView(SendVerifyView):
 
     def get(self, request):

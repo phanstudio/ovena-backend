@@ -3,11 +3,16 @@ from rest_framework import status
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView
+from rest_framework.exceptions import NotFound
 from drf_spectacular.utils import extend_schema  # type: ignore
 
-from accounts.models import BusinessAdmin, DriverProfile
-from authflow.authentication import CustomBAdminAuth, CustomDriverAuth
-from authflow.permissions import IsBusinessAdmin, IsDriver
+from accounts.models import BusinessAdmin, DriverProfile, PrimaryAgent
+from authflow.authentication import (
+    CustomBAdminAuth, CustomDriverAuth, CustomAppAdminAuth, CustomBStaffAuth
+)
+from authflow.permissions import (
+    IsBusinessAdmin, IsDriver, IsAppAdmin, IsBusinessStaff
+)
 from support_center.models import SupportTicket, SupportTicketMessage
 from support_center.serializers import (
     BusinessTicketCreateSerializer,
@@ -21,15 +26,19 @@ from support_center.serializers import (
     TicketListSerializer,
     TicketMessageCreateSerializer,
     TicketMessageSerializer,
+    AppAdminTicketCreateSerializer
 )
 from support_center.services import (
     get_active_faq_queryset, create_support_ticket, 
-    create_support_ticket_message, Role
+    create_support_ticket_message, Role, SenderRole,
+    create_system_support_ticket
 )
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.decorators import action
 from rest_framework.mixins import ListModelMixin, CreateModelMixin, RetrieveModelMixin
 from django.utils import timezone
+from admin_api.models import AppAdmin
+from support_center.task import auto_assign_ticket
 
 class SupportPagination(LimitOffsetPagination):
     default_limit = 20
@@ -43,7 +52,7 @@ class BaseDriverSupportAPIView(GenericAPIView):
     def get_driver(self, request) -> DriverProfile:
         profile = request.user.driver_profile
         if not profile:
-            profile = get_object_or_404(DriverProfile, user=request.user)
+            raise NotFound("Driver profile not found")
         return profile
 
 class BaseBusinessSupportAPIView(GenericAPIView):
@@ -54,7 +63,27 @@ class BaseBusinessSupportAPIView(GenericAPIView):
         try:
             return request.user.business_admin
         except BusinessAdmin.DoesNotExist:
-            return get_object_or_404(BusinessAdmin, user=request.user)
+            raise NotFound("Buisness Admin not found")
+
+class BaseBusinessStaffSupportAPIView(GenericAPIView):
+    authentication_classes = [CustomBStaffAuth]
+    permission_classes = [IsBusinessStaff]
+
+    def get_business_staff(self, request) -> PrimaryAgent:
+        try:
+            return request.user.primary_agnet
+        except PrimaryAgent.DoesNotExist:
+            raise NotFound("Buisness Staff not found")
+
+class BaseAppAdminSupportAPIView(GenericAPIView):
+    authentication_classes = [CustomAppAdminAuth]
+    permission_classes = [IsAppAdmin]
+
+    def get_business_admin(self, request) -> AppAdmin:
+        try:
+            return request.user.app_admin
+        except AppAdmin.DoesNotExist:
+            return get_object_or_404(AppAdmin, user=request.user)
 
 # views
 class DriverFAQListView(BaseDriverSupportAPIView):
@@ -117,6 +146,7 @@ class BaseSupportTicketViewSet(
             priority=serializer.validated_data.get("priority"),
             description=serializer.validated_data["description"],
         )
+        auto_assign_ticket.delay(ticket.id)
 
         return Response(
             {
@@ -274,6 +304,135 @@ class BusinessSupportTicketViewSet(
     def messages(self, request, pk=None):
         return super().messages(request, pk=pk)
 
+class BusinessStaffSupportTicketViewSet(
+    BaseBusinessStaffSupportAPIView,
+    BaseSupportTicketViewSet
+):
+
+    owner_role = Role.OWNER_BUSINESS_STAFF
+    sender_role = Role.OWNER_BUSINESS_STAFF
+
+    list_serializer = BusinessTicketListSerializer
+    detail_serializer = BusinessTicketDetailSerializer
+    create_serializer = BusinessTicketCreateSerializer
+    message_serializer = BusinessTicketMessageSerializer
+    message_create_serializer = BusinessTicketMessageCreateSerializer
+
+    @extend_schema(methods=["GET"], responses=BusinessTicketMessageSerializer(many=True))
+    @extend_schema(methods=["POST"], request=BusinessTicketMessageCreateSerializer, responses=BusinessTicketMessageSerializer)
+    @action(detail=True, methods=["get", "post"])
+    def messages(self, request, pk=None):
+        return super().messages(request, pk=pk)
+
+class AppAdminSupportTicketViewSet(
+    BaseAppAdminSupportAPIView,
+    BaseSupportTicketViewSet
+):
+
+    owner_role = Role.OWNER_BUSINESS_ADMIN
+    sender_role = SenderRole.SENDER_SUPPORT
+
+    list_serializer = BusinessTicketListSerializer
+    detail_serializer = BusinessTicketDetailSerializer
+    create_serializer = AppAdminTicketCreateSerializer
+    message_serializer = BusinessTicketMessageSerializer
+    message_create_serializer = TicketMessageCreateSerializer
+
+    def get_queryset(self):
+        return SupportTicket.objects.filter(
+            assigned_to=self.request.user,
+        ).order_by("-created_at")
+
+    @extend_schema(methods=["GET"], responses=BusinessTicketMessageSerializer(many=True))
+    @extend_schema(methods=["POST"], request=BusinessTicketMessageCreateSerializer, responses=BusinessTicketMessageSerializer)
+    @action(detail=True, methods=["get", "post"])
+    def messages(self, request, pk=None):
+        return super().messages(request, pk=pk)
+    
+    # override later
+    @extend_schema(
+        request=TicketCreateSerializer,
+        responses=TicketDetailSerializer
+    )
+    def create(self, request, *args, **kwargs):
+
+        serializer = self.create_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        ticket = create_system_support_ticket(
+            owner=vd["owner"],
+            role=vd["role"],
+            subject=serializer.validated_data["subject"],
+            message=serializer.validated_data["description"],
+            category=serializer.validated_data.get("category", "general"),
+            priority=serializer.validated_data.get("priority"),
+            description=serializer.validated_data["description"],
+            created_by_type=self.sender_role,
+            created_by=request.user,
+        )
+
+        return Response(
+            {
+                "detail": "Support ticket created",
+                "data": self.detail_serializer(ticket).data
+            },
+            status=status.HTTP_201_CREATED
+        )
+
+    # @extend_schema()
+    @action(detail=True, methods=["post"])
+    def close(self, request, pk=None):
+        ticket = self.get_object()
+
+        # Ensure the request.user is the owner of the ticket
+        if ticket.assigned_to != request.user: # might change to created by??
+            return Response(
+                {"detail": "You do not have permission to close this ticket."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Only allow closing if not already closed
+        if ticket.status in [SupportTicket.STATUS_CLOSED, SupportTicket.STATUS_RESOLVED]:
+            return Response(
+                {"detail": f"Ticket is already {ticket.status}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        ticket.status = SupportTicket.STATUS_CLOSED
+        ticket.closed_at = timezone.now()
+        ticket.save(update_fields=["status", "closed_at"])
+
+        return Response(
+            {
+                "detail": "Ticket successfully closed",
+                "data": self.detail_serializer(ticket).data
+            },
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=["post"])
+    def assign(self, request, pk=None):
+        ticket = self.get_object()
+
+        # already assigned → prevent double claim (optional rule)
+        if ticket.assigned_to:
+            return Response(
+                {"detail": "Ticket is already assigned."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        ticket.assigned_to = request.user
+        ticket.status = SupportTicket.STATUS_IN_PROGRESS
+        ticket.save(update_fields=["assigned_to", "status"])
+
+        return Response(
+            {
+                "detail": "Ticket successfully assigned to User",
+                "data": self.detail_serializer(ticket).data
+            },
+            status=status.HTTP_200_OK
+        )
+
 # we need system views
 # we need customer views
-# we need support views

@@ -1,6 +1,6 @@
-# referrals/serializers.py
 from rest_framework import serializers
-from referrals.models import ProfileReferral
+from referrals.models import ProfileReferral, ReferralPayout, MODE_CHOICES
+
 
 class ApplyReferralCodeSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=20)
@@ -23,3 +23,23 @@ class ReferralItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProfileReferral
         fields = ["id", "created_at", "converted_at", "reward_issued", "referee_user_id"]
+
+class ReferralPayoutSerializer(serializers.ModelSerializer):
+    referrals_used = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = ReferralPayout
+        fields = [
+            "id",
+            "user",
+            "units_paid",
+            "conversion_rate",
+            "referrals_used",
+            "amount",
+            "created_at",
+        ]
+
+class AdminReferralPaymentSerializer(serializers.Serializer):
+    user_id = serializers.CharField()
+    units = serializers.IntegerField(required=False, allow_null=True)
+    mode = serializers.ChoiceField(choices=MODE_CHOICES)

@@ -6,6 +6,7 @@ from accounts.services.profiles import (
     PROFILE_BUSINESS_STAFF,
     PROFILE_CUSTOMER,
     PROFILE_DRIVER,
+    PROFILE_APP_ADMIN,
     has_profile,
 )
 
@@ -39,6 +40,8 @@ def get_user_roles(user) -> Set[str]:
         roles.add(PROFILE_BUSINESS_ADMIN)
     if has_profile(user, PROFILE_BUSINESS_STAFF):
         roles.add(PROFILE_BUSINESS_STAFF)
+    if has_profile(user, PROFILE_APP_ADMIN):
+        roles.add(PROFILE_APP_ADMIN)
 
     legacy = _normalize_role(getattr(user, "role", None))
     if legacy:

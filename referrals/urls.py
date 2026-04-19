@@ -1,6 +1,6 @@
 from django.urls import path
 
-from referrals.views import ApplyReferralCodeView, MyReferralStatusView, MyReferralsListView
+from referrals.views.base import ApplyReferralCodeView, MyReferralStatusView, MyReferralsListView
 
 
 urlpatterns = [

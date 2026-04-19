@@ -41,23 +41,83 @@ def create_support_ticket_message(
         attachments_json=attachments_json or [],
     )
 
-def create_support_ticket(
-        user:User, role:Role, *, status:str = SupportTicket.STATUS_OPEN, 
-        priority:str = SupportTicket.PRIORITY_LOW, category:str = "general",
-        subject:str, message:str, description:str = "", 
-    ):
-    check_user_role(user, role)
+def create_support_ticket_obj(
+    *,
+    owner: User,
+    role: Role,
+    subject: str,
+    message: str,
+    description: str = "",
+    category: str = "general",
+    status: str = SupportTicket.STATUS_OPEN,
+    priority: str = SupportTicket.PRIORITY_MEDIUM,
+    created_by: User = None,
+    created_by_type: str = SupportTicket.CREATED_BY_USER,
+    assigned_to: User = None,
+):
+    check_user_role(owner, role)
+
     ticket = SupportTicket.objects.create(
-        owner=user,
+        owner=owner,
         owner_role=role.value,
         subject=subject,
+        description=description,
+        category=category,
         status=status,
         priority=priority,
-        description=description,
-        category=category
+        created_by=created_by,
+        created_by_type=created_by_type,
+        assigned_to=assigned_to,
     )
-    create_support_ticket_message(role, ticket, message=message, user=user)
+
+    create_support_ticket_message(role, ticket, message=message, user=owner)
     return ticket
+
+def create_support_ticket(
+    user: User,
+    role: Role,
+    *,
+    subject: str,
+    message: str,
+    description: str = "",
+    category: str = "general",
+    priority: str = SupportTicket.PRIORITY_LOW,
+):
+    return create_support_ticket_obj(
+        owner=user,
+        role=role,
+        subject=subject,
+        message=message,
+        description=description,
+        category=category,
+        priority=priority,
+        created_by=user,
+    )
+
+def create_system_support_ticket(
+    owner: User,
+    role: Role,
+    created_by_type: SenderRole,
+    *,
+    subject: str,
+    message: str,
+    created_by: User,
+    description: str = "",
+    category: str = "general",
+    priority: str = SupportTicket.PRIORITY_LOW,
+):
+    return create_support_ticket_obj(
+        owner=owner,
+        role=role,
+        subject=subject,
+        message=message,
+        description=description,
+        category=category,
+        priority=priority,
+        created_by=created_by,
+        created_by_type=created_by_type.value,
+        assigned_to=created_by,
+    )
 
 def check_user_role(user:User, role:Role|SenderRole):
     if role.value == Role.OWNER_CUSTOMER.value and not getattr(user, "customer_profile", None):

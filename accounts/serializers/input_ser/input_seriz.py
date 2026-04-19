@@ -81,3 +81,11 @@ class PasswordResetSendSerializer(serializers.Serializer):
 
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
+
+class BranchClosedSerializer(serializers.Serializer):
+    day = serializers.IntegerField(min_value=0, max_value=6)  # 0=Mon, 6=Sun
+    is_closed = serializers.BooleanField(default=False)
+
+# class BranchClosedSerializer(serializers.Serializer):
+#     day = serializers.IntegerField(min_value=0, max_value=6)  # 0=Mon, 6=Sun
+#     is_closed = serializers.BooleanField(default=False)

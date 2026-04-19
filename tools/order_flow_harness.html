@@ -443,26 +443,26 @@ function apiBase() { return document.getElementById('apiBase').value.trim(); }
 
 function buildCustomerUrl() {
   const orderId = document.getElementById('currentOrderId').value.trim();
-  const token   = getToken('custTokenType', 'custToken');
+  const token   = getToken('custTokenType', 'custToken', true);
   if (!orderId) { log('custLog', 'Missing order ID', 'warn'); return null; }
   if (!token)   { log('custLog', 'Missing token', 'warn'); return null; }
   return `${wsBase()}/ws/orders/${orderId}/?token=${encodeURIComponent(token)}`;
 }
 
 function buildBranchUrl() {
-  const token = getToken('branchTokenType', 'branchToken');
+  const token = getToken('branchTokenType', 'branchToken', true);
   if (!token) { log('branchLog', 'Missing token', 'warn'); return null; }
   return `${wsBase()}/ws/branch/?token=${encodeURIComponent(token)}`;
 }
 
 function buildDriverOrdersUrl() {
-  const token = getToken('driverTokenType', 'driverToken');
+  const token = getToken('driverTokenType', 'driverToken', true);
   if (!token) { log('driverLog', 'Missing token', 'warn'); return null; }
   return `${wsBase()}/ws/driver/orders/?token=${encodeURIComponent(token)}`;
 }
 
 function buildDriverLocUrl() {
-  const token = getToken('driverTokenType', 'driverToken');
+  const token = getToken('driverTokenType', 'driverToken', true);
   if (!token) { log('driverLog', 'Missing token', 'warn'); return null; }
   return `${wsBase()}/ws/driver/location/?token=${encodeURIComponent(token)}`;
 }
@@ -470,12 +470,27 @@ function buildDriverLocUrl() {
 // ═══════════════════════════════════════════════════════════
 //  TOKEN HELPER
 // ═══════════════════════════════════════════════════════════
-function getToken(typeId, tokenId) {
+function getToken(typeId, tokenId, noprefix) {
   const prefix = document.getElementById(typeId).value.trim();
   let token = document.getElementById(tokenId).value.trim();
+
   if (!token) return null;
+
   const low = token.toLowerCase();
-  if (low.startsWith('bearer ') || low.startsWith('subbearer ')) return token;
+
+  // Remove prefix if noprefix requested
+  if (noprefix) {
+    if (low.startsWith('bearer ') || low.startsWith('subbearer ')) {
+      return token.split(' ', 2)[1];
+    }
+    return token;
+  }
+
+  // If already prefixed, return as-is
+  if (low.startsWith('bearer ') || low.startsWith('subbearer ')) {
+    return token;
+  }
+
   return `${prefix} ${token}`;
 }
 
@@ -575,11 +590,22 @@ function wsConnect(key) {
     try { parsed = JSON.parse(e.data); } catch { /* raw */ }
 
     // Handle pong
-    if (parsed && (parsed.type === 'pong' || parsed.type === 'ping')) {
+    if (parsed && (parsed.type === 'pong')) {// || parsed.type === 'ping')) {
       resetPongTimer(key);
       log(ch.log, `${ch.prefix}: ↩ ${parsed.type}`, 'ws');
       return;
     }
+
+    // server ping → reply pong
+    if (parsed.type === "ping") {
+      ws.send(JSON.stringify({
+        type: "pong",
+        seq: parsed.seq
+      }));
+      log(ch.log, `${ch.prefix}: ↩ ${parsed.type}`, 'ws');
+      return;
+    }
+
 
     const display = parsed ? JSON.stringify(parsed, null, 2) : e.data;
     log(ch.log, `${ch.prefix}: ← ${display}`, 'ws');
@@ -767,7 +793,7 @@ function sendLocationUpdate() {
 
 function sendStatusUpdate() {
   const newAvail = !isAvailable;
-  const sent = wsSend('driverLocation', { type: 'status', is_available: newAvail });
+  const sent = wsSend('driverLocation', { type: 'status_change', is_available: newAvail });
   if (sent) {
     isAvailable = newAvail;
     document.getElementById('statusIndi').textContent = isAvailable ? '🟢' : '🔴';

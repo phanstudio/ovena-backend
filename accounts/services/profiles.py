@@ -10,6 +10,7 @@ PROFILE_CUSTOMER = "customer"
 PROFILE_DRIVER = "driver"
 PROFILE_BUSINESS_ADMIN = "businessadmin"
 PROFILE_BUSINESS_STAFF = "businessstaff"
+PROFILE_APP_ADMIN = "appadmin"
 
 _LEGACY_ALIASES = {
     "buisnessstaff": PROFILE_BUSINESS_STAFF,
@@ -29,6 +30,9 @@ PROFILE_PREFETCHES = {
     PROFILE_BUSINESS_STAFF: {
         "select": ["primaryagent", "primaryagent__branch"],
     },
+    PROFILE_APP_ADMIN: {
+        "select": ["app_admin"],
+    }
 }
 
 def normalize_profile_type(profile_type: Optional[str]) -> Optional[str]:
@@ -193,6 +197,12 @@ def get_profile(user, profile_type: str):
             result = user.primaryagent
         except ObjectDoesNotExist:
             result = None
+
+    elif pt == PROFILE_APP_ADMIN:
+        try:
+            result = user.app_admin
+        except ObjectDoesNotExist:
+            result = None      
 
     cache[pt] = result  # cache None too — explicit miss
     return result

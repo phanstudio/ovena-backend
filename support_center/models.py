@@ -34,6 +34,15 @@ class SupportTicket(AbstractUBaseModel):
         (PRIORITY_HIGH, "High"),
     ]
 
+    CREATED_BY_USER = "user"
+    CREATED_BY_SUPPORT = "support"
+    CREATED_BY_SYSTEM = "system"
+    CREATED_BY_CHOICES = [
+        (CREATED_BY_USER, "User"),
+        (CREATED_BY_SUPPORT, "Support"),
+        (CREATED_BY_SYSTEM, "System"),
+    ]
+
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -52,6 +61,15 @@ class SupportTicket(AbstractUBaseModel):
         null=True,
         blank=True,
         related_name="assigned_support_tickets_central",
+    )
+    
+    created_by_type = models.CharField(max_length=20,choices=CREATED_BY_CHOICES,default=CREATED_BY_USER,)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_support_tickets"
     )
     closed_at = models.DateTimeField(null=True, blank=True)
 

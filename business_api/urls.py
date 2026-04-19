@@ -9,6 +9,7 @@ router = BaseBranchRouter()
 
 branch_urlpatterns = [
     *router.register("hours", views.BranchOperatingHoursView),
+    *router.register("close", views.BranchClosedView),
     # no branch (admin = all, staff = own) # might add all later
 ]
 

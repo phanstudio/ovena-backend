@@ -2,7 +2,9 @@ from rest_framework import serializers
 
 from driver_api.models import SupportFAQCategory, SupportFAQItem
 from support_center.models import SupportTicket, SupportTicketMessage
+from django.contrib.auth import get_user_model
 
+User = get_user_model()
 
 class FAQCategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -90,3 +92,13 @@ class BusinessTicketMessageSerializer(TicketMessageSerializer):
 class BusinessTicketMessageCreateSerializer(TicketMessageCreateSerializer):
     pass
 
+
+class AppAdminTicketCreateSerializer(TicketCreateSerializer):
+    user_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        source="owner"   # maps directly to SupportTicket.owner
+    )
+
+    role = serializers.ChoiceField(
+        choices=SupportTicket.OWNER_CHOICES
+    )

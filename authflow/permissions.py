@@ -1,5 +1,7 @@
 from rest_framework import permissions
-from accounts.services.roles import has_role, PROFILE_CUSTOMER, PROFILE_BUSINESS_ADMIN, PROFILE_DRIVER, PROFILE_BUSINESS_STAFF
+from accounts.services.roles import (
+    has_role, PROFILE_CUSTOMER, PROFILE_BUSINESS_ADMIN, PROFILE_DRIVER, PROFILE_BUSINESS_STAFF, PROFILE_APP_ADMIN
+)
 
 class IsCustomer(permissions.BasePermission): 
     def has_permission(self, request, view):
@@ -12,6 +14,10 @@ class IsDriver(permissions.BasePermission):
 class IsBusinessAdmin(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and has_role(request, PROFILE_BUSINESS_ADMIN)
+
+class IsAppAdmin(permissions.BasePermission): # might add role based restriction like admin, support.
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and has_role(request, PROFILE_APP_ADMIN)
 
 class IsBusinessStaff(permissions.BasePermission):
     def has_permission(self, request, view):

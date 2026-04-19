@@ -9,10 +9,12 @@ from accounts.services.profiles import (
     PROFILE_CUSTOMER,
     PROFILE_DRIVER,
     PROFILE_BUSINESS_STAFF,
+    PROFILE_APP_ADMIN,
     # get_profile,
     resolve_active_profile_type,
     apply_profile_fetches,
 )
+
 
 def _prime_profile_cache_from_prefetch(user):
     """
@@ -218,4 +220,17 @@ class CustomBAdminAuth(CustomJWtAuth):
             raise AuthenticationFailed(_("Business admin profile not found"), code="business_admin_missing")
         token["active_profile"] = profile_type
         return (user, token)
-# we need test cases for the authentication
+
+class CustomAppAdminAuth(CustomJWtAuth):
+    def allowed_profile_types(self):
+        return [PROFILE_APP_ADMIN]
+    
+    def authenticate(self, request):
+        result = super().custom_auth(request)
+        if result is None:
+            return None
+        user, token, profile_type = result
+        if not profile_type:
+            raise AuthenticationFailed(_("App admin profile not found"), code="app_admin_missing")
+        token["active_profile"] = profile_type
+        return (user, token)

@@ -44,6 +44,7 @@ class BuisnnessOnboardingStatusView(APIView):
         response_data = OpS.OnboardResponseSerializer(data)
         return Response(response_data.data, status=status.HTTP_200_OK)
 
+# add a update method that reqiures jwt
 @extend_schema(
     responses=OpS.RegisterBAdminResponseSerializer,
     auth=[]
@@ -90,6 +91,38 @@ class RegisterBAdmin(GenericAPIView):
             "message": "User registered successfully",
             "refresh": token["refresh"],
             "access": token["access"],
+            "user": {"id": user.id, "name": user.name},
+        })
+        return Response(response_data.data, status=status.HTTP_201_CREATED)
+
+@extend_schema(
+    auth=[]
+)
+class ReRegisterBAdmin(GenericAPIView):
+    serializer_class = InS.RegisterBAdminSerializer
+    authentication_classes = [CustomBAdminAuth]
+    permission_classes = [IsBusinessAdmin]
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data        
+        try:
+            identifier = vd["phone_number"]
+            user = User.objects.filter(id=request.user.id).update(
+                name=vd["full_name"],
+                phone_number=identifier,
+                email=vd["email"],
+            )
+        except Exception as e:
+            return Response(
+                {"detail": f"Registration failed: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
+        response_data = OpS.RegisterBAdminResponseSerializer({
+            "message": "User Updated registered successfully",
             "user": {"id": user.id, "name": user.name},
         })
         return Response(response_data.data, status=status.HTTP_201_CREATED)
