@@ -278,7 +278,7 @@ class StaffListView(BaseBuisAdminAPIView):
         qs = (
             PrimaryAgent.objects
             .select_related("branch", "user")
-            .filter(branch__business=buisness_admin.business)
+            .filter(branch__business=buisness_admin.business, revoked=False)
             .order_by("-created_at")
         )
 
