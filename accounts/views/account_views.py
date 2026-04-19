@@ -6,11 +6,12 @@ from rest_framework import status
 from accounts.serializers import (
     CustomerProfileSerializer, DriverProfileSerializer,
     CreateCustomerSerializer, UpdateCustomerSerializer,
-    BuisnessAdminProfileSerializer, PrimaryAgentProfileSerializer
+    BuisnessAdminProfileSerializer, PrimaryAgentProfileSerializer, Delete2Serializer
 )
 from accounts.models import(
     User, Branch, PrimaryAgent,
 )
+from admin_api.models import AppAdmin
 from django.db import transaction, IntegrityError
 from authflow.services import (
     issue_jwt_for_user, verify, OTPInvalidError, OTPManager
@@ -23,6 +24,7 @@ from drf_spectacular.utils import extend_schema, inline_serializer # type: ignor
 from rest_framework import serializers as s
 from accounts.serializers import InS, OpS
 from authflow.services.phone_number import get_phone_number
+from django.db.models import Count, Q
 
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -75,10 +77,13 @@ class UserProfileView(APIView):
             "profile": serializer.data,
         })
 
-class Delete2AccountView(APIView):
+class Delete2AccountView(GenericAPIView):
+    serializer_class = Delete2Serializer
     def delete(self, request):
-        user_id = request.data.get("user_id")
-        User.objects.filter(id=user_id).delete()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        User.objects.filter(id=vd["user_id"]).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class DeleteAccountView(APIView): # will change to a soft delete
@@ -105,6 +110,7 @@ class LinkRequestCreateView(GenericAPIView):
 
 # might add password
 # check if the user is not revocked
+# add delete linked user
 @extend_schema(
     responses=OpS.RegisterBAdminResponseSerializer,
     auth=[],
@@ -130,6 +136,12 @@ class LinkApproveView(GenericAPIView):
         branch = (
             Branch.objects
             .select_related("business__admin__user")
+            .annotate(
+                active_agent_count=Count(
+                    "primaryagent",
+                    filter=Q(primaryagent__revoked=False)
+                )
+            )
             .filter(
                 id=branch_id,
                 business__admin__user__phone_number=phone_number
@@ -143,14 +155,13 @@ class LinkApproveView(GenericAPIView):
                 status=403
             )
 
-        business_admin = branch.business.admin
-
-        # ensure only one primary agent per branch
-        if hasattr(branch, "primary_agent"):
+        if branch.active_agent_count > 0:
             return Response(
-                {"detail": "Branch already has a primary agent"},
+                {"detail": "Branch already has an active primary agent"},
                 status=400
             )
+
+        business_admin = branch.business.admin
 
         try:
             with transaction.atomic():
@@ -184,7 +195,6 @@ class LinkApproveView(GenericAPIView):
             status=status.HTTP_201_CREATED,
         )
 
-# add delete linked user
 
 # add transfer of ownershp later
 class RegisterCustomer(APIView):
@@ -220,6 +230,72 @@ class UpdateCustomer(APIView):
         return Response(
             {"detail": "Profile updated successfully"},
             status=status.HTTP_200_OK,
+        )
+
+
+# app admin
+@extend_schema(
+    responses={200: inline_serializer("LinkRequestCreateResponse", fields={"otp": s.CharField()})},
+)
+class AppAdminRequestCreateView(GenericAPIView):
+    authentication_classes = [CustomBAdminAuth]
+    permission_classes = [IsBusinessAdmin]
+    serializer_class = InS.AppAdminRequestSerializer
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        otp = OTPManager.send_blank(f"{vd['role']}")
+        return Response({"otp": otp})
+
+@extend_schema(
+    responses=OpS.RegisterBAdminResponseSerializer,
+    auth=[],
+)
+class AppAdminApproveView(GenericAPIView):
+    serializer_class = InS.AppAdminApproveSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        
+        try:
+            identifier = OTPManager.verify(otp_code=vd["otp"])
+        except OTPInvalidError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    name=vd["full_name"],
+                    phone_number=vd["phone_number"],
+                    email=vd["email"],
+                    password=vd["password"],
+                )
+                AppAdmin.objects.create(user=user, role=identifier)
+        except IntegrityError as e:
+            return Response(
+                {"error": f"Registration failed due to a database constraint. Registration failed: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            return Response(
+                {"detail": f"Registration failed: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        token = issue_jwt_for_user(user)
+        response = OpS.RegisterBAdminResponseSerializer({
+            "message": "Account registered successfully",
+            "refresh": token["refresh"],
+            "access": token["access"],
+            "user": {"id": user.id, "name": user.name},
+        })
+        return Response(
+            response.data,
+            status=status.HTTP_201_CREATED,
         )
 
 
