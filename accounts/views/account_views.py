@@ -187,10 +187,10 @@ class LinkApproveView(GenericAPIView):
             business_admin = branch.business.admin
 
             # 👤 Step 3: Get or create user
-            user, _ = User.objects.get_or_create(
-                phone_number=vd["phone_number"],
-                defaults={"name": vd["username"] or device_id},
-            )
+            # user, _ = User.objects.get_or_create(
+            #     phone_number=vd["phone_number"],
+            #     defaults={"name": vd["username"] or device_id},
+            # )
 
             # 🔍 Step 4: Handle PrimaryAgent safely
             existing_agent = getattr(branch, "primary_agent", None)
@@ -203,12 +203,17 @@ class LinkApproveView(GenericAPIView):
                     )
 
                 # ♻️ Reuse revoked agent
-                existing_agent.user = user
+                # existing_agent.user = user
                 existing_agent.device_name = device_id
                 existing_agent.revoked = False
                 existing_agent.revoked_at = None
                 existing_agent.created_by = business_admin
                 existing_agent.save()
+
+                user = existing_agent.user  # ✅ reuse existing identity
+                user.name = vd["username"] or device_id
+                user.phone_number = vd["phone_number"]
+                user.save()
 
                 sub_user = existing_agent
 
