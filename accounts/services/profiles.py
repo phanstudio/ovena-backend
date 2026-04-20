@@ -28,12 +28,13 @@ PROFILE_PREFETCHES = {
         "select": ["business_admin"],
     },
     PROFILE_BUSINESS_STAFF: {
-        "select": ["primaryagent", "primaryagent__branch"],
+        "select": ["primary_agent", "primary_agent__branch"],
     },
     PROFILE_APP_ADMIN: {
         "select": ["app_admin"],
-    }
+    },
 }
+
 
 def normalize_profile_type(profile_type: Optional[str]) -> Optional[str]:
     if not profile_type:
@@ -77,7 +78,7 @@ def normalize_profile_type(profile_type: Optional[str]) -> Optional[str]:
 
 #     if pt == PROFILE_BUSINESS_STAFF:
 #         try:
-#             return user.primaryagent
+#             return user.primary_agent
 #         except ObjectDoesNotExist:
 #             return None
 
@@ -88,7 +89,9 @@ def has_profile(user, profile_type: str) -> bool:
     return get_profile(user, profile_type) is not None
 
 
-def resolve_active_profile_type(*, request, user, allowed_types: list[str]) -> Optional[str]:
+def resolve_active_profile_type(
+    *, request, user, allowed_types: list[str]
+) -> Optional[str]:
     """
     Resolve profile context for a request:
     1. X-Profile-Type header
@@ -99,7 +102,11 @@ def resolve_active_profile_type(*, request, user, allowed_types: list[str]) -> O
     normalized_allowed = [t for t in normalized_allowed if t]
 
     header_type = normalize_profile_type(request.headers.get("X-Profile-Type"))
-    if header_type and header_type in normalized_allowed and has_profile(user, header_type):
+    if (
+        header_type
+        and header_type in normalized_allowed
+        and has_profile(user, header_type)
+    ):
         return header_type
 
     auth = getattr(request, "_auth", None)
@@ -109,7 +116,11 @@ def resolve_active_profile_type(*, request, user, allowed_types: list[str]) -> O
             token_type = normalize_profile_type(auth.get("active_profile"))
         except Exception:
             token_type = None
-    if token_type and token_type in normalized_allowed and has_profile(user, token_type):
+    if (
+        token_type
+        and token_type in normalized_allowed
+        and has_profile(user, token_type)
+    ):
         return token_type
 
     for profile_type in normalized_allowed:
@@ -119,11 +130,13 @@ def resolve_active_profile_type(*, request, user, allowed_types: list[str]) -> O
     return None
 
 
-def apply_profile_fetches(queryset: QuerySet, profile_types: list[str] | None = None) -> QuerySet:
+def apply_profile_fetches(
+    queryset: QuerySet, profile_types: list[str] | None = None
+) -> QuerySet:
     """
     Apply the correct select_related/prefetch_related for given profile types.
     Pass None to load all profiles.
-    
+
     Usage:
         qs = apply_profile_fetches(User.objects.filter(...), [PROFILE_CUSTOMER, PROFILE_DRIVER])
         qs = apply_profile_fetches(User.objects.filter(...))  # loads everything
@@ -148,11 +161,13 @@ def apply_profile_fetches(queryset: QuerySet, profile_types: list[str] | None = 
 
     return queryset
 
+
 def _profile_cache(user) -> dict:
     """Lazy per-request cache stored on the user object."""
     if not hasattr(user, "_profile_cache"):
         user._profile_cache = {}
     return user._profile_cache
+
 
 def get_profile(user, profile_type: str):
     from accounts.models import ProfileBase
@@ -162,7 +177,7 @@ def get_profile(user, profile_type: str):
         return None
 
     cache = _profile_cache(user)
-    
+
     _SENTINEL = object()  # defined at module level ideally
     cached = cache.get(pt, _SENTINEL)
     if cached is not _SENTINEL:
@@ -194,7 +209,7 @@ def get_profile(user, profile_type: str):
 
     elif pt == PROFILE_BUSINESS_STAFF:
         try:
-            result = user.primaryagent
+            result = user.primary_agent
         except ObjectDoesNotExist:
             result = None
 
@@ -202,9 +217,7 @@ def get_profile(user, profile_type: str):
         try:
             result = user.app_admin
         except ObjectDoesNotExist:
-            result = None      
+            result = None
 
     cache[pt] = result  # cache None too — explicit miss
     return result
-
-

@@ -4,8 +4,10 @@ from rest_framework import status
 from rest_framework.generics import GenericAPIView
 from ..serializers import OpS, InS
 from ..models import (
-    Menu, MenuItem,
-    Branch, BaseItemAvailability,
+    Menu,
+    MenuItem,
+    Branch,
+    BaseItemAvailability,
 )
 from menu.pagifications import StandardResultsSetPagination
 
@@ -48,6 +50,7 @@ logger = logging.getLogger(__name__)
 #         serializer = OpS.MenuSerializer(menus, many=True)
 #         return Response(serializer.data)
 
+
 class BusinessMenuView(APIView):
     authentication_classes = [CustomBAdminAuth]
     permission_classes = [IsBusinessAdmin]
@@ -59,10 +62,7 @@ class BusinessMenuView(APIView):
         branch_id = request.query_params.get("branch")
 
         if branch_id:
-            return Branch.objects.filter(
-                id=branch_id,
-                business=user.business
-            ).first()
+            return Branch.objects.filter(id=branch_id, business=user.business).first()
 
         return None
 
@@ -73,19 +73,19 @@ class BusinessMenuView(APIView):
         user = self.get_user(request)
         branch = self.get_branch(request, user)
 
-        menus = Menu.objects.filter(business_id=self.get_business_id(user))\
-            .prefetch_related(
-                "categories__items__variant_groups__options",
-                "categories__items__addon_groups__addons",
-            )
+        menus = Menu.objects.filter(
+            business_id=self.get_business_id(user)
+        ).prefetch_related(
+            "categories__items__variant_groups__options",
+            "categories__items__addon_groups__addons",
+        )
 
         serializer = OpS.BusinessMenuSerializer(
-            menus,
-            many=True,
-            context={"branch": branch}
+            menus, many=True, context={"branch": branch}
         )
 
         return Response(serializer.data)
+
 
 class BusinessStaffMenuView(BusinessMenuView):
     authentication_classes = [CustomBStaffAuth]
@@ -100,16 +100,19 @@ class BusinessStaffMenuView(BusinessMenuView):
     def get_business_id(self, user):
         return user.branch.business_id
 
+
 # branch thing;
-# how to test searching 
-class SearchMenuItems(APIView):# the search should show the restorunt the menu item came from 
+# how to test searching
+class SearchMenuItems(
+    APIView
+):  # the search should show the restorunt the menu item came from
     def get(self, request):
-        query = request.query_params.get("q", "") # add is active? and is available
+        query = request.query_params.get("q", "")  # add is active? and is available
         items = MenuItem.objects.filter(
-            Q(custom_name__icontains=query) |
-            Q(description__icontains=query) |
-            Q(category__name__icontains=query) |
-            Q(category__menu__business__business_name__icontains=query)
+            Q(custom_name__icontains=query)
+            | Q(description__icontains=query)
+            | Q(category__name__icontains=query)
+            | Q(category__menu__business__business_name__icontains=query)
         ).select_related("category__menu__business")
 
         serializer = OpS.MenuItemSerializer(items, many=True)
@@ -128,10 +131,10 @@ class BaseBuisStaffAPIView(GenericAPIView):
 
     def get_branch_staff(self, request):
         user = request.user
-        branch:Branch = None
+        branch: Branch = None
         error = None
         if isinstance(user, User):
-            branch = user.primaryagent.branch
+            branch = user.primary_agent.branch
         else:
             error = Response(
                 {"detail": "user is not a resturant employee"},
@@ -139,35 +142,30 @@ class BaseBuisStaffAPIView(GenericAPIView):
             )
         return branch, error
 
+
 # not sure if it wil be this direct sha must likely not be
 class AvailabilityListView(AbstractBuStAdBranchView):
     serializer_class = InS.ItemAvailabilityListSerializer
     pagination_class = StandardResultsSetPagination
- 
+
     def get(self, request, *args, **kwargs):
-        queryset = (
-            BaseItemAvailability.objects
-            .filter(branch=self.branch)
-            .select_related("base_item")
-        )
+        queryset = BaseItemAvailability.objects.filter(
+            branch=self.branch
+        ).select_related("base_item")
 
         # -------------------
         # FILTER: availability
         # -------------------
         is_available = request.query_params.get("available")
         if is_available is not None:
-            queryset = queryset.filter(
-                is_available=is_available.lower() == "true"
-            )
+            queryset = queryset.filter(is_available=is_available.lower() == "true")
 
         # -------------------
         # FILTER: search (name)
         # -------------------
         search = request.query_params.get("search")
         if search:
-            queryset = queryset.filter(
-                base_item__name__icontains=search
-            )
+            queryset = queryset.filter(base_item__name__icontains=search)
 
         # -------------------
         # FILTER: category
@@ -196,6 +194,7 @@ class AvailabilityListView(AbstractBuStAdBranchView):
 
         return Response(serializer.data)
 
+
 class AvaliabilityView(AbstractBuStAdBranchView):
     queryset = BaseItemAvailability.objects.all()
     serializer_class = InS.BulkItemAvailabilityUpdateSerializer
@@ -209,8 +208,7 @@ class AvaliabilityView(AbstractBuStAdBranchView):
         base_item_ids = [item["id"] for item in items]
 
         availabilities = BaseItemAvailability.objects.filter(
-            branch=self.branch,
-            base_item_id__in=base_item_ids
+            branch=self.branch, base_item_id__in=base_item_ids
         )
 
         availability_map = {a.base_item_id: a for a in availabilities}
@@ -224,12 +222,11 @@ class AvaliabilityView(AbstractBuStAdBranchView):
                 updated_objects.append(obj)
 
         with transaction.atomic():
-            BaseItemAvailability.objects.bulk_update(
-                updated_objects,
-                ["is_available"]
-            )
+            BaseItemAvailability.objects.bulk_update(updated_objects, ["is_available"])
 
-        return Response({
-            "detail": "Bulk availability updated",
-            "updated_count": len(updated_objects)
-        })
+        return Response(
+            {
+                "detail": "Bulk availability updated",
+                "updated_count": len(updated_objects),
+            }
+        )

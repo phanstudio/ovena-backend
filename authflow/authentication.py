@@ -21,8 +21,9 @@ def _prime_profile_cache_from_prefetch(user):
     Requires: user queryset had .prefetch_related("profile_bases__customer_profile", "profile_bases__driver_profile")
     """
     from accounts.services.profiles import _profile_cache
+
     cache = _profile_cache(user)
-    
+
     for base in user.profile_bases.all():  # hits prefetch cache, no query
         pt = base.profile_type
         if pt == PROFILE_CUSTOMER:
@@ -30,16 +31,17 @@ def _prime_profile_cache_from_prefetch(user):
         elif pt == PROFILE_DRIVER:
             cache[pt] = getattr(base, "driver_profile", None)
 
-    # business_admin and primaryagent still come from select_related
+    # business_admin and primary_agent still come from select_related
     try:
         cache[PROFILE_BUSINESS_ADMIN] = user.business_admin
     except Exception:
         cache[PROFILE_BUSINESS_ADMIN] = None
 
     try:
-        cache[PROFILE_BUSINESS_STAFF] = user.primaryagent
+        cache[PROFILE_BUSINESS_STAFF] = user.primary_agent
     except Exception:
         cache[PROFILE_BUSINESS_STAFF] = None
+
 
 def _prime_profile_cache(user):
     """
@@ -57,18 +59,19 @@ def _prime_profile_cache(user):
         cache[PROFILE_BUSINESS_ADMIN] = None
 
     try:
-        cache[PROFILE_BUSINESS_STAFF] = user.primaryagent
+        cache[PROFILE_BUSINESS_STAFF] = user.primary_agent
     except Exception:
         cache[PROFILE_BUSINESS_STAFF] = None
-    
+
     _prime_profile_cache_from_prefetch(user)
 
     # Customer/Driver need ProfileBase queries — only pre-warm if you
     # did a prefetch_related("profilebase_set") on the queryset.
     # Otherwise leave them uncached; they'll lazy-load once and cache.
 
+
 # add login mechanics also consider when to perfom the login on evry reuest or on every session and whta is a sesion considered
-class CustomJWTAuthentication(BaseAuthentication): # any way to speed this up
+class CustomJWTAuthentication(BaseAuthentication):  # any way to speed this up
     """
     Supports both:
     - Main user tokens (SimpleJWT) → "Authorization: Bearer <token>"
@@ -88,6 +91,7 @@ class CustomJWTAuthentication(BaseAuthentication): # any way to speed this up
 
         return None
 
+
 # doesn't password vary depending on the settings??
 class CustomJWtAuth(SimpleJWTAuth):
     def custom_get_user(self, user_id):
@@ -102,7 +106,7 @@ class CustomJWtAuth(SimpleJWTAuth):
 
     def get_user(self, validated_token):
         """
-        Return user with primaryagent preloaded for efficiency.
+        Return user with primary_agent preloaded for efficiency.
         """
         try:
             user_id = validated_token[api_settings.USER_ID_CLAIM]
@@ -116,8 +120,8 @@ class CustomJWtAuth(SimpleJWTAuth):
 
         if api_settings.CHECK_USER_IS_ACTIVE and not user.is_active:
             raise AuthenticationFailed(_("User is inactive"), code="user_inactive")
-        
-        if api_settings.CHECK_REVOKE_TOKEN: # i migth have to change to match?
+
+        if api_settings.CHECK_REVOKE_TOKEN:  # i migth have to change to match?
             if validated_token.get(
                 api_settings.REVOKE_TOKEN_CLAIM
             ) != get_md5_hash_password(user.password):
@@ -143,33 +147,40 @@ class CustomJWtAuth(SimpleJWTAuth):
 
         return (user, token, active_profile)
 
+
 class CustomBusinessAgentsAuth(CustomJWtAuth):
     def allowed_profile_types(self):
         return [PROFILE_BUSINESS_ADMIN, PROFILE_BUSINESS_STAFF]
-    
+
     def authenticate(self, request):
         result = super().custom_auth(request)
         if result is None:
             return None
         user, token, profile_type = result
         if not profile_type:
-            raise AuthenticationFailed(_("Business agents profile not found"), code="business_agents_missing")
+            raise AuthenticationFailed(
+                _("Business agents profile not found"), code="business_agents_missing"
+            )
         token["active_profile"] = profile_type
         return (user, token)
+
 
 class CustomBStaffAuth(CustomJWtAuth):
     def allowed_profile_types(self):
         return [PROFILE_BUSINESS_STAFF]
-    
+
     def authenticate(self, request):
         result = super().custom_auth(request)
         if result is None:
             return None
         user, token, profile_type = result
         if not profile_type:
-            raise AuthenticationFailed(_("Business staff profile not found"), code="business_staff_missing")
+            raise AuthenticationFailed(
+                _("Business staff profile not found"), code="business_staff_missing"
+            )
         token["active_profile"] = profile_type
         return (user, token)
+
 
 class CustomDriverAuth(CustomJWtAuth):
     def allowed_profile_types(self):
@@ -184,6 +195,7 @@ class CustomDriverAuth(CustomJWtAuth):
             token["active_profile"] = profile_type
         return (user, token)
 
+
 class CustomCustomerAuth(CustomJWtAuth):
     def allowed_profile_types(self):
         return [PROFILE_CUSTOMER]
@@ -197,10 +209,11 @@ class CustomCustomerAuth(CustomJWtAuth):
             token["active_profile"] = profile_type
         return (user, token)
 
+
 class CustomBAdminAuth(CustomJWtAuth):
     def allowed_profile_types(self):
         return [PROFILE_BUSINESS_ADMIN]
-    
+
     def authenticate(self, request):
         # result = super().authenticate(request)
         # if result is None:
@@ -217,20 +230,25 @@ class CustomBAdminAuth(CustomJWtAuth):
             return None
         user, token, profile_type = result
         if not profile_type:
-            raise AuthenticationFailed(_("Business admin profile not found"), code="business_admin_missing")
+            raise AuthenticationFailed(
+                _("Business admin profile not found"), code="business_admin_missing"
+            )
         token["active_profile"] = profile_type
         return (user, token)
+
 
 class CustomAppAdminAuth(CustomJWtAuth):
     def allowed_profile_types(self):
         return [PROFILE_APP_ADMIN]
-    
+
     def authenticate(self, request):
         result = super().custom_auth(request)
         if result is None:
             return None
         user, token, profile_type = result
         if not profile_type:
-            raise AuthenticationFailed(_("App admin profile not found"), code="app_admin_missing")
+            raise AuthenticationFailed(
+                _("App admin profile not found"), code="app_admin_missing"
+            )
         token["active_profile"] = profile_type
         return (user, token)

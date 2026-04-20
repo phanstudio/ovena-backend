@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.contrib.gis.geos import Point
-from google.oauth2 import id_token # type: ignore
-from google.auth.transport import requests # type: ignore
+from google.oauth2 import id_token  # type: ignore
+from google.auth.transport import requests  # type: ignore
 from django.conf import settings
 from rest_framework import serializers
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -12,10 +12,11 @@ from ..models import (
     User,
     Address,
     BusinessAdmin,
-    PrimaryAgent
+    PrimaryAgent,
 )
 from referrals.services import apply_referral_code, ensure_profile_base
-from phonenumber_field.serializerfields import PhoneNumberField # type: ignore
+from phonenumber_field.serializerfields import PhoneNumberField  # type: ignore
+
 
 class AddressSerializer(serializers.ModelSerializer):
     # optional: return lat/lon as simple numbers
@@ -32,58 +33,96 @@ class AddressSerializer(serializers.ModelSerializer):
     def get_long(self, obj):
         return obj.location.x if obj.location else None  # x = longitude
 
+
 class CustomerProfileSerializer(serializers.ModelSerializer):
     age = serializers.ReadOnlyField()  # uses the @property
     default_address = AddressSerializer(read_only=True)
     addresses = AddressSerializer(many=True, read_only=True)
-    
+
     class Meta:
         model = CustomerProfile
         fields = [
-            "id", 
-            "default_address", "addresses",
-            "birth_date", "age", "referral_code"
+            "id",
+            "default_address",
+            "addresses",
+            "birth_date",
+            "age",
+            "referral_code",
         ]
+
 
 class DriverProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverProfile
         fields = [
-            "id", "first_name", "last_name", "vehicle_number", "vehicle_type",
-            "gender", "birth_date", "residential_address", "vehicle_make", "referral_code"
+            "id",
+            "first_name",
+            "last_name",
+            "vehicle_number",
+            "vehicle_type",
+            "gender",
+            "birth_date",
+            "residential_address",
+            "vehicle_make",
+            "referral_code",
         ]
+
 
 class BuisnessAdminProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessAdmin
         fields = [
-            "id", #"referral_code"
+            "id",  # "referral_code"
         ]
 
+
 class PrimaryAgentProfileSerializer(serializers.ModelSerializer):
+    is_active = serializers.SerializerMethodField()
+
     class Meta:
         model = PrimaryAgent
-        fields = ["id", #"referral_code"
+        fields = [
+            "id",
+            "device_name",
+            "is_active",
+            "revoked",
+            "created_at",
         ]
+        read_only_fields = fields
+
+    def get_is_active(self, obj):
+        return not obj.revoked
+
 
 class RestaurantProfileSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source="business_name", read_only=True)
 
     class Meta:
         model = Business
-        fields = ["id", "business_name", "company_name", "business_type", "certification", "bn_number"]
+        fields = [
+            "id",
+            "business_name",
+            "company_name",
+            "business_type",
+            "certification",
+            "bn_number",
+        ]
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ("id", "email", "phone_number", "name")
 
+
 class OAuthCodeSerializer(serializers.Serializer):
     provider = serializers.ChoiceField(choices=("google", "apple"))
     id_token = serializers.CharField()
 
+
 class Delete2Serializer(serializers.Serializer):
     user_id = serializers.IntegerField()
+
 
 class CreateCustomerSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True)
@@ -93,16 +132,16 @@ class CreateCustomerSerializer(serializers.Serializer):
     long = serializers.FloatField(required=False)
     birth_date = serializers.DateField(required=False)
     referre_code = serializers.CharField(required=False, allow_blank=True)
-    profile_pic = serializers.CharField(required=False, allow_blank=True) # add profle pics.
+    profile_pic = serializers.CharField(
+        required=False, allow_blank=True
+    )  # add profle pics.
 
     def validate(self, data):
         user = self.context["user"]
 
         # thanks to CustomCustomerAuth
-        if user.customer_profile:#hasattr(user, "customer_profile"):
-            raise serializers.ValidationError(
-                "Customer profile already exists."
-            )
+        if user.customer_profile:  # hasattr(user, "customer_profile"):
+            raise serializers.ValidationError("Customer profile already exists.")
 
         # identity fill rules
         if data.get("email"):
@@ -111,9 +150,7 @@ class CreateCustomerSerializer(serializers.Serializer):
                     {"email": "User already has an email."}
                 )
             if User.objects.filter(email=data["email"]).exists():
-                raise serializers.ValidationError(
-                    {"email": "Email already in use."}
-                )
+                raise serializers.ValidationError({"email": "Email already in use."})
 
         if data.get("phone_number"):
             if user.phone_number:
@@ -126,7 +163,7 @@ class CreateCustomerSerializer(serializers.Serializer):
                 )
 
         return data
-    
+
     @transaction.atomic
     def create(self, validated_data):
         user = self.context["user"]
@@ -142,7 +179,10 @@ class CreateCustomerSerializer(serializers.Serializer):
             user.save(update_fields=update_fields)
 
         location = None
-        if validated_data.get("lat") is not None and validated_data.get("long") is not None:
+        if (
+            validated_data.get("lat") is not None
+            and validated_data.get("long") is not None
+        ):
             location = Address.objects.create(
                 address="unknown",
                 location=Point(
@@ -171,6 +211,7 @@ class CreateCustomerSerializer(serializers.Serializer):
                 raise serializers.ValidationError({"referre_code": msg})
 
         return profile
+
 
 # class UpdateCustomerSerializer(serializers.Serializer):
 #     name = serializers.CharField(required=False, allow_blank=True)
@@ -246,6 +287,7 @@ class CreateCustomerSerializer(serializers.Serializer):
 
 #         return instance
 
+
 class UpdateCustomerSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True)
     email = serializers.EmailField(required=False, allow_blank=True)
@@ -254,15 +296,15 @@ class UpdateCustomerSerializer(serializers.Serializer):
     lat = serializers.FloatField(required=False)
     long = serializers.FloatField(required=False)
     birth_date = serializers.DateField(required=False)
-    profile_pic = serializers.CharField(required=False, allow_blank=True) # add profle pics.
+    profile_pic = serializers.CharField(
+        required=False, allow_blank=True
+    )  # add profle pics.
 
     def validate(self, data):
         user = self.context["user"]
 
         if not hasattr(user, "customer_profile"):
-            raise serializers.ValidationError(
-                "Customer profile does not exist."
-            )
+            raise serializers.ValidationError("Customer profile does not exist.")
 
         if data.get("email"):
             if User.objects.exclude(id=user.id).filter(email=data["email"]).exists():
@@ -271,9 +313,11 @@ class UpdateCustomerSerializer(serializers.Serializer):
                 )
 
         if data.get("phone_number"):
-            if User.objects.exclude(id=user.id).filter(
-                phone_number=data["phone_number"]
-            ).exists():
+            if (
+                User.objects.exclude(id=user.id)
+                .filter(phone_number=data["phone_number"])
+                .exists()
+            ):
                 raise serializers.ValidationError(
                     {"phone_number": "This phone number is already in use."}
                 )
@@ -326,6 +370,7 @@ class UpdateCustomerSerializer(serializers.Serializer):
 
         return instance
 
+
 # Oath
 class GoogleAuthSerializer(serializers.Serializer):
     id_token = serializers.CharField()
@@ -334,17 +379,16 @@ class GoogleAuthSerializer(serializers.Serializer):
         try:
             client_id = settings.OAUTH_PROVIDERS.get("google").get("CLIENT_ID")
             info = id_token.verify_oauth2_token(
-                data['id_token'],
-                requests.Request(),
-                client_id
+                data["id_token"], requests.Request(), client_id
             )
         except Exception as e:
             raise serializers.ValidationError(f"Invalid Google token: {e}")
 
-        data['email'] = info['email']
-        data['sub'] = info['sub']
-        data['info'] = info
+        data["email"] = info["email"]
+        data["sub"] = info["sub"]
+        data["info"] = info
         return data
+
 
 # class GoogleAuthSerializer(serializers.Serializer):
 #     """
@@ -403,6 +447,3 @@ class GoogleAuthSerializer(serializers.Serializer):
 #             "picture":     "",
 #             "provider_id": claims["sub"],
 #         }
-
-
-

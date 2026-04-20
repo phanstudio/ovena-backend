@@ -11,19 +11,28 @@ from rest_framework.generics import GenericAPIView
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import PermissionDenied
 from accounts.models import (
-    Branch, BranchOperatingHours,
-    BusinessAdmin, PrimaryAgent,
-    BusinessPayoutAccount, User
+    Branch,
+    BranchOperatingHours,
+    BusinessAdmin,
+    PrimaryAgent,
+    BusinessPayoutAccount,
+    User,
 )
 from business_api.serializers import InS, OpS
 from addresses.utils import checkset_location
 from authflow.authentication import CustomBAdminAuth, CustomBusinessAgentsAuth
 from authflow.permissions import IsBusinessAdmin, IsBusinessAgent
-from payments.idempotency import IdempotencyConflictError, begin_idempotent_request, save_idempotent_response
+from payments.idempotency import (
+    IdempotencyConflictError,
+    begin_idempotent_request,
+    save_idempotent_response,
+)
 from payments.models import LedgerEntry, Withdrawal
 from payments.payouts.services import (
-    create_withdrawal_request, get_balance_summary, 
-    evaluate_eligibility, MINIMUM_BY_ROLE
+    create_withdrawal_request,
+    get_balance_summary,
+    evaluate_eligibility,
+    MINIMUM_BY_ROLE,
 )
 from payments.payouts.constants import (
     DAILY_WITHDRAWAL_LIMIT_AMOUNT,
@@ -33,7 +42,7 @@ from payments.integrations.paystack.errors import PaystackAPIError
 from payments.payouts.tasks import process_withdrawal
 from rest_framework.pagination import LimitOffsetPagination
 from accounts.serializers import InS as acInS
-from drf_spectacular.utils import extend_schema # type: ignore
+from drf_spectacular.utils import extend_schema  # type: ignore
 from menu.models import Order, OrderItem
 from ratings.models import BranchRating
 from abc import ABC
@@ -41,12 +50,14 @@ from authflow.services import OTPManager
 import msgpack
 import zlib
 
+
 def _decimal_sum(field_name: str):
     return Coalesce(
         Sum(field_name),
         0,
         output_field=DecimalField(max_digits=12, decimal_places=2),
     )
+
 
 def _resolve_period(validated_data):
     range_key = validated_data.get("range", "30d")
@@ -60,17 +71,24 @@ def _resolve_period(validated_data):
     if range_key == "30d":
         return now - timedelta(days=30), now
 
-    start = timezone.make_aware(datetime.combine(validated_data["from_date"], datetime.min.time()))
-    end = timezone.make_aware(datetime.combine(validated_data["to_date"], datetime.max.time()))
+    start = timezone.make_aware(
+        datetime.combine(validated_data["from_date"], datetime.min.time())
+    )
+    end = timezone.make_aware(
+        datetime.combine(validated_data["to_date"], datetime.max.time())
+    )
     return start, end
+
 
 def _delivered_orders_queryset(business_admin: BusinessAdmin):
     return (
-        Order.objects
-        .filter(branch__business=business_admin.business, status="delivered")
+        Order.objects.filter(
+            branch__business=business_admin.business, status="delivered"
+        )
         .select_related("branch", "sale")
         .annotate(effective_at=Coalesce("delivered_at", "created_at"))
     )
+
 
 def _filter_period(queryset, start, end, field_name="effective_at"):
     filters = {}
@@ -79,6 +97,7 @@ def _filter_period(queryset, start, end, field_name="effective_at"):
     if end is not None:
         filters[f"{field_name}__lte"] = end
     return queryset.filter(**filters)
+
 
 def _resolve_branch(request, branch_id=None):
     user = request.user
@@ -91,8 +110,7 @@ def _resolve_branch(request, branch_id=None):
             raise PermissionDenied("branch_id required for admin")
 
         branch = Branch.objects.filter(
-            id=branch_id,
-            business=user.business_admin.business
+            id=branch_id, business=user.business_admin.business
         ).first()
 
         if not branch:
@@ -102,7 +120,7 @@ def _resolve_branch(request, branch_id=None):
 
     # Staff path
     if actor_type == "staff":
-        agent = user.primaryagent
+        agent = user.primary_agent
 
         if not agent or agent.revoked:
             raise PermissionDenied("Invalid staff account")
@@ -110,6 +128,7 @@ def _resolve_branch(request, branch_id=None):
         return agent.branch
 
     raise PermissionDenied("Unauthorized")
+
 
 def _select_trunc(start, end):
     delta = end - start
@@ -122,18 +141,19 @@ def _select_trunc(start, end):
 
     return TruncWeek
 
+
 def encode_dict(data: dict) -> bytes:
     packed = msgpack.packb(data, use_bin_type=True)
     return zlib.compress(packed)
+
 
 def decode_dict(data: bytes) -> dict:
     unpacked = zlib.decompress(data)
     return msgpack.unpackb(unpacked, raw=False)
 
+
 class AbstractBuStAdBranchView(GenericAPIView, ABC):
-    authentication_classes = [
-        CustomBusinessAgentsAuth
-    ]
+    authentication_classes = [CustomBusinessAgentsAuth]
     permission_classes = [IsBusinessAgent]
 
     branch = None
@@ -148,9 +168,11 @@ class AbstractBuStAdBranchView(GenericAPIView, ABC):
         except PermissionDenied as e:
             raise PermissionDenied(str(e))
 
+
 class businessLimitOffsetPagination(LimitOffsetPagination):
     default_limit = 20
     max_limit = 100
+
 
 class BaseBuisAdminAPIView(GenericAPIView):
     authentication_classes = [CustomBAdminAuth]
@@ -162,13 +184,15 @@ class BaseBuisAdminAPIView(GenericAPIView):
         except BusinessAdmin.DoesNotExist:
             return get_object_or_404(BusinessAdmin, user=request.user)
 
+
 class SendVerifyView(BaseBuisAdminAPIView):
-    def send(self, vd, user, channel:str="phone"):
+    def send(self, vd, user, channel: str = "phone"):
         data = encode_dict(vd)
         code = OTPManager.send_blank(data)
         OTPManager.send_code(channel, str(user.phone_number), code)
         print(channel, str(user.phone_number), code)
         return code
+
 
 class BranchCreateUpdateView(BaseBuisAdminAPIView):
     serializer_class = acInS.BranchInputSerializer
@@ -176,14 +200,14 @@ class BranchCreateUpdateView(BaseBuisAdminAPIView):
     @extend_schema(
         request=acInS.BranchInputSerializer,
         responses={201: OpS.BuisnessResponse},
-        description="Create a new branch with operating hours."
+        description="Create a new branch with operating hours.",
     )
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         branch_data = serializer.validated_data
         buisness_admin = self.get_buisnessadmn(request)
-        
+
         with transaction.atomic():
             # Branches + operating hours
             branch = Branch.objects.create(
@@ -207,15 +231,15 @@ class BranchCreateUpdateView(BaseBuisAdminAPIView):
                         is_closed=h.get("is_closed", False),
                     )
                     for h in hours_data
-                ], 
+                ],
             )
 
         return Response({"detail": "branch created."}, status=status.HTTP_201_CREATED)
-    
+
     @extend_schema(
         request=InS.BranchInputSerializer,
         responses={200: OpS.BuisnessResponse},
-        description="Update branch details."
+        description="Update branch details.",
     )
     def patch(self, request):
         serializer = InS.BranchInputSerializer(data=request.data)
@@ -224,49 +248,58 @@ class BranchCreateUpdateView(BaseBuisAdminAPIView):
         buisness_admin = self.get_buisnessadmn(request)
 
         update_data = {
-            k: v for k, v in branch_data.items()
+            k: v
+            for k, v in branch_data.items()
             if k not in ["id", "latitude", "longitude"]
         }
 
         if "latitude" in branch_data and "longitude" in branch_data:
             update_data["location"] = checkset_location(branch_data)
 
-        
         updated = Branch.objects.filter(
-            business_id=buisness_admin.business.id,
-            id=branch_data["id"]
+            business_id=buisness_admin.business.id, id=branch_data["id"]
         ).update(**update_data)
 
         if not updated:
             return Response({"detail": "Branch not found"}, status=404)
-        
+
         return Response({"detail": "branch updated."}, status=status.HTTP_200_OK)
+
 
 class BranchListView(BaseBuisAdminAPIView):
     pagination_class = businessLimitOffsetPagination
 
     def get(self, request):
         buisness_admin = self.get_buisnessadmn(request)
-        qs = Branch.objects.filter(business=buisness_admin.business.id).order_by("-created_at")
+        qs = Branch.objects.filter(business=buisness_admin.business.id).order_by(
+            "-created_at"
+        )
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response(
-            {"detail": "Branches", "data": OpS.BranchlistSerializer(page, many=True).data}
+            {
+                "detail": "Branches",
+                "data": OpS.BranchlistSerializer(page, many=True).data,
+            }
         )
 
-@extend_schema(responses={200: OpS.BuisnessResponse},)
+
+@extend_schema(
+    responses={200: OpS.BuisnessResponse},
+)
 class StaffRevokeView(BaseBuisAdminAPIView):
     serializer_class = InS.StaffRevokedSerializer
+
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
-        PrimaryAgent.objects.filter(id = vd["agent_id"]).update(
-            revoked=vd["revoked"],
-            revoked_at=timezone.now() if vd["revoked"] else None
-        ) # after a while we want to delete it. also add a revoked at
+        PrimaryAgent.objects.filter(id=vd["agent_id"]).update(
+            revoked=vd["revoked"], revoked_at=timezone.now() if vd["revoked"] else None
+        )  # after a while we want to delete it. also add a revoked at
         action = "revoked" if vd["revoked"] else "unrevoked"
         return Response({"detail": f"agent {action}"})
+
 
 @extend_schema(responses=OpS.PrimaryAgentBranchSerializer)
 class StaffListView(BaseBuisAdminAPIView):
@@ -276,8 +309,7 @@ class StaffListView(BaseBuisAdminAPIView):
         buisness_admin = self.get_buisnessadmn(request)
 
         qs = (
-            PrimaryAgent.objects
-            .select_related("branch", "user")
+            PrimaryAgent.objects.select_related("branch", "user")
             .filter(branch__business=buisness_admin.business, revoked=False)
             .order_by("-created_at")
         )
@@ -286,15 +318,16 @@ class StaffListView(BaseBuisAdminAPIView):
         page = paginator.paginate_queryset(qs, request)
 
         serializer = OpS.PrimaryAgentBranchSerializer(page, many=True)
-        return paginator.get_paginated_response({
-            "detail": "Primary agents",
-            "data": serializer.data
-        })
+        return paginator.get_paginated_response(
+            {"detail": "Primary agents", "data": serializer.data}
+        )
+
 
 class BuisnessAdminUpdateView(SendVerifyView):
     serializer_class = InS.AdminUpdateSerializer
+
     def patch(self, request):
-        user:User = request.user
+        user: User = request.user
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
@@ -302,17 +335,21 @@ class BuisnessAdminUpdateView(SendVerifyView):
         if "phone_number" in vd:
             vd["phone_number"] = str(vd["phone_number"])
         code = self.send(vd, user)
-        
-        return Response({"detail": f"User update request sent. The code: {code} while it is down"})
+
+        return Response(
+            {"detail": f"User update request sent. The code: {code} while it is down"}
+        )
+
 
 class BuisnessAdminUpdateReceiverView(BaseBuisAdminAPIView):
     serializer_class = InS.RecieverSerializer
+
     def post(self, request):
-        user:User = request.user
+        user: User = request.user
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
-    
+
         identifier = OTPManager.verify(otp_code=vd["otp_code"])
         vaild_data = decode_dict(identifier)
         update_fields = []
@@ -334,10 +371,11 @@ class BuisnessAdminUpdateReceiverView(BaseBuisAdminAPIView):
 
         return Response({"detail": "User updated."})
 
+
 class BranchOperatingHoursView(AbstractBuStAdBranchView):
     @extend_schema(
         responses=acInS.BranchOperatingHoursSerializer,
-        description="Update branch details."
+        description="Update branch details.",
     )
     def get(self, request, *args, **kwargs):
         hours = BranchOperatingHours.objects.filter(branch=self.branch).order_by("day")
@@ -347,7 +385,7 @@ class BranchOperatingHoursView(AbstractBuStAdBranchView):
     @extend_schema(
         request=acInS.BranchOperatingHoursSerializer,
         responses={200: OpS.BuisnessResponse},
-        description="Update branch details."
+        description="Update branch details.",
     )
     def put(self, request, *args, **kwargs):
         serializer = acInS.BranchOperatingHoursSerializer(data=request.data, many=True)
@@ -355,12 +393,15 @@ class BranchOperatingHoursView(AbstractBuStAdBranchView):
 
         with transaction.atomic():
             BranchOperatingHours.objects.filter(branch=self.branch).delete()
-            BranchOperatingHours.objects.bulk_create([
-                BranchOperatingHours(branch=self.branch, **h)
-                for h in serializer.validated_data
-            ])
+            BranchOperatingHours.objects.bulk_create(
+                [
+                    BranchOperatingHours(branch=self.branch, **h)
+                    for h in serializer.validated_data
+                ]
+            )
 
         return Response({"detail": "Operating hours updated."})
+
 
 # i can add celery to close automatically;
 class BranchClosedView(AbstractBuStAdBranchView):
@@ -372,17 +413,13 @@ class BranchClosedView(AbstractBuStAdBranchView):
         today = datetime.today().weekday()  # 0=Mon, 6=Sun
 
         hour = BranchOperatingHours.objects.filter(
-            branch=self.branch,
-            day=today
+            branch=self.branch, day=today
         ).first()
 
         if not hour:
             return Response({"detail": "No operating hours set."}, status=404)
 
-        return Response({
-            "day": today,
-            "is_closed": hour.is_closed
-        })
+        return Response({"day": today, "is_closed": hour.is_closed})
 
     def patch(self, request, *args, **kwargs):
         serializer = acInS.BranchClosedSerializer(data=request.data)
@@ -394,20 +431,18 @@ class BranchClosedView(AbstractBuStAdBranchView):
         today = datetime.today().weekday()  # 0=Mon, 6=Sun
 
         updated = BranchOperatingHours.objects.filter(
-            branch=self.branch,
-            day=today
+            branch=self.branch, day=today
         ).update(is_closed=closed)
 
         if updated == 0:
             return Response(
-                {"detail": "No operating hours found for this day."},
-                status=404
+                {"detail": "No operating hours found for this day."}, status=404
             )
-                
+
         return Response({"detail": "Operating hours updated."})
 
-class RestaurantPaymentView(SendVerifyView):
 
+class RestaurantPaymentView(SendVerifyView):
     def get(self, request):
         user = request.user
         try:
@@ -416,9 +451,11 @@ class RestaurantPaymentView(SendVerifyView):
             return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
 
         try:
-            payment:BusinessPayoutAccount = admin.business.payout
+            payment: BusinessPayoutAccount = admin.business.payout
         except BusinessPayoutAccount.DoesNotExist:
-            return Response({"detail": "No payment info set."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "No payment info set."}, status=status.HTTP_404_NOT_FOUND
+            )
         return Response(
             {
                 "bank": payment.bank_name,
@@ -435,17 +472,21 @@ class RestaurantPaymentView(SendVerifyView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
         code = self.send(vd, user)
-        return Response({"detail": f"Payment info updated. The code: {code} while it is down"})
+        return Response(
+            {"detail": f"Payment info updated. The code: {code} while it is down"}
+        )
+
 
 class RestaurantPaymentReceiverView(BaseBuisAdminAPIView):
     serializer_class = InS.RecieverSerializer
+
     def post(self, request):
-        user:User = request.user
+        user: User = request.user
         admin = user.business_admin
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
-    
+
         identifier = OTPManager.verify(otp_code=vd["otp_code"])
         vaild_data = decode_dict(identifier)
 
@@ -471,30 +512,50 @@ class RestaurantPaymentReceiverView(BaseBuisAdminAPIView):
         )
         return Response({"detail": "Payment info updated."})
 
+
 class BusinessWalletBalanceView(APIView):
     authentication_classes = [CustomBAdminAuth]
     permission_classes = [IsBusinessAdmin]
 
     def get(self, request):
-        return Response(get_balance_summary(str(request.user.id), role="business_owner"))
+        return Response(
+            get_balance_summary(str(request.user.id), role="business_owner")
+        )
+
 
 class BusinessWalletWithdrawalView(BaseBuisAdminAPIView):
     def post(self, request):
         business_admin = get_object_or_404(BusinessAdmin, user=request.user)
         amount_kobo = request.data.get("amount_kobo")
         idempotency_key = request.headers.get("Idempotency-Key")
-        strategy = request.data.get("strategy", getattr(settings, "PAYMENTS_PAYOUT_STRATEGY_DEFAULT", "batch"))
+        strategy = request.data.get(
+            "strategy", getattr(settings, "PAYMENTS_PAYOUT_STRATEGY_DEFAULT", "batch")
+        )
         request_id = request.headers.get("X-Request-ID", "")
         transaction_pin = str(request.data.get("transaction_pin", "")).strip()
 
         if not amount_kobo:
-            return Response({"error": "amount_kobo is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "amount_kobo is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
         if not idempotency_key:
-            return Response({"error": "Idempotency-Key header is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Idempotency-Key header is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if not business_admin.has_transaction_pin:
-            return Response({"error": "No transaction_pin saved"}, status=status.HTTP_400_BAD_REQUEST)
-        if business_admin.has_transaction_pin and not business_admin.check_transaction_pin(transaction_pin):
-            return Response({"error": "Valid transaction_pin is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "No transaction_pin saved"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if (
+            business_admin.has_transaction_pin
+            and not business_admin.check_transaction_pin(transaction_pin)
+        ):
+            return Response(
+                {"error": "Valid transaction_pin is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             row, has_response = begin_idempotent_request(
@@ -512,7 +573,7 @@ class BusinessWalletWithdrawalView(BaseBuisAdminAPIView):
                 idempotency_key=idempotency_key,
                 strategy=strategy,
                 request_id=request_id,
-                role="business_owner"
+                role="business_owner",
             )
 
             response_payload = {
@@ -521,31 +582,41 @@ class BusinessWalletWithdrawalView(BaseBuisAdminAPIView):
                 "amount_ngn": withdrawal.amount / 100,
                 "status": withdrawal.status,
                 "strategy": strategy,
-                "message": "Withdrawal request queued" if created else "Duplicate request; existing withdrawal returned",
+                "message": "Withdrawal request queued"
+                if created
+                else "Duplicate request; existing withdrawal returned",
             }
 
             if strategy == "realtime":
                 process_withdrawal.delay(str(withdrawal.id))
-                response_payload["message"] = "Withdrawal request accepted and queued for realtime processing"
+                response_payload["message"] = (
+                    "Withdrawal request accepted and queued for realtime processing"
+                )
 
             save_idempotent_response(row, response_payload)
-            return Response(response_payload, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+            return Response(
+                response_payload,
+                status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+            )
         except IdempotencyConflictError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
         except ValueError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+
 # add eligability
 class BuisnessWithdrawEligibilityView(BaseBuisAdminAPIView):
     def get(self, request):
         decision = evaluate_eligibility(
-            user=request.user, amount_kobo=MINIMUM_BY_ROLE.get("business_owner"), role="business_owner"
+            user=request.user,
+            amount_kobo=MINIMUM_BY_ROLE.get("business_owner"),
+            role="business_owner",
         )
         payload = {
             "eligible": decision.eligible,
-            "minimum_amount": decision.minimum_amount_kobo/100,
-            "max_amount": DAILY_WITHDRAWAL_LIMIT_AMOUNT/100,
-            "available_balance": decision.available_balance_kobo/100,
+            "minimum_amount": decision.minimum_amount_kobo / 100,
+            "max_amount": DAILY_WITHDRAWAL_LIMIT_AMOUNT / 100,
+            "available_balance": decision.available_balance_kobo / 100,
             "checks": decision.checks,
         }
         return Response({"detail": "Withdrawal eligibility", "data": payload})
@@ -556,8 +627,18 @@ class BusinessWalletWithdrawalHistoryView(APIView):
     permission_classes = [IsBusinessAdmin]
 
     def get(self, request):
-        withdrawals = Withdrawal.objects.filter(user=request.user).order_by("-requested_at").values(
-            "id", "amount", "status", "batch_date", "requested_at", "completed_at", "failure_reason"
+        withdrawals = (
+            Withdrawal.objects.filter(user=request.user)
+            .order_by("-requested_at")
+            .values(
+                "id",
+                "amount",
+                "status",
+                "batch_date",
+                "requested_at",
+                "completed_at",
+                "failure_reason",
+            )
         )
         return Response(list(withdrawals))
 
@@ -576,9 +657,15 @@ class BusinessDashboardView(BaseBuisAdminAPIView):
         today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
         today_orders = _filter_period(all_orders, today_start, timezone.now())
 
-        all_totals = all_orders.aggregate(amount_made=_decimal_sum("items_total"), sales_count=Count("id")) # this should be subtotal sha not grand because it includes the discount
-        today_totals = today_orders.aggregate(today_sales=_decimal_sum("items_total"), sales_count=Count("id"))
-        shipment_totals = filtered_orders.aggregate(amount=_decimal_sum("items_total"), count=Count("id"))
+        all_totals = all_orders.aggregate(
+            amount_made=_decimal_sum("items_total"), sales_count=Count("id")
+        )  # this should be subtotal sha not grand because it includes the discount
+        today_totals = today_orders.aggregate(
+            today_sales=_decimal_sum("items_total"), sales_count=Count("id")
+        )
+        shipment_totals = filtered_orders.aggregate(
+            amount=_decimal_sum("items_total"), count=Count("id")
+        )
 
         # total_orders_filtered = filtered_orders.aggregate(count=Count("id"), amount=_decimal_sum("items_total"))
         # shipment_totals_filtered = filtered_orders.aggregate(count=Count("id"), amount=_decimal_sum("items_total"))
@@ -586,7 +673,10 @@ class BusinessDashboardView(BaseBuisAdminAPIView):
         # total shipment filtered, total order filtered
 
         data = {
-            "username": request.user.name or request.user.email or request.user.phone_number or "",
+            "username": request.user.name
+            or request.user.email
+            or request.user.phone_number
+            or "",
             "today_sales": today_totals["today_sales"],
             "today_sales_count": today_totals["sales_count"],
             "amount_made": all_totals["amount_made"],
@@ -601,7 +691,6 @@ class BusinessDashboardView(BaseBuisAdminAPIView):
             #     "count": total_orders_filtered["count"],
             #     "amount": total_orders_filtered["amount"],
             # },
-
             # "total_shipments": {
             #     "filter": serializer.validated_data["range"],
             #     "count": shipment_totals_filtered["count"],
@@ -623,9 +712,9 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
 
         orders = _filter_period(_delivered_orders_queryset(business_admin), start, end)
         revenue_entries = _filter_period(
-            LedgerEntry.objects.filter(user=request.user, role="business_owner", type="credit").exclude(
-                notes__startswith="Release hold for failed withdrawal"
-            ),
+            LedgerEntry.objects.filter(
+                user=request.user, role="business_owner", type="credit"
+            ).exclude(notes__startswith="Release hold for failed withdrawal"),
             start,
             end,
             field_name="created_at",
@@ -645,7 +734,9 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
             discount_amount=_decimal_sum("discount_total"),
             orders_count=Count("id"),
         )
-        revenue_kobo = revenue_entries.aggregate(total=Coalesce(Sum("amount"), 0))["total"] or 0
+        revenue_kobo = (
+            revenue_entries.aggregate(total=Coalesce(Sum("amount"), 0))["total"] or 0
+        )
         reviews_totals = reviews.aggregate(
             average_rating=Coalesce(Avg("stars"), 0.0),
             reviews_count=Count("id"),
@@ -654,7 +745,7 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
             orders.values("branch_id", "branch__name")
             .annotate(
                 total_orders=Count("id"),
-                total_amount=_decimal_sum(total_used), # we need to add the discounts
+                total_amount=_decimal_sum(total_used),  # we need to add the discounts
             )
             .order_by("-total_amount", "-total_orders", "branch__name")
             .first()
@@ -671,22 +762,16 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
         )
 
         top_product = (
-            OrderItem.objects
-            .filter(order__in=orders)
-            .values(
-                "menu_item_id",
-                "menu_item__custom_name"
-            )
+            OrderItem.objects.filter(order__in=orders)
+            .values("menu_item_id", "menu_item__custom_name")
             .annotate(
                 total_quantity=Coalesce(
-                    Sum("quantity"),
-                    Value(0),
-                    output_field=IntegerField()
+                    Sum("quantity"), Value(0), output_field=IntegerField()
                 ),
                 total_revenue=Coalesce(
                     Sum("line_total"),
                     Value(0),
-                    output_field=DecimalField(max_digits=12, decimal_places=2)
+                    output_field=DecimalField(max_digits=12, decimal_places=2),
                 ),
                 order_count=Count("order", distinct=True),
             )
@@ -705,7 +790,9 @@ class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
                 "orders_count": order_totals["orders_count"],
             },
             "reviews": {
-                "average_rating": round(float(reviews_totals["average_rating"] or 0), 2),
+                "average_rating": round(
+                    float(reviews_totals["average_rating"] or 0), 2
+                ),
                 "count": reviews_totals["reviews_count"],
             },
             "topseller_branch": {
@@ -749,7 +836,9 @@ class BusinessTransactionPinView(BaseBuisAdminAPIView):
 
     def post(self, request):
         business_admin = self.get_buisnessadmn(request)
-        serializer = self.get_serializer(data=request.data, context={"business_admin": business_admin})
+        serializer = self.get_serializer(
+            data=request.data, context={"business_admin": business_admin}
+        )
         serializer.is_valid(raise_exception=True)
         business_admin.set_transaction_pin(serializer.validated_data["pin"])
         business_admin.save(update_fields=["transaction_pin_hash"])
@@ -826,8 +915,11 @@ class BusinessTransactionHistoryView(BaseBuisAdminAPIView):
                         "amount_kobo": amount_kobo,
                         "signed_amount_kobo": -amount_kobo,
                         "amount_ngn": amount_kobo / 100,
-                        "reference": withdrawal.paystack_transfer_ref or withdrawal.paystack_transfer_code or "",
-                        "description": withdrawal.failure_reason or "Withdrawal request",
+                        "reference": withdrawal.paystack_transfer_ref
+                        or withdrawal.paystack_transfer_code
+                        or "",
+                        "description": withdrawal.failure_reason
+                        or "Withdrawal request",
                         "created_at": withdrawal.requested_at,
                     }
                 )
@@ -835,7 +927,10 @@ class BusinessTransactionHistoryView(BaseBuisAdminAPIView):
         items.sort(key=lambda item: item["created_at"], reverse=True)
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(items, request)
-        return paginator.get_paginated_response({"detail": "Transaction history", "data": page})
+        return paginator.get_paginated_response(
+            {"detail": "Transaction history", "data": page}
+        )
+
 
 # def get(self, request, branch_id=None):
 #     branch = getattr(request, "branch", None)

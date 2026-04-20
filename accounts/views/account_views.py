@@ -186,35 +186,34 @@ class LinkApproveView(GenericAPIView):
 
             business_admin = branch.business.admin
 
-            existing_device_agent = (
-                PrimaryAgent.objects.filter(device_name=device_id)
-                .select_for_update()
-                .first()
+            # 🔍 ALWAYS query explicitly
+            existing_agent = (
+                PrimaryAgent.objects.select_for_update().filter(branch=branch).first()
             )
 
-            if existing_device_agent and not existing_device_agent.revoked:
-                return Response(
-                    {"error": "This device is already linked to another agent"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            if existing_agent:
+                if not existing_agent.revoked:
+                    return Response(
+                        {"detail": "Branch already has an active primary agent"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-            if existing_device_agent and existing_device_agent.revoked:
-                # 🔥 Reassign this device instead of creating new
-                user = existing_device_agent.user
-
+                # ♻️ reuse
+                user = existing_agent.user
                 user.name = vd["username"] or device_id
                 user.phone_number = vd["phone_number"]
                 user.save()
 
-                existing_device_agent.branch = branch
-                existing_device_agent.revoked = False
-                existing_device_agent.revoked_at = None
-                existing_device_agent.created_by = business_admin
-                existing_device_agent.save()
+                existing_agent.device_name = device_id
+                existing_agent.revoked = False
+                existing_agent.revoked_at = None
+                existing_agent.created_by = business_admin
+                existing_agent.save()
 
-                sub_user = existing_device_agent
+                sub_user = existing_agent
 
             else:
+                # ✅ NOW SAFE — no existing row
                 user, _ = User.objects.get_or_create(
                     phone_number=vd["phone_number"],
                     defaults={"name": vd["username"] or device_id},

@@ -5,11 +5,13 @@ from authflow.services import generate_referral_code
 from django.db import models, IntegrityError, transaction
 from .main import User, Branch, Business
 
+
 # profile
 class ProfileBase(models.Model):
     """
     Shared referral identity for any profile type.
     """
+
     PROFILE_CUSTOMER = "customer"
     PROFILE_DRIVER = "driver"
     PROFILE_TYPE_CHOICES = [
@@ -17,21 +19,27 @@ class ProfileBase(models.Model):
         (PROFILE_DRIVER, "Driver"),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="profile_bases")
-    profile_type = models.CharField(max_length=20, choices=PROFILE_TYPE_CHOICES, db_index=True)
-    referral_code = models.CharField(max_length=20, unique=True, null=True, blank=True, db_index=True)
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="profile_bases"
+    )
+    profile_type = models.CharField(
+        max_length=20, choices=PROFILE_TYPE_CHOICES, db_index=True
+    )
+    referral_code = models.CharField(
+        max_length=20, unique=True, null=True, blank=True, db_index=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.user_id}:{self.profile_type}"
-    
+
     def _generate_referral_code(self) -> str:
         return generate_referral_code(8)
-    
+
     # for no collisions
     # base62: 9+
     # base36: 11+
-    
+
     # I might adjust or out rightly add to this, if the error occur no fail state for it
     def _pick_unique_code_batch(self, batch_size=25) -> str:
         # generate candidate codes in memory
@@ -39,15 +47,17 @@ class ProfileBase(models.Model):
 
         # single DB query to find which ones already exist
         taken = set(
-            self.__class__.objects
-            .filter(referral_code__in=candidates)
-            .values_list("referral_code", flat=True)
+            self.__class__.objects.filter(referral_code__in=candidates).values_list(
+                "referral_code", flat=True
+            )
         )
 
         # pick a free one
         available = list(candidates - taken)
         if not available:
-            raise ValueError("All generated referral codes were taken; increase batch_size or retry.")
+            raise ValueError(
+                "All generated referral codes were taken; increase batch_size or retry."
+            )
         return available[0]
 
     def save(self, *args, **kwargs):
@@ -64,7 +74,9 @@ class ProfileBase(models.Model):
                 # collision still possible under concurrency, so retry
                 self.referral_code = None
 
-        raise RuntimeError("Could not generate a unique referral code after multiple attempts.")
+        raise RuntimeError(
+            "Could not generate a unique referral code after multiple attempts."
+        )
 
     class Meta:
         constraints = [
@@ -74,16 +86,25 @@ class ProfileBase(models.Model):
             )
         ]
 
-class CustomerProfile(ProfileBase): # create a simple view to change the defualt address
+
+class CustomerProfile(
+    ProfileBase
+):  # create a simple view to change the defualt address
     profilebase_ptr = models.OneToOneField(
         ProfileBase,
         on_delete=models.CASCADE,
         parent_link=True,
-        related_name="customer_profile"
+        related_name="customer_profile",
     )
     birth_date = models.DateField(null=True, blank=True)
     addresses = models.ManyToManyField(Address, related_name="customers", blank=True)
-    default_address = models.ForeignKey(Address, on_delete=models.SET_NULL, null=True, blank=True, related_name="default_for_customers")# set normally but change if requested
+    default_address = models.ForeignKey(
+        Address,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="default_for_customers",
+    )  # set normally but change if requested
 
     def save(self, *args, **kwargs):
         if not self.pk:
@@ -99,20 +120,27 @@ class CustomerProfile(ProfileBase): # create a simple view to change the defualt
         if not self.birth_date:
             return None
         today = timezone.localdate()
-        return today.year - self.birth_date.year - (
-            (today.month, today.day) < (self.birth_date.month, self.birth_date.day)
+        return (
+            today.year
+            - self.birth_date.year
+            - ((today.month, today.day) < (self.birth_date.month, self.birth_date.day))
         )
 
     @property
     def successful_referrals(self):
         return 0
 
+
 class BusinessAdmin(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="business_admin")
-    business = models.OneToOneField(Business, on_delete=models.CASCADE, related_name="admin", null=True, blank=True)
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="business_admin"
+    )
+    business = models.OneToOneField(
+        Business, on_delete=models.CASCADE, related_name="admin", null=True, blank=True
+    )
     transaction_pin_hash = models.CharField(max_length=128, blank=True, default="")
     # we can change to null later else might be an issue
-    
+
     def __str__(self):
         return f"{self.user.name} admin @ {self.business.business_name}"
 
@@ -128,11 +156,22 @@ class BusinessAdmin(models.Model):
             return False
         return check_password(raw_pin, self.transaction_pin_hash)
 
-class PrimaryAgent(models.Model): # only one primary users, so the branch should be a one to one
-    branch = models.OneToOneField(Branch, on_delete=models.CASCADE, related_name="primary_agent")
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+
+class PrimaryAgent(
+    models.Model
+):  # only one primary users, so the branch should be a one to one
+    branch = models.OneToOneField(
+        Branch,
+        on_delete=models.CASCADE,
+        related_name="primary_agent",  # i can change this to vengor
+    )
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="primary_agent"
+    )
     created_by = models.ForeignKey(
-        BusinessAdmin, on_delete=models.CASCADE, related_name="linked_staff",
+        BusinessAdmin,
+        on_delete=models.CASCADE,
+        related_name="linked_staff",
     )
     device_name = models.CharField(max_length=200, unique=True)
     revoked = models.BooleanField(default=False)
@@ -141,13 +180,14 @@ class PrimaryAgent(models.Model): # only one primary users, so the branch should
 
     def __str__(self):
         return f"{self.user.name} - vendor agent @ {self.branch.name}"
-    
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=["branch"], name="unique_primary_agent_per_branch"
             )
         ]
+
 
 # admin Profle connected to the restaurant:
 # password;

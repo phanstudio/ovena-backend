@@ -1,7 +1,8 @@
 from admin_api.models import AppAdmin
 from accounts.models import User, DriverProfile, Business
 from admin_api.serializers import (
-    LoginResponseSerializer, AppAdminLoginSerializer,
+    LoginResponseSerializer,
+    AppAdminLoginSerializer,
     UserSerializer,
     AppAdminProfileSerializer,
     UpdateAppAdminSerializer,
@@ -15,7 +16,7 @@ from admin_api.serializers import (
 )
 from rest_framework.response import Response
 from rest_framework import status
-from drf_spectacular.utils import extend_schema # type: ignore
+from drf_spectacular.utils import extend_schema  # type: ignore
 from authflow.services import issue_jwt_for_user
 from rest_framework.permissions import AllowAny
 from rest_framework.generics import GenericAPIView, RetrieveAPIView, ListAPIView
@@ -45,9 +46,11 @@ from referrals.services import REFERRALS_PER_UNIT
 from decimal import Decimal
 from rest_framework.pagination import LimitOffsetPagination
 
+
 class AdminPagination(LimitOffsetPagination):
     default_limit = 20
     max_limit = 100
+
 
 # employee management i.e drivers and restaurants, users(i.e customers)
 # see user need to referral payment and when
@@ -61,6 +64,7 @@ class AdminPagination(LimitOffsetPagination):
 # check new driver and restaurants;
 # send codes to create;
 
+
 class BaseAppAdminAPIView(GenericAPIView):
     authentication_classes = [CustomAppAdminAuth]
     permission_classes = [IsAppAdmin]
@@ -71,7 +75,7 @@ class BaseAppAdminAPIView(GenericAPIView):
             return request.user.app_admin
         except AppAdmin.DoesNotExist:
             raise NotFound("App admin profile not found")
-    
+
     # 🔥 NEW: safe serializer validator helper
     def validate_serializer(self, data=None, *, context=None):
         serializer_class = self.get_serializer_class()
@@ -81,15 +85,14 @@ class BaseAppAdminAPIView(GenericAPIView):
 
         serializer = serializer_class(
             data=data or self.request.data,
-            context=context or self.get_serializer_context()
+            context=context or self.get_serializer_context(),
         )
 
         serializer.is_valid(raise_exception=True)
         return serializer.validated_data
 
-@extend_schema(
-    responses={200: LoginResponseSerializer},auth=[]
-)
+
+@extend_schema(responses={200: LoginResponseSerializer}, auth=[])
 class AdminLoginView(GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = AppAdminLoginSerializer
@@ -102,40 +105,42 @@ class AdminLoginView(GenericAPIView):
         user = User.objects.filter(phone_number=vd["phone_number"]).first()
         if not user:
             return Response(
-                {"error": "Invalid credentials"},
-                status=status.HTTP_401_UNAUTHORIZED
+                {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
             )
-        
+
         app_admin: AppAdmin = getattr(user, "app_admin", None)
         if not app_admin:
             return Response(
-                {"error": "Not an app admin account"},
-                status=status.HTTP_403_FORBIDDEN
+                {"error": "Not an app admin account"}, status=status.HTTP_403_FORBIDDEN
             )
         if not user or not user.check_password(vd["password"]):
             return Response(
-                {"error": "Invalid credentials"},
-                status=status.HTTP_401_UNAUTHORIZED
+                {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
             )
 
         token = issue_jwt_for_user(user)
-        return Response({
-            "message": "Logged in successfully",
-            "access": token["access"],
-            "refresh": token["refresh"],
-        })
+        return Response(
+            {
+                "message": "Logged in successfully",
+                "access": token["access"],
+                "refresh": token["refresh"],
+            }
+        )
+
 
 class UserProfileView(BaseAppAdminAPIView):
     def get(self, request):
         user = request.user
-        
-        return Response({
-            "user": UserSerializer(user).data,
-            "profile": AppAdminProfileSerializer(user.app_admin).data,
-        })
+
+        return Response(
+            {
+                "user": UserSerializer(user).data,
+                "profile": AppAdminProfileSerializer(user.app_admin).data,
+            }
+        )
+
 
 class UpdateAppAdmin(BaseAppAdminAPIView):
-
     def patch(self, request):
         serializer = UpdateAppAdminSerializer(
             instance=request.user.app_admin,
@@ -150,6 +155,7 @@ class UpdateAppAdmin(BaseAppAdminAPIView):
             {"detail": "Profile updated successfully"},
             status=status.HTTP_200_OK,
         )
+
 
 # class AdminReferralPayoutListView(BaseAppAdminAPIView, ListAPIView):
 #     serializer_class = ReferralPayoutSerializer
@@ -183,16 +189,13 @@ class UpdateAppAdmin(BaseAppAdminAPIView):
 #             "total_units_paid": total_units,
 #             "results": serializer.data,
 #         })
-    
+
+
 class AdminReferralPayoutListView(BaseAppAdminAPIView, ListAPIView):
     serializer_class = ReferralPayoutSerializer
 
     def get_queryset(self):
-        qs = (
-            ReferralPayout.objects
-            .select_related("user")
-            .order_by("-created_at")
-        )
+        qs = ReferralPayout.objects.select_related("user").order_by("-created_at")
 
         user_id = self.request.query_params.get("user_id")
         if user_id:
@@ -218,10 +221,13 @@ class AdminReferralPayoutListView(BaseAppAdminAPIView, ListAPIView):
 
         # fallback (no pagination)
         serializer = self.get_serializer(qs, many=True)
-        return Response({
-            "results": serializer.data,
-            "total_units_paid": total_units,
-        })
+        return Response(
+            {
+                "results": serializer.data,
+                "total_units_paid": total_units,
+            }
+        )
+
 
 class AdminReferralPayoutDetailView(BaseAppAdminAPIView, RetrieveAPIView):
     queryset = ReferralPayout.objects.all()
@@ -230,17 +236,18 @@ class AdminReferralPayoutDetailView(BaseAppAdminAPIView, RetrieveAPIView):
     def retrieve(self, request, *args, **kwargs):
         payout = self.get_object()
 
-        return Response({
-            "id": payout.id,
-            "user_id": payout.user_id,
-            "units_paid": payout.units_paid,
-            "referrals_used": payout.referrals_used,
-            "created_at": payout.created_at,
-
-            # 🔥 include snapshot here
-            "referrals": payout.referral_snapshot,
-            "is_valid": verify_snapshot_integrity(payout)
-        })
+        return Response(
+            {
+                "id": payout.id,
+                "user_id": payout.user_id,
+                "units_paid": payout.units_paid,
+                "referrals_used": payout.referrals_used,
+                "created_at": payout.created_at,
+                # 🔥 include snapshot here
+                "referrals": payout.referral_snapshot,
+                "is_valid": verify_snapshot_integrity(payout),
+            }
+        )
 
 
 class _AppAdminRoleGuardMixin:
@@ -278,9 +285,9 @@ class AdminDashboardStatsView(BaseAppAdminAPIView):
         )
 
         pending_withdrawals = pending_withdrawals_qs.count()
-        pending_withdrawals_amount = (
-            pending_withdrawals_qs.aggregate(total=Sum("amount"))["total"] or Decimal("0")
-        )
+        pending_withdrawals_amount = pending_withdrawals_qs.aggregate(
+            total=Sum("amount")
+        )["total"] or Decimal("0")
 
         # --- DRIVERS ---
         pending_driver_submissions = DriverOnboardingSubmission.objects.filter(
@@ -320,7 +327,8 @@ class AdminDashboardStatsView(BaseAppAdminAPIView):
                 "withdrawals": {
                     "pending_or_processing_count": pending_withdrawals,
                     "pending_or_processing_amount_kobo": pending_withdrawals_amount,
-                    "pending_or_processing_amount_ngn": pending_withdrawals_amount / Decimal("100"),
+                    "pending_or_processing_amount_ngn": pending_withdrawals_amount
+                    / Decimal("100"),
                 },
                 "drivers": {
                     "pending_onboarding_submissions": pending_driver_submissions,
@@ -372,15 +380,21 @@ class AdminUserDetailView(BaseAppAdminAPIView):
                 "customer": bool(getattr(user, "customer_profile", None)),
                 "driver": bool(getattr(user, "driver_profile", None)),
                 "business_admin": bool(getattr(user, "business_admin", None)),
-                "business_staff": bool(getattr(user, "primaryagent", None)),
+                "business_staff": bool(getattr(user, "primary_agent", None)),
                 "app_admin": bool(getattr(user, "app_admin", None)),
             },
         }
         # Optional details (avoid crashing if not present)
         if getattr(user, "driver_profile", None):
-            payload["driver_profile"] = AdminDriverListSerializer(user.driver_profile).data
-        if getattr(user, "business_admin", None) and getattr(user.business_admin, "business", None):
-            payload["business"] = AdminBusinessListSerializer(user.business_admin.business).data
+            payload["driver_profile"] = AdminDriverListSerializer(
+                user.driver_profile
+            ).data
+        if getattr(user, "business_admin", None) and getattr(
+            user.business_admin, "business", None
+        ):
+            payload["business"] = AdminBusinessListSerializer(
+                user.business_admin.business
+            ).data
 
         return Response(payload)
 
@@ -389,7 +403,9 @@ class AdminDriverListView(BaseAppAdminAPIView, ListAPIView):
     serializer_class = AdminDriverListSerializer
 
     def get_queryset(self):
-        latest = DriverOnboardingSubmission.objects.filter(driver=OuterRef("pk")).order_by("-created_at")
+        latest = DriverOnboardingSubmission.objects.filter(
+            driver=OuterRef("pk")
+        ).order_by("-created_at")
         qs = (
             DriverProfile.objects.select_related("user")
             .annotate(
@@ -400,11 +416,15 @@ class AdminDriverListView(BaseAppAdminAPIView, ListAPIView):
                 ),
                 pending_onboarding_submissions_count=Count(
                     "onboarding_submissions",
-                    filter=Q(onboarding_submissions__status=DriverOnboardingSubmission.STATUS_SUBMITTED),
+                    filter=Q(
+                        onboarding_submissions__status=DriverOnboardingSubmission.STATUS_SUBMITTED
+                    ),
                     distinct=True,
                 ),
                 latest_onboarding_status=Subquery(latest.values("status")[:1]),
-                latest_onboarding_submitted_at=Subquery(latest.values("submitted_at")[:1]),
+                latest_onboarding_submitted_at=Subquery(
+                    latest.values("submitted_at")[:1]
+                ),
             )
             .order_by("-created_at")
         )
@@ -423,27 +443,37 @@ class AdminDriverOnboardingReviewView(BaseAppAdminAPIView, _AppAdminRoleGuardMix
     Approve/reject the most recent submitted onboarding submission for a driver.
     """
 
-    allowed_roles = {AppAdmin.Role.SUPPORT, AppAdmin.Role.SUPERVISOR, AppAdmin.Role.ADMIN}
+    allowed_roles = {
+        AppAdmin.Role.SUPPORT,
+        AppAdmin.Role.SUPERVISOR,
+        AppAdmin.Role.ADMIN,
+    }
 
     def post(self, request, driver_id: int):
         self._require_app_admin_roles(request, self.allowed_roles)
 
-        driver = DriverProfile.objects.filter(id=driver_id).select_related("user").first()
+        driver = (
+            DriverProfile.objects.filter(id=driver_id).select_related("user").first()
+        )
         if not driver:
             raise NotFound("Driver not found")
 
         decision = (request.data.get("status") or "").strip().lower()
         note = (request.data.get("reviewer_note") or "").strip()
 
-        if decision not in {DriverOnboardingSubmission.STATUS_APPROVED, DriverOnboardingSubmission.STATUS_REJECTED}:
+        if decision not in {
+            DriverOnboardingSubmission.STATUS_APPROVED,
+            DriverOnboardingSubmission.STATUS_REJECTED,
+        }:
             return Response(
                 {"error": "Invalid status. Use 'approved' or 'rejected'."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         submission = (
-            DriverOnboardingSubmission.objects
-            .filter(driver=driver, status=DriverOnboardingSubmission.STATUS_SUBMITTED)
+            DriverOnboardingSubmission.objects.filter(
+                driver=driver, status=DriverOnboardingSubmission.STATUS_SUBMITTED
+            )
             .order_by("-submitted_at", "-created_at")
             .first()
         )
@@ -454,7 +484,15 @@ class AdminDriverOnboardingReviewView(BaseAppAdminAPIView, _AppAdminRoleGuardMix
         submission.reviewed_by = request.user
         submission.reviewer_note = note
         submission.reviewed_at = timezone.now()
-        submission.save(update_fields=["status", "reviewed_by", "reviewer_note", "reviewed_at", "updated_at"])
+        submission.save(
+            update_fields=[
+                "status",
+                "reviewed_by",
+                "reviewer_note",
+                "reviewed_at",
+                "updated_at",
+            ]
+        )
 
         return Response(
             {
@@ -471,8 +509,7 @@ class AdminBusinessListView(BaseAppAdminAPIView, ListAPIView):
 
     def get_queryset(self):
         qs = (
-            Business.objects
-            .select_related("admin__user")
+            Business.objects.select_related("admin__user")
             .annotate(branches_count=Count("branches", distinct=True))
             .order_by("-created_at")
         )
@@ -485,14 +522,18 @@ class AdminBusinessListView(BaseAppAdminAPIView, ListAPIView):
                 | Q(phone_number__icontains=q)
             )
 
-        onboarding = (self.request.query_params.get("onboarding_complete") or "").strip().lower()
+        onboarding = (
+            (self.request.query_params.get("onboarding_complete") or "").strip().lower()
+        )
         if onboarding in {"true", "false"}:
             qs = qs.filter(onboarding_complete=(onboarding == "true"))
 
         return qs
 
 
-class AdminBusinessUpdateView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin): # use like completed review
+class AdminBusinessUpdateView(
+    BaseAppAdminAPIView, _AppAdminRoleGuardMixin
+):  # use like completed review
     allowed_roles = {AppAdmin.Role.SUPERVISOR, AppAdmin.Role.ADMIN}
     serializer_class = AdminBusinessUpdateSerializer
 
@@ -513,14 +554,21 @@ class AdminBusinessUpdateView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin): # u
         if updated_fields:
             business.save(update_fields=updated_fields)
 
-        return Response({"detail": "Business updated", "business": AdminBusinessListSerializer(business).data})
+        return Response(
+            {
+                "detail": "Business updated",
+                "business": AdminBusinessListSerializer(business).data,
+            }
+        )
 
 
 class AdminWithdrawalListView(BaseAppAdminAPIView, ListAPIView):
     serializer_class = AdminWithdrawalSerializer
 
     def get_queryset(self):
-        qs = Withdrawal.objects.select_related("user", "ledger_entry").order_by("-requested_at")
+        qs = Withdrawal.objects.select_related("user", "ledger_entry").order_by(
+            "-requested_at"
+        )
 
         status_q = (self.request.query_params.get("status") or "").strip().lower()
         if status_q:
@@ -558,7 +606,11 @@ class AdminWithdrawalDetailView(BaseAppAdminAPIView, RetrieveAPIView):
 
 
 class AdminWithdrawalRetryView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
-    allowed_roles = {AppAdmin.Role.FINANCE, AppAdmin.Role.SUPERVISOR, AppAdmin.Role.ADMIN}
+    allowed_roles = {
+        AppAdmin.Role.FINANCE,
+        AppAdmin.Role.SUPERVISOR,
+        AppAdmin.Role.ADMIN,
+    }
 
     def post(self, request, withdrawal_id):
         self._require_app_admin_roles(request, self.allowed_roles)
@@ -568,37 +620,65 @@ class AdminWithdrawalRetryView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
             raise NotFound("Withdrawal not found")
 
         execute_realtime_withdrawal.delay(str(withdrawal.id))
-        return Response({"detail": "Withdrawal retry queued", "withdrawal_id": str(withdrawal.id)})
+        return Response(
+            {"detail": "Withdrawal retry queued", "withdrawal_id": str(withdrawal.id)}
+        )
 
 
 class AdminWithdrawalMarkPaidView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
-    allowed_roles = {AppAdmin.Role.FINANCE, AppAdmin.Role.SUPERVISOR, AppAdmin.Role.ADMIN}
+    allowed_roles = {
+        AppAdmin.Role.FINANCE,
+        AppAdmin.Role.SUPERVISOR,
+        AppAdmin.Role.ADMIN,
+    }
 
     def post(self, request, withdrawal_id):
         self._require_app_admin_roles(request, self.allowed_roles)
 
-        withdrawal = Withdrawal.objects.filter(id=withdrawal_id).select_related("user").first()
+        withdrawal = (
+            Withdrawal.objects.filter(id=withdrawal_id).select_related("user").first()
+        )
         if not withdrawal:
             raise NotFound("Withdrawal not found")
 
         mark_withdrawal_paid(withdrawal)
-        return Response({"detail": "Withdrawal marked as complete", "withdrawal_id": str(withdrawal.id), "status": withdrawal.status})
+        return Response(
+            {
+                "detail": "Withdrawal marked as complete",
+                "withdrawal_id": str(withdrawal.id),
+                "status": withdrawal.status,
+            }
+        )
 
 
 class AdminWithdrawalMarkFailedView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
-    allowed_roles = {AppAdmin.Role.FINANCE, AppAdmin.Role.SUPERVISOR, AppAdmin.Role.ADMIN}
+    allowed_roles = {
+        AppAdmin.Role.FINANCE,
+        AppAdmin.Role.SUPERVISOR,
+        AppAdmin.Role.ADMIN,
+    }
     serializer_class = AdminWithdrawalMarkFailedSerializer
 
     def post(self, request, withdrawal_id):
         self._require_app_admin_roles(request, self.allowed_roles)
 
-        withdrawal = Withdrawal.objects.filter(id=withdrawal_id).select_related("user", "ledger_entry").first()
+        withdrawal = (
+            Withdrawal.objects.filter(id=withdrawal_id)
+            .select_related("user", "ledger_entry")
+            .first()
+        )
         if not withdrawal:
             raise NotFound("Withdrawal not found")
 
         vd = self.validate_serializer()
         mark_withdrawal_failed(withdrawal, vd["reason"])
-        return Response({"detail": "Withdrawal marked as failed", "withdrawal_id": str(withdrawal.id), "status": withdrawal.status})
+        return Response(
+            {
+                "detail": "Withdrawal marked as failed",
+                "withdrawal_id": str(withdrawal.id),
+                "status": withdrawal.status,
+            }
+        )
 
 
 class AdminWithdrawalBatchExecuteView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
@@ -642,14 +722,21 @@ class AdminNotificationListView(BaseAppAdminAPIView, ListAPIView):
 
 
 class AdminSendNotificationView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
-    allowed_roles = {AppAdmin.Role.SUPPORT, AppAdmin.Role.SUPERVISOR, AppAdmin.Role.FINANCE, AppAdmin.Role.ADMIN}
+    allowed_roles = {
+        AppAdmin.Role.SUPPORT,
+        AppAdmin.Role.SUPERVISOR,
+        AppAdmin.Role.FINANCE,
+        AppAdmin.Role.ADMIN,
+    }
     serializer_class = AdminSendNotificationSerializer
 
     def post(self, request):
         self._require_app_admin_roles(request, self.allowed_roles)
         vd = self.validate_serializer()
 
-        notification_type = (vd.get("notification_type") or Notification.TYPE_SYSTEM).strip() or Notification.TYPE_SYSTEM
+        notification_type = (
+            vd.get("notification_type") or Notification.TYPE_SYSTEM
+        ).strip() or Notification.TYPE_SYSTEM
         title = vd["title"]
         body = vd["body"]
         payload = vd.get("payload_json") or {}
@@ -665,7 +752,12 @@ class AdminSendNotificationView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
                 notification_type=notification_type,
                 payload=payload,
             )
-            return Response({"detail": "Notification sent", "notification": NotificationSerializer(notif).data})
+            return Response(
+                {
+                    "detail": "Notification sent",
+                    "notification": NotificationSerializer(notif).data,
+                }
+            )
 
         audience = vd.get("audience")
         users_qs = User.objects.filter(is_active=True)
@@ -685,4 +777,10 @@ class AdminSendNotificationView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
             payload=payload,
         )
 
-        return Response({"detail": "Broadcast queued", "audience": audience, "created": len(created)})
+        return Response(
+            {
+                "detail": "Broadcast queued",
+                "audience": audience,
+                "created": len(created),
+            }
+        )
