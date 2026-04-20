@@ -65,7 +65,7 @@ class UserProfileView(APIView):
                 )
             serializer = BuisnessAdminProfileSerializer(profile)
         elif requested_type in ("businessstaff", "buisnessstaff"):
-            profile = getattr(user, "primaryagent", None)
+            profile = getattr(user, "primary_agent", None)
             if not profile:
                 return Response(
                     {"detail": "Primary Agent profile not found."},
@@ -81,8 +81,8 @@ class UserProfileView(APIView):
         elif hasattr(user, "business_admin"):
             serializer = BuisnessAdminProfileSerializer(user.business_admin)
             active_profile_type = "businessadmin"
-        elif getattr(user, "primaryagent", None):
-            serializer = PrimaryAgentProfileSerializer(user.primaryagent)
+        elif getattr(user, "primary_agent", None):
+            serializer = PrimaryAgentProfileSerializer(user.primary_agent)
             active_profile_type = "businessstaff"
         else:
             return Response(
@@ -172,7 +172,7 @@ class LinkApproveView(GenericAPIView):
             Branch.objects.select_related("business__admin__user")
             .annotate(
                 active_agent_count=Count(
-                    "primaryagent", filter=Q(primary_agent__revoked=False)
+                    "primary_agent", filter=Q(primary_agent__revoked=False)
                 )
             )
             .filter(id=branch_id, business__admin__user__phone_number=phone_number)
