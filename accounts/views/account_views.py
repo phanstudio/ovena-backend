@@ -186,36 +186,33 @@ class LinkApproveView(GenericAPIView):
 
             business_admin = branch.business.admin
 
-            # 👤 Step 3: Get or create user
-            # user, _ = User.objects.get_or_create(
-            #     phone_number=vd["phone_number"],
-            #     defaults={"name": vd["username"] or device_id},
-            # )
+            existing_device_agent = (
+                PrimaryAgent.objects.filter(device_name=device_id)
+                .select_for_update()
+                .first()
+            )
 
-            # 🔍 Step 4: Handle PrimaryAgent safely
-            existing_agent = getattr(branch, "primary_agent", None)
+            if existing_device_agent and not existing_device_agent.revoked:
+                return Response(
+                    {"error": "This device is already linked to another agent"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-            if existing_agent:
-                if not existing_agent.revoked:
-                    return Response(
-                        {"detail": "Branch already has an active primary agent"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+            if existing_device_agent and existing_device_agent.revoked:
+                # 🔥 Reassign this device instead of creating new
+                user = existing_device_agent.user
 
-                # ♻️ Reuse revoked agent
-                # existing_agent.user = user
-                user = existing_agent.user  # ✅ reuse existing identity
                 user.name = vd["username"] or device_id
                 user.phone_number = vd["phone_number"]
                 user.save()
 
-                existing_agent.device_name = device_id
-                existing_agent.revoked = False
-                existing_agent.revoked_at = None
-                existing_agent.created_by = business_admin
-                existing_agent.save()
+                existing_device_agent.branch = branch
+                existing_device_agent.revoked = False
+                existing_device_agent.revoked_at = None
+                existing_device_agent.created_by = business_admin
+                existing_device_agent.save()
 
-                sub_user = existing_agent
+                sub_user = existing_device_agent
 
             else:
                 user, _ = User.objects.get_or_create(
@@ -223,7 +220,6 @@ class LinkApproveView(GenericAPIView):
                     defaults={"name": vd["username"] or device_id},
                 )
 
-                # ✅ Safe to create
                 sub_user = PrimaryAgent.objects.create(
                     created_by=business_admin,
                     device_name=device_id,
