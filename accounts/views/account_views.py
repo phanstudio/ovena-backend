@@ -218,6 +218,11 @@ class LinkApproveView(GenericAPIView):
                 sub_user = existing_agent
 
             else:
+                user, _ = User.objects.get_or_create(
+                    phone_number=vd["phone_number"],
+                    defaults={"name": vd["username"] or device_id},
+                )
+
                 # ✅ Safe to create
                 sub_user = PrimaryAgent.objects.create(
                     created_by=business_admin,
