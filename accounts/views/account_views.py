@@ -161,6 +161,7 @@ class LinkApproveView(GenericAPIView):
 
         device_id = vd["device_id"]
 
+        # 🔐 Step 1: Verify OTP
         try:
             identifier = OTPManager.verify(otp_code=vd["otp"])
         except OTPInvalidError as e:
@@ -168,34 +169,51 @@ class LinkApproveView(GenericAPIView):
 
         phone_number, branch_id = identifier.split(";")
 
-        branch = (
-            Branch.objects.select_related("business__admin__user")
-            .annotate(
-                active_agent_count=Count(
-                    "primary_agent", filter=Q(primary_agent__revoked=False)
-                )
-            )
-            .filter(id=branch_id, business__admin__user__phone_number=phone_number)
-            .first()
-        )
-
-        if not branch:
-            return Response({"detail": "Invalid branch or not authorized"}, status=403)
-
-        if branch.active_agent_count > 0:
-            return Response(
-                {"detail": "Branch already has an active primary agent"}, status=400
+        # 🔒 Step 2: Atomic block with row locking
+        with transaction.atomic():
+            branch = (
+                Branch.objects.select_related("business__admin__user")
+                .select_for_update()  # 🔥 prevents race conditions
+                .filter(id=branch_id, business__admin__user__phone_number=phone_number)
+                .first()
             )
 
-        business_admin = branch.business.admin
-
-        try:
-            with transaction.atomic():
-                user, _ = User.objects.get_or_create(
-                    phone_number=vd["phone_number"],
-                    defaults={"name": vd["username"] or device_id},
+            if not branch:
+                return Response(
+                    {"detail": "Invalid branch or not authorized"},
+                    status=status.HTTP_403_FORBIDDEN,
                 )
 
+            business_admin = branch.business.admin
+
+            # 👤 Step 3: Get or create user
+            user, _ = User.objects.get_or_create(
+                phone_number=vd["phone_number"],
+                defaults={"name": vd["username"] or device_id},
+            )
+
+            # 🔍 Step 4: Handle PrimaryAgent safely
+            existing_agent = getattr(branch, "primary_agent", None)
+
+            if existing_agent:
+                if not existing_agent.revoked:
+                    return Response(
+                        {"detail": "Branch already has an active primary agent"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # ♻️ Reuse revoked agent
+                existing_agent.user = user
+                existing_agent.device_name = device_id
+                existing_agent.revoked = False
+                existing_agent.revoked_at = None
+                existing_agent.created_by = business_admin
+                existing_agent.save()
+
+                sub_user = existing_agent
+
+            else:
+                # ✅ Safe to create
                 sub_user = PrimaryAgent.objects.create(
                     created_by=business_admin,
                     device_name=device_id,
@@ -203,25 +221,96 @@ class LinkApproveView(GenericAPIView):
                     user=user,
                 )
 
-        except IntegrityError as _:
-            return Response(
-                {"error": "A device_id is already linked"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        # 🔑 Step 5: Issue token
         token = issue_jwt_for_user(user)
+
         response = OpS.RegisterBAdminResponseSerializer(
             {
                 "message": "Account registered successfully",
                 "refresh": token["refresh"],
                 "access": token["access"],
-                "user": {"id": sub_user.id, "name": sub_user.device_name},
+                "user": {
+                    "id": sub_user.id,
+                    "name": sub_user.device_name,
+                },
             }
         )
-        return Response(
-            response.data,
-            status=status.HTTP_201_CREATED,
-        )
+
+        return Response(response.data, status=status.HTTP_201_CREATED)
+
+
+# class LinkApproveView(GenericAPIView):
+#     serializer_class = InS.LinkApproveSerializer
+#     permission_classes = [AllowAny]
+
+#     def post(self, request):
+#         serializer = self.get_serializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         vd = serializer.validated_data
+
+#         device_id = vd["device_id"]
+
+#         try:
+#             identifier = OTPManager.verify(otp_code=vd["otp"])
+#         except OTPInvalidError as e:
+#             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+#         phone_number, branch_id = identifier.split(";")
+
+#         branch = (
+#             Branch.objects.select_related("business__admin__user")
+#             .annotate(
+#                 active_agent_count=Count(
+#                     "primary_agent", filter=Q(primary_agent__revoked=False)
+#                 )
+#             )
+#             .filter(id=branch_id, business__admin__user__phone_number=phone_number)
+#             .first()
+#         )
+
+#         if not branch:
+#             return Response({"detail": "Invalid branch or not authorized"}, status=403)
+
+#         if branch.active_agent_count > 0:
+#             return Response(
+#                 {"detail": "Branch already has an active primary agent"}, status=400
+#             )
+
+#         business_admin = branch.business.admin
+
+#         try:
+#             with transaction.atomic():
+#                 user, _ = User.objects.get_or_create(
+#                     phone_number=vd["phone_number"],
+#                     defaults={"name": vd["username"] or device_id},
+#                 )
+
+#                 sub_user = PrimaryAgent.objects.create(
+#                     created_by=business_admin,
+#                     device_name=device_id,
+#                     branch=branch,
+#                     user=user,
+#                 )
+
+#         except IntegrityError as _:
+#             return Response(
+#                 {"error": "A device_id is already linked"},
+#                 status=status.HTTP_400_BAD_REQUEST,
+#             )
+
+#         token = issue_jwt_for_user(user)
+#         response = OpS.RegisterBAdminResponseSerializer(
+#             {
+#                 "message": "Account registered successfully",
+#                 "refresh": token["refresh"],
+#                 "access": token["access"],
+#                 "user": {"id": sub_user.id, "name": sub_user.device_name},
+#             }
+#         )
+#         return Response(
+#             response.data,
+#             status=status.HTTP_201_CREATED,
+#         )
 
 
 # add transfer of ownershp later
