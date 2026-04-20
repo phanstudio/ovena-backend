@@ -204,16 +204,16 @@ class LinkApproveView(GenericAPIView):
 
                 # ♻️ Reuse revoked agent
                 # existing_agent.user = user
+                user = existing_agent.user  # ✅ reuse existing identity
+                user.name = vd["username"] or device_id
+                user.phone_number = vd["phone_number"]
+                user.save()
+
                 existing_agent.device_name = device_id
                 existing_agent.revoked = False
                 existing_agent.revoked_at = None
                 existing_agent.created_by = business_admin
                 existing_agent.save()
-
-                user = existing_agent.user  # ✅ reuse existing identity
-                user.name = vd["username"] or device_id
-                user.phone_number = vd["phone_number"]
-                user.save()
 
                 sub_user = existing_agent
 
