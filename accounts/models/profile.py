@@ -173,7 +173,7 @@ class PrimaryAgent(
         on_delete=models.CASCADE,
         related_name="linked_staff",
     )
-    device_name = models.CharField(max_length=200, unique=True)
+    device_name = models.CharField(max_length=200)
     revoked = models.BooleanField(default=False)
     revoked_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -185,7 +185,12 @@ class PrimaryAgent(
         constraints = [
             models.UniqueConstraint(
                 fields=["branch"], name="unique_primary_agent_per_branch"
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["device_name"],
+                condition=models.Q(revoked=False),
+                name="unique_active_device",
+            ),
         ]
 
 

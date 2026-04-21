@@ -28,7 +28,6 @@ from drf_spectacular.utils import extend_schema, inline_serializer  # type: igno
 from rest_framework import serializers as s
 from accounts.serializers import InS, OpS
 from authflow.services.phone_number import get_phone_number
-from django.db.models import Count, Q
 
 
 class UserProfileView(APIView):
@@ -242,80 +241,6 @@ class LinkApproveView(GenericAPIView):
         )
 
         return Response(response.data, status=status.HTTP_201_CREATED)
-
-
-# class LinkApproveView(GenericAPIView):
-#     serializer_class = InS.LinkApproveSerializer
-#     permission_classes = [AllowAny]
-
-#     def post(self, request):
-#         serializer = self.get_serializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         vd = serializer.validated_data
-
-#         device_id = vd["device_id"]
-
-#         try:
-#             identifier = OTPManager.verify(otp_code=vd["otp"])
-#         except OTPInvalidError as e:
-#             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-#         phone_number, branch_id = identifier.split(";")
-
-#         branch = (
-#             Branch.objects.select_related("business__admin__user")
-#             .annotate(
-#                 active_agent_count=Count(
-#                     "primary_agent", filter=Q(primary_agent__revoked=False)
-#                 )
-#             )
-#             .filter(id=branch_id, business__admin__user__phone_number=phone_number)
-#             .first()
-#         )
-
-#         if not branch:
-#             return Response({"detail": "Invalid branch or not authorized"}, status=403)
-
-#         if branch.active_agent_count > 0:
-#             return Response(
-#                 {"detail": "Branch already has an active primary agent"}, status=400
-#             )
-
-#         business_admin = branch.business.admin
-
-#         try:
-#             with transaction.atomic():
-#                 user, _ = User.objects.get_or_create(
-#                     phone_number=vd["phone_number"],
-#                     defaults={"name": vd["username"] or device_id},
-#                 )
-
-#                 sub_user = PrimaryAgent.objects.create(
-#                     created_by=business_admin,
-#                     device_name=device_id,
-#                     branch=branch,
-#                     user=user,
-#                 )
-
-#         except IntegrityError as _:
-#             return Response(
-#                 {"error": "A device_id is already linked"},
-#                 status=status.HTTP_400_BAD_REQUEST,
-#             )
-
-#         token = issue_jwt_for_user(user)
-#         response = OpS.RegisterBAdminResponseSerializer(
-#             {
-#                 "message": "Account registered successfully",
-#                 "refresh": token["refresh"],
-#                 "access": token["access"],
-#                 "user": {"id": sub_user.id, "name": sub_user.device_name},
-#             }
-#         )
-#         return Response(
-#             response.data,
-#             status=status.HTTP_201_CREATED,
-#         )
 
 
 # add transfer of ownershp later
