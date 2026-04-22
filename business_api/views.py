@@ -442,6 +442,28 @@ class BranchClosedView(AbstractBuStAdBranchView):
         return Response({"detail": "Operating hours updated."})
 
 
+class BranchClosedAllView(BaseBuisAdminAPIView):
+    def patch(self, request, *args, **kwargs):
+        serializer = acInS.BranchClosedSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        closed = vd["is_closed"]
+
+        business = self.get_buisnessadmn().business
+        today = datetime.today().weekday()  # 0=Mon, 6=Sun
+
+        updated = BranchOperatingHours.objects.filter(
+            branch__business=business, day=today
+        ).update(is_closed=closed)
+
+        if updated == 0:
+            return Response(
+                {"detail": "No operating hours found for this day."}, status=404
+            )
+
+        return Response({"detail": "All branches closed for the day."})
+
+
 class RestaurantPaymentView(SendVerifyView):
     def get(self, request):
         user = request.user
