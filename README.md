@@ -1,6 +1,5 @@
 # ovena-backend
 
-new
 no oerating hours means closed always
 
 from accounts.services.profiles import (
