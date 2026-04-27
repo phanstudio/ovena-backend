@@ -19,6 +19,9 @@ from .websocket_utils import (
 from addresses.events import ORDER_DRIVER_NOT_FOUND, ORDER_DRIVER_ASSIGNED
 from .gis_utils import find_nearest_available_drivers
 import logging
+from authflow.services.phone_number import get_phone_number
+from accounts.models import User
+from addresses.models import Address
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +184,13 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None):
     Find nearest available driver and assign to order
     """
     try:
-        order = Order.objects.select_related('branch').get(id=order_id)
+        order = Order.objects.select_related(
+            'branch__business',
+            'branch__primary_agent__user',
+            'orderer__user'
+        ).get(id=order_id)
+        default_address:Address = order.orderer.default_address
+        order_user:User = order.orderer.user
         
         if order.status != 'ready':
             logger.info(f"Order {order.id} is not ready for driver assignment")
@@ -245,7 +254,17 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None):
             new_status='driver_assigned',
             metadata={
                 'driver_id': driver.id,
-                'distance_km': float(distance)
+                'distance_km': float(distance),
+                "restaurant_name": f"{order.branch.business.business_name} - {order.branch.name}",
+                "restaurant_phone": get_phone_number(order.branch.primary_agent.user),
+                "restaurant_address": order.branch.address,
+                'customer_phone': get_phone_number(order_user),
+                'customer_destination': {
+                    'lat': default_address.location.y,
+                    'lng': default_address.location.x,
+                },
+                "customer_note": "I need it fast",
+                "delivery_address": default_address.address,
             }
         )
         
@@ -259,10 +278,21 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None):
                 'location': {
                     'lat': order.branch.location.y,
                     'lng': order.branch.location.x
-                }
+                },
+                "restaurant_name": f"{order.branch.business.business_name} - {order.branch.name}",
+                "restaurant_phone": get_phone_number(order.branch.primary_agent.user),
+                "restaurant_address": order.branch.address,
             },
             'distance_km': float(distance),
-            'message': f'New order #{order.order_number} assigned to you!'
+            'message': f'New order #{order.order_number} assigned to you!',
+            'customer_name': order_user.name,
+            'customer_phone': get_phone_number(order_user),
+            'customer_destination': {
+                'lat': default_address.location.y,
+                'lng': default_address.location.x,
+            },
+            "customer_note": "I need it fast",
+            "delivery_address": default_address.address,
         })
         
         # Notify customer and branch

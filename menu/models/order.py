@@ -69,6 +69,9 @@ class Order(models.Model): # do we add a coupon snap shot or not also a discount
     
     # WebSocket group management
     websocket_group_name = models.CharField(max_length=100, blank=True, null=True)
+
+    # delivery address and user note
+    # create delivery address and user note
     
     # Estimated times
     estimated_prep_time = models.IntegerField(default=0, help_text="Minutes")

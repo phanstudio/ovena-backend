@@ -290,9 +290,12 @@ class BranchConsumer(BaseConsumer): # supports primary and linked staff
         ).select_related('orderer__user').annotate(
             last_event_type=Subquery(last_event.values('event_type')[:1]),
             last_event_time=Subquery(last_event.values('timestamp')[:1]),
+            last_event_metadata=Subquery(last_event.values('metadata')[:1]),
+            
         ).values(
             'id','order_number','status','created_at',
-            'orderer__user__name','last_event_type','last_event_time',
+            'orderer__user__name','last_event_type','last_event_time', 
+            'last_event_metadata'
         )
 
         return [
@@ -424,43 +427,6 @@ class DriverOrdersConsumer(BaseConsumer):
             'type': 'order.update',
             'data': event['data']
         }))
-    
-    # @database_sync_to_async
-    # def get_my_orders(self):
-    #     orders = Order.objects.filter(
-    #         driver_id=self.driver_id,
-    #         status__in=['driver_assigned', 'picked_up', 'on_the_way']
-    #     ).select_related('branch', 'orderer__user').values(
-    #         'id',
-    #         'order_number',
-    #         'status',
-    #         'created_at',
-    #         'branch__name',
-    #         'branch__location',
-    #         'orderer__user__name'
-    #     )
-
-    #     serialized = []
-    #     for order in orders:
-    #         serialized.append({
-    #             'id': order['id'],
-    #             'order_number': order['order_number'],
-    #             'status': order['status'],
-    #             'created_at': order['created_at'].isoformat()
-    #                 if order['created_at'] else None,
-
-    #             'branch': {
-    #                 'name': order['branch__name'],
-    #                 'location': {
-    #                     'lat': order['branch__location'].y,
-    #                     'lng': order['branch__location'].x,
-    #                 } if order['branch__location'] else None
-    #             },
-
-    #             'customer_name': order['orderer__user__name'],
-    #         })
-
-    #     return serialized
 
     @database_sync_to_async
     def get_my_orders(self):
@@ -472,11 +438,12 @@ class DriverOrdersConsumer(BaseConsumer):
         ).select_related('branch','orderer__user').annotate(
             last_event_type=Subquery(last_event.values('event_type')[:1]),
             last_event_time=Subquery(last_event.values('timestamp')[:1]),
+            last_event_metadata=Subquery(last_event.values('metadata')[:1]),
         ).values(
             'id','order_number','status',
             'created_at','branch__name',
             'branch__location','orderer__user__name',
-            'last_event_type','last_event_time',
+            'last_event_type','last_event_time', 'last_event_metadata'
         )
 
         serialized = []
@@ -490,6 +457,7 @@ class DriverOrdersConsumer(BaseConsumer):
                 'last_event': {
                     'type': order['last_event_type'],
                     'timestamp': order['last_event_time'].isoformat() if order['last_event_time'] else None,
+                    'metadata': order['last_event_metadata']
                 },
 
                 'branch': {
@@ -499,12 +467,16 @@ class DriverOrdersConsumer(BaseConsumer):
                         'lng': order['branch__location'].x,
                     } if order['branch__location'] else None
                 },
-
+                "delivery_type": "Meet at door",
                 'customer_name': order['orderer__user__name'],
             })
 
         return serialized
-
+    
+# {
+# # itemCount: 4,
+# # amount: "₦4,100.00",
+# }
 
 class ChatConsumer(BaseConsumer):
     """
@@ -797,50 +769,6 @@ class OrderConsumer(BaseConsumer):
         except Order.DoesNotExist:
             return False
     
-    # @database_sync_to_async
-    # def get_order_data(self):
-    #     """Get current order data"""
-    #     try:
-    #         order = Order.objects.select_related(
-    #             'orderer__user',
-    #             'branch',
-    #             'driver__user'
-    #         ).get(id=self.order_id)
-            
-    #         # Get driver location if assigned
-    #         driver_location = None
-    #         if order.driver:
-    #             try:
-    #                 from addresses.models import DriverLocation
-    #                 loc:DriverLocation = order.driver.location
-    #                 driver_location = {
-    #                     'lat': loc.location.y,
-    #                     'lng': loc.location.x,
-    #                     'heading': loc.heading,
-    #                     'last_updated': loc.last_updated.isoformat()
-    #                 }
-    #             except:
-    #                 pass
-            
-    #         return {
-    #             'order_id': order.id,
-    #             'order_number': order.order_number,
-    #             'status': order.status,
-    #             'branch': {
-    #                 'id': order.branch.id,
-    #                 'name': order.branch.name,
-    #             },
-    #             'driver': {
-    #                 'id': order.driver.id,
-    #                 'name': order.driver.user.name,
-    #                 'location': driver_location
-    #             } if order.driver else None,
-    #             'created_at': order.created_at.isoformat(),
-    #             'estimated_delivery_time': order.estimated_delivery_time.isoformat() if order.estimated_delivery_time else None,
-    #         }
-    #     except Order.DoesNotExist:
-    #         return None
-
     @database_sync_to_async
     def get_order_data(self):
         try:
@@ -851,6 +779,7 @@ class OrderConsumer(BaseConsumer):
             ).filter(id=self.order_id).annotate(
                 last_event_type=Subquery(last_event.values('event_type')[:1]),
                 last_event_time=Subquery(last_event.values('timestamp')[:1]),
+                last_event_metadata=Subquery(last_event.values('metadata')[:1]),
             ).first()
 
             if not order:
@@ -878,6 +807,7 @@ class OrderConsumer(BaseConsumer):
                 'last_event': {
                     'type': order.last_event_type,
                     'timestamp': order.last_event_time.isoformat() if order.last_event_time else None,
+                    'metadata': order.last_event_metadata,
                 },
 
                 'branch': {
