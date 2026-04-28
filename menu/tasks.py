@@ -25,6 +25,9 @@ from addresses.models import Address
 
 logger = logging.getLogger(__name__)
 
+def mark_order_failed(order):
+    # create a notification that tells the admins about the fail;
+    ...
 
 # ===== TIMEOUT TASKS =====
 
@@ -177,12 +180,16 @@ def check_driver_pickup_timeout(order_id):
 
 
 # ===== DRIVER MATCHING TASKS =====
+MAX_RETRIES = 10
 
 @shared_task(name='orders.find_and_assign_driver')
-def find_and_assign_driver(order_id, excluded_driver_ids=None):
+def find_and_assign_driver(order_id, excluded_driver_ids=None, retry_count=0):
     """
     Find nearest available driver and assign to order
     """
+    if retry_count >= MAX_RETRIES:
+        mark_order_failed(order)
+        return "No drivers found after max retries"
     try:
         order = Order.objects.select_related(
             'branch__business',
@@ -227,7 +234,7 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None):
             
             # Retry after 2 minutes
             find_and_assign_driver.apply_async(
-                args=[order_id, excluded_driver_ids],
+                args=[order_id, excluded_driver_ids, retry_count + 1],
                 countdown=120
             )
             return "No drivers available, will retry"
