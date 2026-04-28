@@ -20,6 +20,7 @@ from accounts.services.profiles import (
 )
 import asyncio
 from django.db.models import OuterRef, Subquery
+from accounts.models import DriverProfile
 
 logger = logging.getLogger(__name__)
 
@@ -339,7 +340,7 @@ class DriverOrdersConsumer(BaseConsumer):
             return
         
         # Verify user is a driver
-        driver_profile = await self.get_driver_profile(self.user)
+        driver_profile:DriverProfile = await self.get_driver_profile(self.user)
         if not driver_profile:
             await self.close(code=4003)
             return
@@ -471,6 +472,9 @@ class DriverOrdersConsumer(BaseConsumer):
                 'customer_name': order['orderer__user__name'],
             })
 
+        DriverProfile.objects.filter(id=self.driver_id).update(
+            is_available = True if len(serialized) else False
+        )
         return serialized
     
 # {

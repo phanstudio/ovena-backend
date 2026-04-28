@@ -138,6 +138,16 @@ def check_driver_acceptance_timeout(order_id, driver_id):
                     'driver_id': driver_id
                 }
             )
+
+            # Reset order status
+            order.driver = None
+            order.status = "ready"
+            order.save(update_fields=["driver", "status", "last_modified_at"])
+
+            # Update driver
+            DriverProfile.objects.filter(id=driver_id).update(
+                is_available = True, current_order = None
+            )
             
             # Try to find another driver
             find_and_assign_driver.delay(order_id, excluded_driver_ids=[driver_id])
