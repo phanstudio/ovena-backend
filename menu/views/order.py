@@ -325,16 +325,6 @@ class ResturantOrderView(GenericAPIView):
         order.confirmed_at = timezone.now()
         order.save(update_fields=["status", "confirmed_at", "last_modified_at"])
 
-        # Log event
-        OrderEvent.objects.create(
-            order=order,
-            event_type="confirmed",
-            actor_type="branch",
-            actor_id=order.branch_id,
-            old_status="pending",
-            new_status="confirmed",
-        )
-
         # Initialize payment via Sale (unified payments)
         try:
             sale_result = initialize_order_sale(order)
@@ -356,6 +346,19 @@ class ResturantOrderView(GenericAPIView):
         )
 
         payment_url = sale_result["payment_url"]
+
+        # Log event
+        OrderEvent.objects.create(
+            order=order,
+            event_type="confirmed",
+            actor_type="branch",
+            actor_id=order.branch_id,
+            old_status="pending",
+            new_status="confirmed",
+            metadata={
+                "payment_url": payment_url
+            }
+        )
 
         # 🔥 Broadcast to customer with payment URL
         notify_order_confirmed(order, payment_url)
