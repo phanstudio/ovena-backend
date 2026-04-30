@@ -28,6 +28,7 @@ from drf_spectacular.utils import extend_schema, inline_serializer  # type: igno
 from rest_framework import serializers as s
 from accounts.serializers import InS, OpS
 from authflow.services.phone_number import get_phone_number
+from django.db.models import Exists, OuterRef
 
 
 class UserProfileView(APIView):
@@ -185,12 +186,28 @@ class LinkApproveView(GenericAPIView):
 
             business_admin = branch.business.admin
 
-            # 🔍 ALWAYS query explicitly
             existing_agent = (
-                PrimaryAgent.objects.select_for_update().filter(branch=branch).first()
+                PrimaryAgent.objects
+                .select_for_update()
+                .filter(branch=branch)
+                .annotate(
+                    has_conflict=Exists(
+                        PrimaryAgent.objects.filter(
+                            device_name=device_id,
+                            revoked=False
+                        ).exclude(id=OuterRef("id"))
+                    )
+                )
+                .first()
             )
 
             if existing_agent:
+                if existing_agent.has_conflict:
+                    return Response(
+                        {"detail": "This device is already in use"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
                 if not existing_agent.revoked:
                     return Response(
                         {"detail": "Branch already has an active primary agent"},
@@ -203,12 +220,17 @@ class LinkApproveView(GenericAPIView):
                 user.phone_number = vd["phone_number"]
                 user.save()
 
-                existing_agent.device_name = device_id
-                existing_agent.revoked = False
-                existing_agent.revoked_at = None
-                existing_agent.created_by = business_admin
-                existing_agent.save()
-
+                try:
+                    existing_agent.device_name = device_id
+                    existing_agent.revoked = False
+                    existing_agent.revoked_at = None
+                    existing_agent.created_by = business_admin
+                    existing_agent.save()
+                except IntegrityError:
+                    return Response(
+                        {"detail": "Device already in use (race condition)"},
+                        status=status.HTTP_409_CONFLICT
+                    )
                 sub_user = existing_agent
 
             else:
@@ -543,7 +565,7 @@ class StaffLoginView(GenericAPIView):
 
         device_id = vd["device_id"]  # migth add branch_id
         buisness_staff = (
-            PrimaryAgent.objects.filter(device_name=device_id)
+            PrimaryAgent.objects.filter(device_name=device_id, revoked=False)
             .select_related("user")
             .first()
         )
