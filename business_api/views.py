@@ -323,6 +323,19 @@ class StaffListView(BaseBuisAdminAPIView):
         )
 
 
+class DeleteBranchView(BaseBuisAdminAPIView):
+    serializer_class = InS.DeleteBranchSerializer
+
+    def delete(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        buisness_admin = self.get_buisnessadmn(request)
+        Branch.objects.filter(id=vd["branch_id"], business=buisness_admin.business).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class BuisnessAdminUpdateView(SendVerifyView):
     serializer_class = InS.AdminUpdateSerializer
 

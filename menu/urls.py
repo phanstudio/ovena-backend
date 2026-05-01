@@ -1,6 +1,7 @@
 from django.urls import path, include
 import menu.views as views
 import menu.views.business as bmenuview
+import menu.views.delete as deleteview
 from business_api.routers import BaseBranchRouter
 
 router = BaseBranchRouter("")
@@ -19,6 +20,11 @@ business_urls = [
         bmenuview.BusinessStaffMenuView.as_view(),
         name="staff-menu-list",
     ),
+    path("business/menu/<str:menu_id>/", deleteview.DeleteMenuView.as_view(), name="delete-menu"),
+    path("business/menu/category/<str:category_id>/", deleteview.DeleteMenuCategoryView.as_view(), name="delete-category"),
+    path("business/menu/item/<str:item_id>/", deleteview.DeleteMenuItemView.as_view(), name="delete-item"),
+    path("business/menu/addon/<str:addon_id>/", deleteview.DeleteAddonView.as_view(), name="delete-addon"),
+    path("business/menu/bulk-delete/", deleteview.BulkDeleteMenuView.as_view(), name="bulk-delete"),
 ]
 
 urlpatterns = [

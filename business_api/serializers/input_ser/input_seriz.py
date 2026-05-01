@@ -106,3 +106,8 @@ class StaffRevokedSerializer(serializers.Serializer):
 
 class RecieverSerializer(serializers.Serializer):
     otp_code = serializers.CharField()
+
+
+class DeleteBranchSerializer(serializers.Serializer):
+    branch_id = serializers.CharField()
+
