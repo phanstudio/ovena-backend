@@ -35,7 +35,10 @@ class IsAppAdmin(
 
 class IsBusinessStaff(permissions.BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and valid_staff(request)
+        valid_staff = validate_staff(request)
+        if not valid_staff:
+            self.message = "Staff access revoked or not a valid staff member."
+        return request.user.is_authenticated and valid_staff
 
 
 class IsBusinessAgent(permissions.BasePermission):
@@ -44,7 +47,7 @@ class IsBusinessAgent(permissions.BasePermission):
         if not user or not user.is_authenticated:
             return False
 
-        if valid_staff(request):
+        if validate_staff(request):
             request.actor_type = "staff"
             return True
 
@@ -54,7 +57,7 @@ class IsBusinessAgent(permissions.BasePermission):
         return False
 
 
-def valid_staff(request):  # can i return revoked
+def validate_staff(request):  # can i return revoked
     primary_agent = getattr(request.user, "primary_agent", None)
     return bool(
         primary_agent

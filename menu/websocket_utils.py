@@ -90,6 +90,21 @@ def broadcast_to_specific_drivers(driver_ids, event_data):
         )
 
 
+def broadcast_order_info_to_specific_drivers(driver_ids, event_data):
+    """Broadcast to specific drivers by ID"""
+    channel_layer = get_channel_layer()
+    
+    for driver_id in driver_ids:
+        group_name = f"driver_{driver_id}"  # Keep this
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "driver_orders_notification",  # Change this to match handler
+                "data": event_data
+            }
+        )
+
+
 def send_private_message(order_id, sender_type, recipient_type, message_data):
     """Send private message between two parties"""
     channel_layer = get_channel_layer()

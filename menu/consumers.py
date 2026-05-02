@@ -418,7 +418,7 @@ class DriverOrdersConsumer(BaseConsumer):
     async def driver_orders_notification(self, event):
         """Receive driver notifications (new order assignments)"""
         await self.send(text_data=json.dumps({
-            'type': 'notification',
+            'type': 'order_message',
             'data': event['data']
         }))
     

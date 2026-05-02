@@ -13,7 +13,8 @@ from .websocket_utils import (
     broadcast_to_branch,
     notify_order_cancelled,
     notify_order_ready,
-    broadcast_to_specific_drivers
+    broadcast_to_specific_drivers,
+    broadcast_order_info_to_specific_drivers
 )
 # from addresses.events import *
 from addresses.events import ORDER_DRIVER_NOT_FOUND, ORDER_DRIVER_ASSIGNED
@@ -286,7 +287,7 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None, retry_count=0):
         )
         
         # Notify driver
-        broadcast_to_specific_drivers([driver.id], {
+        broadcast_order_info_to_specific_drivers([driver.id], {
             'type': ORDER_DRIVER_ASSIGNED,
             'order_id': order.id,
             'order_number': order.order_number,
