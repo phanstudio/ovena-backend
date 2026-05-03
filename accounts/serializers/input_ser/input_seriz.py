@@ -23,6 +23,7 @@ class PasswordResetSerializer(serializers.Serializer):
     email = serializers.EmailField(required=False, allow_null=True)
     new_password = serializers.CharField()
     otp_code = serializers.CharField()
+    pin_id = serializers.CharField()
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -67,6 +68,7 @@ class BaseVerifyOtpSerizer(serializers.Serializer):
 
 class PhonenumberOptSerializer(BaseVerifyOtpSerizer):
     phone_number = PhoneNumberField()
+    pin_id = serializers.CharField()
 
 
 class EmailOptSerializer(BaseVerifyOtpSerizer):

@@ -1,7 +1,1 @@
-from accounts.models import User
-
-def get_phone_number(user: User):
-    if isinstance(user, User):
-        return str(user.phone_number) if user.phone_number else None
-    else:
-        return str(user)
+from common.phone.utils import get_phone_number

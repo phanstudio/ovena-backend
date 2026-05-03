@@ -19,7 +19,7 @@ from accounts.models import (
 )
 from admin_api.models import AppAdmin
 from django.db import transaction, IntegrityError
-from authflow.services import issue_jwt_for_user, verify, OTPInvalidError, OTPManager
+from authflow.services import issue_jwt_for_user, verify, OTPInvalidError, OTPManager, verify_phonenumber
 from authflow.authentication import CustomCustomerAuth, CustomBAdminAuth
 from authflow.permissions import IsBusinessAdmin
 from accounts.services.roles import get_user_roles
@@ -27,7 +27,7 @@ from accounts.services.profiles import PROFILE_BUSINESS_ADMIN, get_profile
 from drf_spectacular.utils import extend_schema, inline_serializer  # type: ignore
 from rest_framework import serializers as s
 from accounts.serializers import InS, OpS
-from authflow.services.phone_number import get_phone_number
+from common.phone.utils import get_phone_number
 from django.db.models import Exists, OuterRef
 
 
@@ -532,11 +532,11 @@ class PasswordResetView(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
-        # try:
-        #     identifier = verify(vd["otp_code"], vd["phone_number"])
-        # except OTPInvalidError as e:
-        #     return Response({"error": str(e)}, status=400)
-        identifier = vd["phone_number"]
+        try:
+            identifier = verify_phonenumber(vd["otp_code"], get_phone_number(vd["phone_number"]), vd["pin_id"])
+        except OTPInvalidError as e:
+            return Response({"error": str(e)}, status=400)
+        # identifier = vd["phone_number"]
 
         user = User.objects.filter(phone_number=identifier).first()
         if not user:

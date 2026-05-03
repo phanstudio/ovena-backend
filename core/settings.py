@@ -249,24 +249,38 @@ if ENABLE_METRICS:
 
 
 # Aws
-AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
-AWS_S3_REGION_NAME = env("DJANGO_AWS_S3_REGION_NAME", default=None)
+CLOUD_ACCESS_KEY_ID = env("CLOUD_ACCESS_KEY_ID")
+CLOUD_SECRET_ACCESS_KEY = env("CLOUD_SECRET_ACCESS_KEY")
+CLOUD_S3_REGION_NAME = env("DJANGO_CLOUD_S3_REGION_NAME", default=None)
+CLOUD_ACCOUNT_ID = env("CLOUD_ACCOUNT_ID", default=None)
 
-AWS_PUBLIC_BUCKET_NAME = env("DJANGO_AWS_PUBLIC_BUCKET_NAME")
-AWS_PRIVATE_BUCKET_NAME = env("DJANGO_AWS_PRIVATE_BUCKET_NAME")
+CLOUD_PUBLIC_BUCKET_NAME = env("DJANGO_CLOUD_PUBLIC_BUCKET_NAME")
+CLOUD_PRIVATE_BUCKET_NAME = env("DJANGO_CLOUD_PRIVATE_BUCKET_NAME")
 
-AWS_PUBLIC_CUSTOM_DOMAIN = env("DJANGO_AWS_PUBLIC_CUSTOM_DOMAIN", default=None)  # e.g. cdn.example.com
-AWS_PRIVATE_CUSTOM_DOMAIN = env("DJANGO_AWS_PRIVATE_CUSTOM_DOMAIN", default=None)  # optional, often none
+CLOUD_PUBLIC_CUSTOM_DOMAIN = env("DJANGO_CLOUD_PUBLIC_CUSTOM_DOMAIN")  # e.g. cdn.example.com
+CLOUD_PRIVATE_CUSTOM_DOMAIN = env("DJANGO_CLOUD_PRIVATE_CUSTOM_DOMAIN", default=None)  # optional, often none
 
-PUBLIC_DOMAIN = AWS_PUBLIC_CUSTOM_DOMAIN or f"{AWS_PUBLIC_BUCKET_NAME}.s3.amazonaws.com"
-PRIVATE_DOMAIN = AWS_PRIVATE_CUSTOM_DOMAIN or f"{AWS_PRIVATE_BUCKET_NAME}.s3.amazonaws.com"
+PUBLIC_DOMAIN = CLOUD_PUBLIC_CUSTOM_DOMAIN or f"{CLOUD_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
-_AWS_EXPIRY = 60 * 60 * 24 * 7
-AWS_S3_OBJECT_PARAMETERS = {
-    "CacheControl": f"max-age={_AWS_EXPIRY}, s-maxage={_AWS_EXPIRY}",
+_CLOUD_EXPIRY = 60 * 60 * 24 * 7
+AWS_S3_OBJECT_PARAMETERS  = {
+    "CacheControl": f"max-age={_CLOUD_EXPIRY}, s-maxage={_CLOUD_EXPIRY}",
 }
 # "CacheControl": f"max-age={_AWS_EXPIRY}, s-maxage={_AWS_EXPIRY}, must-revalidate",
+
+
+# django-storages / boto3 expected names
+AWS_ACCESS_KEY_ID = CLOUD_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY = CLOUD_SECRET_ACCESS_KEY
+
+# R2 specifics
+AWS_S3_REGION_NAME = "auto"
+AWS_S3_SIGNATURE_VERSION = "s3v4"
+AWS_DEFAULT_ACL = None
+
+AWS_S3_ENDPOINT_URL = (
+    f"https://{CLOUD_ACCOUNT_ID}.r2.cloudflarestorage.com"
+)
 
 AWS_S3_MAX_MEMORY_SIZE = env.int(
     "DJANGO_AWS_S3_MAX_MEMORY_SIZE",
@@ -284,10 +298,10 @@ STORAGES = {
     "default": {
         "BACKEND": "storages.backends.s3.S3Storage",
         "OPTIONS": {
-            "bucket_name": AWS_PUBLIC_BUCKET_NAME,
+            "bucket_name": CLOUD_PUBLIC_BUCKET_NAME,
             "location": "media",
             "file_overwrite": False,
-            "custom_domain": AWS_PUBLIC_CUSTOM_DOMAIN,  # ok if None
+            "custom_domain": PUBLIC_DOMAIN,  # ok if None
             "querystring_auth": False,  # public URLs
         },
     },
@@ -296,10 +310,10 @@ STORAGES = {
     "private": {
         "BACKEND": "storages.backends.s3.S3Storage",
         "OPTIONS": {
-            "bucket_name": AWS_PRIVATE_BUCKET_NAME,
+            "bucket_name": CLOUD_PRIVATE_BUCKET_NAME,
             "location": "private",
             "file_overwrite": False,
-            "custom_domain": AWS_PRIVATE_CUSTOM_DOMAIN,  # often None
+            "custom_domain": CLOUD_PRIVATE_CUSTOM_DOMAIN,  # often None
             "querystring_auth": True,  # SIGNED URLs
         },
     },
@@ -368,23 +382,23 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',},
 ]
 
+# email service
 EMAIL_BACKEND = "anymail.backends.amazon_ses.EmailBackend"
 
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 SERVER_EMAIL = env("SERVER_EMAIL")
 
 ANYMAIL = {
-    "AMAZON_SES_CLIENT_PARAMS": {
-        "aws_access_key_id": AWS_ACCESS_KEY_ID,
-        "aws_secret_access_key": AWS_SECRET_ACCESS_KEY,
-        "region_name": env("AWS_DEFAULT_REGION"),
-    }
+    "RESEND_API_KEY": env("RESEND_API_KEY"),
+    "BREVO_API_KEY": env("BREVO_API_KEY"),
 }
 
 PRODUCT_NAME = "Newbutt"
 WEBSITE_URL = "https://newbutt.buzz/"
 EMAIL_LOGO_URL = "https://res.cloudinary.com/daxdh7b3t/image/upload/v1767957815/1f2b751b-cc9a-42cd-a623-05b0febc4472.webp" 
 
+
+# Phone number settings
 PHONENUMBER_DEFAULT_REGION = "NG"
 PHONENUMBER_DB_FORMAT = "E164"
 

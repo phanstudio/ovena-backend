@@ -295,14 +295,6 @@ class BulkDeleteMenuView(BaseBuisAdminAPIView):
         item_ids     = data["items"]
         addon_ids    = data["addons"]
 
-        menu_ids      = request.data.get("menus", [])
-        category_ids  = request.data.get("categories", [])
-        item_ids      = request.data.get("items", [])
-        addon_ids     = request.data.get("addons", [])
-
-        if not any([menu_ids, category_ids, item_ids, addon_ids]):
-            return Response({"detail": "No IDs provided."}, status=400)
-
         # ── Collect all affected base_item IDs before any deletion ────────────
         affected_base_ids = set()
 

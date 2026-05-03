@@ -43,7 +43,7 @@ paystackapi
 watchdog>=4.0
 whitenoise
 google-auth
-django-anymail[amazon-ses]
+django-anymail[resend,brevo]
 django-storages[boto3] 
 boto3
 pycountry

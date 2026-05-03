@@ -109,3 +109,4 @@ class RegisterBAdminSerializer(serializers.Serializer):
     phone_number = PhoneNumberField()
     email = serializers.EmailField()
     otp_code = serializers.CharField()
+    pin_id = serializers.CharField()

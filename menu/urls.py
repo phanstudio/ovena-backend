@@ -20,11 +20,15 @@ business_urls = [
         bmenuview.BusinessStaffMenuView.as_view(),
         name="staff-menu-list",
     ),
-    path("business/menu/<str:menu_id>/", deleteview.DeleteMenuView.as_view(), name="delete-menu"),
-    path("business/menu/category/<str:category_id>/", deleteview.DeleteMenuCategoryView.as_view(), name="delete-category"),
-    path("business/menu/item/<str:item_id>/", deleteview.DeleteMenuItemView.as_view(), name="delete-item"),
-    path("business/menu/addon/<str:addon_id>/", deleteview.DeleteAddonView.as_view(), name="delete-addon"),
-    path("business/menu/bulk-delete/", deleteview.BulkDeleteMenuView.as_view(), name="bulk-delete"),
+    path("business/bulk-delete/", deleteview.BulkDeleteMenuView.as_view(), name="bulk-delete-menu"),
+    path(
+        "business/<str:menu_id>/delete/", 
+        deleteview.DeleteMenuView.as_view(), 
+        name="delete-menu"
+    ),
+    path("business/category/<str:category_id>/delete/", deleteview.DeleteMenuCategoryView.as_view(), name="delete-category"),
+    path("business/item/<str:item_id>/delete/", deleteview.DeleteMenuItemView.as_view(), name="delete-menu-item"),
+    path("business/addon/<str:addon_id>/delete/", deleteview.DeleteAddonView.as_view(), name="delete-addon"),
 ]
 
 urlpatterns = [

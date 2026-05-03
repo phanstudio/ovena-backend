@@ -11,7 +11,7 @@ from payments.services.base import ensure_valid_cred
 from payments.integrations.paystack.errors import PaystackAPIError
 from django.db import transaction, IntegrityError
 from authflow.services import (
-    issue_jwt_for_user
+    issue_jwt_for_user, verify_phonenumber
 )
 from authflow.authentication import CustomBAdminAuth
 from authflow.permissions import IsBusinessAdmin
@@ -20,6 +20,7 @@ from drf_spectacular.utils import extend_schema, inline_serializer # type: ignor
 from rest_framework import serializers as s
 from accounts.serializers import InS, OpS
 from menu.views import BatchGenerateUploadURLView, RegisterMenusPhase3View  # noqa: F401
+from common.phone.utils import get_phone_number
 
 # edge case of going back
 @extend_schema(
@@ -58,12 +59,12 @@ class RegisterBAdmin(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
-        # try:
-        #     identifier = verify(vd["otp_code"], vd["phone_number"])
-        # except OTPInvalidError as e:
-        #     return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            identifier = verify_phonenumber(vd["otp_code"], get_phone_number(vd["phone_number"]), vd["pin_id"])
+        except OTPInvalidError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        identifier = vd["phone_number"]
+        # identifier = vd["phone_number"]
         
         try:
             with transaction.atomic():
@@ -106,9 +107,15 @@ class ReRegisterBAdmin(GenericAPIView):
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        vd = serializer.validated_data        
+        vd = serializer.validated_data
+
         try:
-            identifier = vd["phone_number"]
+            identifier = verify_phonenumber(vd["otp_code"], get_phone_number(vd["phone_number"]), vd["pin_id"])
+        except OTPInvalidError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+      
+        try:
+            # identifier = vd["phone_number"]
             user = User.objects.filter(id=request.user.id).update(
                 name=vd["full_name"],
                 phone_number=identifier,

@@ -1,0 +1,2 @@
+class EmailDeliveryError(Exception):
+    pass

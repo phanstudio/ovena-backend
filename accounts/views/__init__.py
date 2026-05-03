@@ -1,4 +1,4 @@
-from .otp_views import VerifyOTPView, VerifyEmailOTPView, SendEmailOTPView, SendPhoneOTPView, PassWordResetSendView # noqa: F401
+from .otp_views import VerifyPhoneOTPView, VerifyEmailOTPView, SendEmailOTPView, SendPhoneOTPView, PassWordResetSendView # noqa: F401
 from .account_views import (
     RegisterCustomer, LinkApproveView, LinkRequestCreateView, # noqa: F401
     UserProfileView, DeleteAccountView, Delete2AccountView, # noqa: F401

@@ -1,10 +1,11 @@
 from rest_framework.response import Response
 from rest_framework import status
-from authflow.services import issue_jwt_for_user, request_email_otp, request_phone_otp, verify, OTPInvalidError
+from authflow.services import issue_jwt_for_user, request_email_otp, request_phone_otp, verify, OTPInvalidError, verify_phonenumber
 from django.contrib.auth import get_user_model
 from accounts.serializers import InS
 from accounts.serializers.input_ser.input_seriz import SendType
 from rest_framework.generics import GenericAPIView
+from common.phone.utils import get_phone_number
 # do we have dedcted endpoints for sending otp for the admin registration since it still send the otp forward.
 
 User = get_user_model()
@@ -13,9 +14,8 @@ class SendPhoneOTPView(GenericAPIView):
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        # vd = serializer.validated_data
-        # return request_phone_otp(vd["phone_number"])
-        return Response({"detail": "OTP sent.", "sent_at": "00:00:01"})
+        vd = serializer.validated_data
+        return request_phone_otp(get_phone_number(vd["phone_number"]))
 
 class SendEmailOTPView(GenericAPIView):
     serializer_class = InS.EmailOptSendSerializer
@@ -25,7 +25,7 @@ class SendEmailOTPView(GenericAPIView):
         vd = serializer.validated_data
         return request_email_otp(vd["email"])
 
-class VerifyOTPView(GenericAPIView): # we need to revoke the jwt also use the refresh to get the new access, also the getting new refresh token
+class VerifyPhoneOTPView(GenericAPIView): # we need to revoke the jwt also use the refresh to get the new access, also the getting new refresh token
     """
     Verifies OTP, creates user if not exists, and returns JWT tokens
     """
@@ -35,11 +35,11 @@ class VerifyOTPView(GenericAPIView): # we need to revoke the jwt also use the re
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
-        # try:
-        #     identifier = verify(vd["otp_code"], vd["phone_number"])
-        # except OTPInvalidError as e:
-        #     return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)      
-        identifier = vd["phone_number"]  
+        try:
+            identifier = verify_phonenumber(vd["otp_code"], get_phone_number(vd["phone_number"]), vd["pin_id"])
+        except OTPInvalidError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)      
+        # identifier = vd["phone_number"]  
 
         # ✅ Create or get the user
         user, created = User.objects.get_or_create(
@@ -99,5 +99,4 @@ class PassWordResetSendView(GenericAPIView):
         if send_type == SendType.EMAIL.value:
             return request_email_otp(vd["email"])
         if send_type == SendType.PHONE.value:
-            # return request_phone_otp(vd["phone_number"])
-            return Response({"detail": "OTP sent.", "sent_at": "00:00:01"})
+            return request_phone_otp(get_phone_number(vd["phone_number"]))

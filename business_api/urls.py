@@ -85,4 +85,9 @@ urlpatterns = [
         views.BranchClosedAllView.as_view(),
         name="branch-close-all",
     ),
+    path(
+        "branch/<int:branch_id>/delete/",
+        views.DeleteBranchView.as_view(),
+        name="delete-branch",
+    ),
 ]
