@@ -1,6 +1,6 @@
 from django.urls import path, include
 from .views import (
-    VerifyOTPView, UserProfileView, DeleteAccountView, Delete2AccountView,
+    VerifyPhoneOTPView, UserProfileView, DeleteAccountView, Delete2AccountView,
     OAuthExchangeView, RegisterCustomer, UpdateCustomer, LinkApproveView,
     jwt_views, SendEmailOTPView, VerifyEmailOTPView, SendPhoneOTPView,
     PasswordResetView, AdminLoginView, DriverLoginView, LinkRequestCreateView, 
@@ -9,6 +9,7 @@ from .views import (
 )
 from .views import driver_reg_views
 from .views import business_reg_views
+from image.views import BatchGenerateUploadURLView
 
 token_urls = [
     path("rotate-token/", jwt_views.RotateTokenView.as_view(), name="rotate-token"),
@@ -24,7 +25,7 @@ onboarding_urls = [
     path("phase1/", business_reg_views.RestaurantPhase1RegisterView.as_view(), name="business-register-phase1"),
     path("phase2/", business_reg_views.RestaurantPhase2OnboardingView.as_view(), name="business-register-phase2"),
     path("phase3/", business_reg_views.RegisterMenusPhase3View.as_view(), name="business-register-menus-ob"),
-    path("batch-gen-url/", business_reg_views.BatchGenerateUploadURLView.as_view(), name="business-batch-generate-url"),
+    path("batch-gen-url/", BatchGenerateUploadURLView.as_view(), name="business-batch-generate-url"),
     path("status/", business_reg_views.BuisnnessOnboardingStatusView.as_view(), name="business-onboard-status"),
 ]
 
@@ -61,7 +62,7 @@ app_admin_user_urls = [
 
 urlpatterns = [
     path("send-otp/", SendPhoneOTPView.as_view(), name="send-otp"),
-    path("verify-otp/", VerifyOTPView.as_view(), name="verify-otp"),
+    path("verify-otp/", VerifyPhoneOTPView.as_view(), name="verify-otp"),
     
     path("register-user/", RegisterCustomer.as_view(), name="register-user"),
     path("oauth/exchange/", OAuthExchangeView.as_view(), name="oauth-exchange"),
