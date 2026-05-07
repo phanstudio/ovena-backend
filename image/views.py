@@ -8,6 +8,12 @@ from ulid import ULID # type: ignore
 from drf_spectacular.utils import extend_schema # type: ignore
 from rest_framework.permissions import AllowAny
 from django.core.files.storage import storages
+from business_api.views import BaseBuisAdminAPIView
+from rest_framework.parsers import MultiPartParser, FormParser
+from django.db import transaction
+from rest_framework import status
+# from PIL import Image
+
 
 # The images
 # Logo images
@@ -134,4 +140,111 @@ class BatchGenerateBuisnessURLView(BatchGenerateUploadURLBaseView): # add a chec
     #         })
 
     #     return Response({"urls": results})
+
+
+# class BatchGenerateBuisnessURLView(BatchGenerateUploadURLBaseView): # add a check to make sure you are currenty on the 3 phase
+#     authentication_classes = [CustomBAdminAuth]
+#     permission_classes = [IsBusinessAdmin]
+
+#     def set_defaults(self, request):
+#         self.business_id = request.user.business_admin.business_id
+#         return super().set_defaults(request)
+
+#     def build_key(self, file_data, ext):
+#         return (
+#             f"businesses/"
+#             f"{self.business_id}/"
+#             f"public/{file_data.get('ref_id', '')}/"
+#             f"{ULID()}.{ext}"
+#         )
+
+
+class UpdateBusinessImagesView(BaseBuisAdminAPIView):
+
+    parser_classes = [MultiPartParser, FormParser]
+    MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
+
+    ALLOWED_TYPES = {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+    }
+
+    def validate_image(self, file):
+        # Check content type
+        if file.content_type not in self.ALLOWED_TYPES:
+            raise ValueError(
+                "Only JPEG, PNG, and WEBP images are allowed."
+            )
+
+        # Check file size
+        if file.size > self.MAX_IMAGE_SIZE:
+            raise ValueError(
+                "Image size cannot exceed 5MB."
+            )
+
+        # # Verify actual image
+        # try:
+        #     img = Image.open(file)
+        #     img.verify()
+        # except Exception:
+        #     raise ValueError(
+        #         "Invalid or corrupted image."
+        #     )
+
+        # # Reset file pointer after verify()
+        # file.seek(0)
+
+    def patch(self, request):
+        business_admin = self.get_buisnessadmn(request)
+        restaurant = business_admin.business
+
+        business_image = request.FILES.get("business_image")
+        business_logo = request.FILES.get("business_logo")
+
+        if not business_image and not business_logo:
+            return Response(
+                {
+                    "detail":
+                    "At least one image must be uploaded."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            with transaction.atomic():
+
+                # BUSINESS IMAGE
+                if business_image:
+                    self.validate_image(business_image)
+                    restaurant.business_image = business_image
+
+                # BUSINESS LOGO
+                if business_logo:
+                    self.validate_image(business_logo)
+                    restaurant.business_logo = business_logo
+
+                restaurant.save(
+                    update_fields=[
+                        "business_image",
+                        "business_logo",
+                    ]
+                )
+
+            return Response(
+                {"detail": "Images updated successfully."},
+                status=status.HTTP_200_OK,
+            )
+
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except Exception:
+            return Response(
+                {"detail": "Failed to upload images."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
