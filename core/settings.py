@@ -390,13 +390,12 @@ SERVER_EMAIL = env("SERVER_EMAIL")
 
 ANYMAIL = {
     "RESEND_API_KEY": env("RESEND_API_KEY"),
-    "BREVO_API_KEY": env("BREVO_API_KEY"),
+    # "BREVO_API_KEY": env("BREVO_API_KEY"),
 }
 
-PRODUCT_NAME = "Newbutt"
-WEBSITE_URL = "https://newbutt.buzz/"
+PRODUCT_NAME = "ovena-delivery"
+WEBSITE_URL = "https://ovena-delivery.com/"
 EMAIL_LOGO_URL = "https://res.cloudinary.com/daxdh7b3t/image/upload/v1767957815/1f2b751b-cc9a-42cd-a623-05b0febc4472.webp" 
-
 
 # Phone number settings
 PHONENUMBER_DEFAULT_REGION = "NG"
