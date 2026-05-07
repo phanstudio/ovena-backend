@@ -218,12 +218,12 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
             restaurant_cerds.rc_number = vd.get("rc_number", "")
             restaurant_cerds.tax_identification_number = vd.get("tax_identification_number", "")
             restaurant_cerds.business_type = vd.get("business_type", restaurant.business_type)
-            restaurant_cerds.doc_type = vd.get("doc_type", "")
+            restaurant_cerds.doc_type = vd.get("doctype", "cac")
 
             if "business_image" in request.FILES:
                 restaurant.business_image = request.FILES["business_image"]
-            # if "business_logo" in request.FILES:
-            #     restaurant.business_logo = request.FILES["business_logo"]
+            if "business_logo" in request.FILES:
+                restaurant.business_logo = request.FILES["business_logo"]
             if "business_documents" in request.FILES:
                 restaurant_cerds.business_doc = request.FILES["business_documents"]
             

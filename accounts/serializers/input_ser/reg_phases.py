@@ -84,6 +84,7 @@ class RestaurantPhase2Serializer(serializers.Serializer):
     # files handled via request.FILES, not here
     payment = RestaurantPaymentSerializer(required=False)
     branches = BranchInputSerializer(many=True, required=False)#, default=list)
+    doctype = serializers.ChoiceField(choices=["cac", "tax", "id", "other"], required=False, default="cac")
 
     def to_internal_value(self, data):
         if hasattr(data, 'dict'):
