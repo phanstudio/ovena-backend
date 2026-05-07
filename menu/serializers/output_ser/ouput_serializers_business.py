@@ -24,7 +24,7 @@ class MenuItemAddonSerializer(serializers.ModelSerializer):
     class Meta:
         model = MenuItemAddon
         fields = [
-            # "id",
+            "id",
             "base_item_id",
             "name", "price",
             "is_available",
@@ -65,7 +65,7 @@ class MenuItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = MenuItem
         fields = [
-            # "id",
+            "id",
             "base_item_id",
             "custom_name", "description",
             "price", "image",
