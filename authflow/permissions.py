@@ -8,13 +8,28 @@ from accounts.services.roles import (
     PROFILE_APP_ADMIN,
 )
 
+class NeedsApprovalPermission(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and self.needs_approval(request)
+    
+    def needs_approval(self, request):
+        approved = request.user.is_approved
+        if not approved:
+            self.message = "User not approved"
+        return approved
+
 
 class IsCustomer(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and has_role(request, PROFILE_CUSTOMER)
 
 
-class IsDriver(permissions.BasePermission):
+class IsDriver(NeedsApprovalPermission):
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) and has_role(request, PROFILE_DRIVER)
+
+
+class IsDriverWithoutApproval(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and has_role(request, PROFILE_DRIVER)
 
@@ -26,9 +41,8 @@ class IsBusinessAdmin(permissions.BasePermission):
         )
 
 
-class IsAppAdmin(
-    permissions.BasePermission
-):  # might add role based restriction like admin, support.
+# might add role based restriction like admin, support.
+class IsAppAdmin(permissions.BasePermission):  
     def has_permission(self, request, view):
         return request.user.is_authenticated and has_role(request, PROFILE_APP_ADMIN)
 

@@ -46,6 +46,7 @@ class BusinessCerd(models.Model):
     def __str__(self):
         return self.registered_business_name
 
+
 class BusinessPayoutAccount(AbstractPayoutAccount):
     """
     Payout account owned by a Business entity, not an individual user.

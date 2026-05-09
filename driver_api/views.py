@@ -40,6 +40,7 @@ from support_center.services import get_driver_open_ticket_count
 from authflow.services.phone_number import get_phone_number
 from notifications.services import get_unread_count
 
+
 class BaseDriverAPIView(APIView):
     authentication_classes = [CustomDriverAuth]
     permission_classes = [IsDriver]
@@ -193,6 +194,7 @@ class DriverFAQListView(BaseDriverAPIView):
         qs = SupportFAQItem.objects.filter(is_active=True, category__is_active=True).select_related("category")
         return Response({"detail": "FAQ list", "data": FAQItemSerializer(qs, many=True).data})
 
+
 class DriverEarningsSummaryView(BaseDriverAPIView):
     def get(self, request):
         driver = self.get_driver(request)
@@ -274,6 +276,7 @@ class DriverWithdrawDetailView(BaseDriverAPIView):
         driver = self.get_driver(request)
         withdrawal = get_object_or_404(DriverWithdrawalRequest, id=withdrawal_id, driver=driver)
         return Response({"detail": "Withdrawal detail", "data": WithdrawalRequestSerializer(withdrawal).data})
+
 
 @extend_schema(
     parameters=[AnalysisPerformanceQuerySerializer],

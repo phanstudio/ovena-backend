@@ -22,34 +22,6 @@ from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
-# for later on the branch level ie the person is a business staff
-# from django.db.models import Prefetch
-
-# branch = ...  # get from request
-
-# menus = Menu.objects.filter(business_id=user.id).prefetch_related(
-#     "categories__items__variant_groups__options",
-#     "categories__items__addon_groups__addons",
-#     Prefetch(
-#         "categories__items__base_item__item_availabilities",
-#         queryset=BaseItemAvailability.objects.filter(branch=branch),
-#         to_attr="filtered_availability"
-#     )
-# )
-# class MenuView(APIView):
-#     authentication_classes=[CustomBAdminAuth]
-#     permission_classes=[IsBusinessAdmin]
-#     def get(self, request):
-#         user = request.user.business_admin
-
-#         menus = Menu.objects.filter(business_id=user.business_id)\
-#             .prefetch_related(
-#                 "categories__items__variant_groups__options",
-#                 "categories__items__addon_groups__addons",
-#         )
-#         serializer = OpS.MenuSerializer(menus, many=True)
-#         return Response(serializer.data)
-
 
 class BusinessMenuView(APIView):
     authentication_classes = [CustomBAdminAuth]

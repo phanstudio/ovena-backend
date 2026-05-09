@@ -11,7 +11,7 @@ from authflow.authentication import (
     CustomBAdminAuth, CustomDriverAuth, CustomAppAdminAuth, CustomBStaffAuth
 )
 from authflow.permissions import (
-    IsBusinessAdmin, IsDriver, IsAppAdmin, IsBusinessStaff
+    IsBusinessAdmin, IsAppAdmin, IsBusinessStaff, IsDriverWithoutApproval
 )
 from support_center.models import SupportTicket, SupportTicketMessage
 from support_center.serializers import (
@@ -47,7 +47,7 @@ class SupportPagination(LimitOffsetPagination):
 # base views
 class BaseDriverSupportAPIView(GenericAPIView):
     authentication_classes = [CustomDriverAuth]
-    permission_classes = [IsDriver]
+    permission_classes = [IsDriverWithoutApproval]#IsDriver]
 
     def get_driver(self, request) -> DriverProfile:
         profile = request.user.driver_profile

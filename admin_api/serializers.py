@@ -43,6 +43,10 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "email", "phone_number", "name"]
+
+class DriverUserSerializer(UserSerializer):
+    class Meta(UserSerializer.Meta):
+        fields = UserSerializer.Meta.fields + ["is_active", "is_approved"]
     
 class AppAdminProfileSerializer(serializers.ModelSerializer):
 
@@ -135,7 +139,7 @@ class AdminUserListSerializer(serializers.ModelSerializer):
 
 
 class AdminDriverListSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
+    user = DriverUserSerializer(read_only=True)
     latest_onboarding_status = serializers.CharField(read_only=True, allow_blank=True, default="")
     latest_onboarding_submitted_at = serializers.DateTimeField(read_only=True, allow_null=True, default=None)
     pending_documents_count = serializers.IntegerField(read_only=True, default=0)

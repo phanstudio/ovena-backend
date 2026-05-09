@@ -157,6 +157,27 @@ class UpdateAppAdmin(BaseAppAdminAPIView):
         )
 
 
+# class VerifyDriverDocumentView(BaseAppAdminAPIView):
+#     ...  # similar pattern to AdminDriverOnboardingReviewView, but for documents instead of onboarding submissions
+
+class ApproveDriverView(BaseAppAdminAPIView):
+    def post(self, request, driver_id: int):
+        updated = User.objects.filter(
+            profile_bases__driver_profile__id=driver_id
+        ).update(
+            is_approved=True
+        )
+
+        if updated == 0:
+            raise NotFound("Driver not found")
+
+        return Response(
+            {
+                "detail": "Driver approved",
+                "is_approved": True,
+            }
+        )
+
 # class AdminReferralPayoutListView(BaseAppAdminAPIView, ListAPIView):
 #     serializer_class = ReferralPayoutSerializer
 

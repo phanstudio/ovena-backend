@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from .profile import ProfileBase
 
+
 # driver related
 class DriverProfile(ProfileBase):
     profilebase_ptr = models.OneToOneField(
@@ -45,8 +46,6 @@ class DriverProfile(ProfileBase):
     rating_count = models.PositiveIntegerField(default=0)
     avg_rating = models.FloatField(default=0.0, db_index=True)  # optional but convenient
     
-    # created_at = models.DateTimeField(auto_now_add=True)
-    
     def __str__(self):
         return f"Driver: {self.full_name or (self.user.email or self.user.phone_number)}"
 
@@ -61,7 +60,8 @@ class DriverProfile(ProfileBase):
             if self.profile_type != ProfileBase.PROFILE_DRIVER:
                 raise ValueError("Cannot change profile_type on DriverProfile")
         super().save(*args, **kwargs)
-    
+
+
 # for verification, every driver must have cred
 class DriverCred(models.Model): # does the referral system work with drivers
     user = models.OneToOneField(DriverProfile, on_delete=models.CASCADE, related_name="driver_creds")
@@ -79,6 +79,7 @@ class DriverCred(models.Model): # does the referral system work with drivers
 
     guarantor2_name = models.CharField(max_length=160, blank=True)
     guarantor2_phone = models.CharField(max_length=18, blank=True)#, validators=[PHONE_VALIDATOR])
+
 
 class DriverAvailability(models.Model):
     # Time block bit flags
@@ -101,6 +102,7 @@ class DriverAvailability(models.Model):
 
     def has(self, flag: int) -> bool:
         return bool(self.time_mask & flag)
+
 
 class DriverOnboardingSubmission(models.Model):
     STATUS_DRAFT = "draft"
@@ -132,6 +134,7 @@ class DriverOnboardingSubmission(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
 
 class DriverDocument(models.Model): # we can use 
     DOC_DELIVERY_BAG = "delivery_bag"
@@ -168,6 +171,7 @@ class DriverDocument(models.Model): # we can use
             models.UniqueConstraint(fields=["driver", "doc_type"], name="uniq_driver_doc_type")
         ]
 
+
 class DriverVerification(models.Model):
     TYPE_NIN = "nin"
     TYPE_BVN = "bvn"
@@ -195,6 +199,7 @@ class DriverVerification(models.Model):
             models.UniqueConstraint(fields=["driver", "verification_type"], name="uniq_driver_verification_type")
         ]
 
+
 class DriverBankAccount(models.Model): # should next of kin be used here
     driver = models.OneToOneField(DriverProfile, on_delete=models.CASCADE, related_name="bank_account")
 
@@ -207,3 +212,4 @@ class DriverBankAccount(models.Model): # should next of kin be used here
     verified_at = models.DateTimeField(null=True, blank=True)
 
     updated_at = models.DateTimeField(auto_now=True)
+
