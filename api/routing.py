@@ -1,5 +1,5 @@
 from django.urls import re_path
-from menu import consumers
+from common.websockets import consumers
 
 websocket_urlpatterns = [
     # Order updates (customer, branch, driver)

@@ -107,57 +107,6 @@ class BatchGenerateBuisnessURLView(BatchGenerateUploadURLBaseView): # add a chec
             f"{ULID()}.{ext}"
         )
 
-    # def post(self, request):
-    #     files = self.get_files(request.data)
-
-    #     business = request.user.business_admin.business
-        
-    #     # Use django-storages backend instead of raw boto3
-    #     storage = storages["default"]
-    #     s3_client = storage.connection.meta.client
-
-    #     results = []
-    #     for f in files:
-    #         ext = self.ALLOWED_TYPES[f["content_type"]]
-    #         key = f"businesses/{business.id}/menu/{ULID()}.{ext}"
-
-    #         upload_url = s3_client.generate_presigned_url(
-    #             "put_object",
-    #             Params={
-    #                 "Bucket": storage.bucket_name,
-    #                 "Key": key,
-    #                 "ContentType": f["content_type"],
-    #                 "ContentLength": int(f["file_size"]),
-    #             },
-    #             ExpiresIn=900,
-    #         )
-
-    #         results.append({
-    #             "ref_id": f.get("ref_id"),
-    #             "upload_url": upload_url,
-    #             # uses your configured custom_domain automatically
-    #             "public_url": f"https://{storage.custom_domain}/{key}",
-    #         })
-
-    #     return Response({"urls": results})
-
-
-# class BatchGenerateBuisnessURLView(BatchGenerateUploadURLBaseView): # add a check to make sure you are currenty on the 3 phase
-#     authentication_classes = [CustomBAdminAuth]
-#     permission_classes = [IsBusinessAdmin]
-
-#     def set_defaults(self, request):
-#         self.business_id = request.user.business_admin.business_id
-#         return super().set_defaults(request)
-
-#     def build_key(self, file_data, ext):
-#         return (
-#             f"businesses/"
-#             f"{self.business_id}/"
-#             f"public/{file_data.get('ref_id', '')}/"
-#             f"{ULID()}.{ext}"
-#         )
-
 
 class UpdateBusinessImagesView(BaseBuisAdminAPIView):
 
