@@ -18,7 +18,16 @@ token_urls = [
     path("login/", jwt_views.LogInView.as_view(), name="login"),
 ]
 
-onboarding_urls = [
+account_urls = [
+    path("admin-login/", AdminLoginView.as_view(), name="admin-login"),
+    path("driver-login/", DriverLoginView.as_view(), name="driver-login"),
+    path("staff-login/", StaffLoginView.as_view(), name="staff-login"),
+    path("password-reset/", PasswordResetView.as_view(), name="password-reset"),
+    path("password-reset/send/", PassWordResetSendView.as_view(), name="password-reset-send"),
+    path("change-password/", ChangePasswordView.as_view(), name="change-password")
+]
+
+buisness_onboarding_urls = [
     # make sure you send otp before
     path("admin/", business_reg_views.RegisterBAdmin.as_view(), name="register-businessadmin"),
     path("re/admin/", business_reg_views.ReRegisterBAdmin.as_view(), name="reregister-businessadmin"),
@@ -26,18 +35,8 @@ onboarding_urls = [
     path("phase2/", business_reg_views.RestaurantPhase2OnboardingView.as_view(), name="business-register-phase2"),
     path("phase3/", business_reg_views.RegisterMenusPhase3View.as_view(), name="business-register-menus-ob"),
     path("batch-gen-url/", BatchGenerateBuisnessURLView.as_view(), name="business-batch-generate-url"),
-    path("status/", business_reg_views.BuisnnessOnboardingStatusView.as_view(), name="business-onboard-status"),
+    path("status/", business_reg_views.BusinessOnboardingStatusView.as_view(), name="business-onboard-status"),
 ]
-
-account_urls = [
-    path("admin-login/", AdminLoginView.as_view(), name="admin-login"),
-    path("driver-login/", DriverLoginView.as_view(), name="driver-login"),
-    path("password-reset/", PasswordResetView.as_view(), name="password-reset"),
-    path("password-reset/send/", PassWordResetSendView.as_view(), name="password-reset-send"),
-    path("staff-login/", StaffLoginView.as_view(), name="staff-login"),
-    path("change-password/", ChangePasswordView.as_view(), name="change-password")
-]
-
 
 driver_onboarding_urls = [
     # Progress overview — call this on app open to know where driver left off
@@ -75,7 +74,7 @@ urlpatterns = [
     path("verify-email-otp/", VerifyEmailOTPView.as_view(), name="verify-email-otp"),
 
     path("", include(token_urls)),
-    path("onboard/", include(onboarding_urls)),
+    path("onboard/", include(buisness_onboarding_urls)),
     path("onboard/driver/", include(driver_onboarding_urls)),
     path("", include(account_urls)),
     path("linked/", include(linked_user_urls)),

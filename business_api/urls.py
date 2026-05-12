@@ -15,7 +15,7 @@ branch_urlpatterns = [
 ]
 
 urlpatterns = [
-    # path("onboard/status/", views.BuisnnessOnboardingStatusView.as_view(), name="business-onboard-status"),
+    # path("onboard/status/", views.BusinessOnboardingStatusView.as_view(), name="business-onboard-status"),
     # path("onboard/phase1/", views.RestaurantPhase1RegisterView.as_view(), name="business-register-phase1"),
     # path("onboard/phase2/", views.RestaurantPhase2OnboardingView.as_view(), name="business-register-phase2"),
     # path("onboard/phase3/", RegisterMenusPhase3View.as_view(), name="business-register-menus-ob"),

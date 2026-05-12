@@ -4,7 +4,7 @@ Place in: orders/websocket_utils.py
 """
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from addresses.events import build_order_event
+from .events import build_order_event
 
 
 def get_order_group_name(order_id):
@@ -123,7 +123,7 @@ def send_private_message(order_id, sender_type, recipient_type, message_data):
 
 def notify_order_created(order):
     """Notify branch when new order is created"""
-    from addresses.events import ORDER_CREATED
+    from .events import ORDER_CREATED
     
     event_data = build_order_event(ORDER_CREATED, order)
     broadcast_to_branch(order.branch_id, event_data)
@@ -134,7 +134,7 @@ def notify_order_created(order):
 
 def notify_order_rejected(order, reason=None):
     """Notify customer when branch rejects order"""
-    from addresses.events import ORDER_REJECTED
+    from .events import ORDER_REJECTED
     
     event_data = build_order_event(
         ORDER_REJECTED,
@@ -144,9 +144,10 @@ def notify_order_rejected(order, reason=None):
     )
     broadcast_to_order_group(order.id, event_data)
 
+
 def notify_order_ready(order):
     """Notify when food is ready and searching for driver"""
-    from addresses.events import ORDER_READY, ORDER_DRIVER_SEARCHING
+    from .events import ORDER_READY, ORDER_DRIVER_SEARCHING
     
     # Notify customer
     event_data = build_order_event(
@@ -168,7 +169,7 @@ def notify_order_ready(order):
 ## new
 def notify_order_confirmed(order, payment_url):
     """Notify customer (with payment URL) and branch (to prepare)"""
-    from addresses.events import ORDER_CONFIRMED, ORDER_PREPARING
+    from .events import ORDER_CONFIRMED, ORDER_PREPARING
 
     # Customer gets payment URL
     customer_event = build_order_event(
@@ -190,7 +191,7 @@ def notify_order_confirmed(order, payment_url):
 
 def notify_payment_completed(order):
     """Notify branch to start preparing, and customer that payment went through"""
-    from addresses.events import ORDER_PAYMENT_COMPLETED, ORDER_PREPARING
+    from .events import ORDER_PAYMENT_COMPLETED, ORDER_PREPARING
 
     # Customer: payment received
     customer_event = build_order_event(
@@ -214,7 +215,7 @@ def notify_driver_assigned(order):
     Notify customer + branch that a driver is coming,
     AND notify the specific driver they've been assigned.
     """
-    from addresses.events import ORDER_DRIVER_ASSIGNED
+    from .events import ORDER_DRIVER_ASSIGNED
 
     driver_name = order.driver.user.name if order.driver else "Driver"
 
@@ -237,10 +238,21 @@ def notify_driver_assigned(order):
     )
     broadcast_to_specific_drivers([order.driver_id], driver_event)
 
+def notify_order_picked_up(order):
+    """Notify customer and branch when driver picks up the order"""
+    from .events import ORDER_PICKED_UP
+
+    event_data = build_order_event(
+        ORDER_PICKED_UP,
+        order,
+        message="Your order has been picked up and is on the way!"
+    )
+    broadcast_to_order_group(order.id, event_data)
+    broadcast_to_branch(order.branch_id, event_data)
 
 def notify_order_picked_up(order):
     """Notify customer and branch when driver picks up the order"""
-    from addresses.events import ORDER_PICKED_UP
+    from .events import ORDER_PICKED_UP
 
     event_data = build_order_event(
         ORDER_PICKED_UP,
@@ -253,7 +265,7 @@ def notify_order_picked_up(order):
 
 def notify_order_delivered(order):
     """Notify customer, branch, and driver when order is delivered"""
-    from addresses.events import ORDER_DELIVERED
+    from .events import ORDER_DELIVERED
 
     event_data = build_order_event(
         ORDER_DELIVERED,
@@ -275,7 +287,7 @@ def notify_order_delivered(order):
 
 def notify_order_cancelled(order, reason=None, cancelled_by=None):
     """Notify all parties: customer (order group), branch, and driver if assigned"""
-    from addresses.events import ORDER_CANCELLED
+    from .events import ORDER_CANCELLED
 
     event_data = build_order_event(
         ORDER_CANCELLED,

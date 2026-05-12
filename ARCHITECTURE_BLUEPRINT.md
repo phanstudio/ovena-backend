@@ -1,58 +1,101 @@
-# Ovena Backend Current-State Architecture Blueprint
+# Ovena Backend Architecture Blueprint
 
-Generated: 2026-02-28  
-Scope: `C:/Users/paika/Documents/new_programs/python/backend_work/ovena-backend`
+Generated: 2026-05-09
+Scope: `C:\Users\paika\Documents\programs\python\backend\ovena-backend`
+Type: current-state architecture map derived from code
 
-## 1. Summary
+## 1. Purpose
 
-This blueprint captures the backend as it currently exists, including:
+This document captures how the backend is wired today:
 
-1. All systems in code (live and dormant).
-2. Model relationships across apps.
-3. Full HTTP + WebSocket route map with reachability status.
-4. Operational flows (auth, onboarding, order lifecycle, payment, dispatch, realtime).
-5. Wiring gaps and risks.
+1. Runtime platform and infrastructure dependencies.
+2. Installed apps and domain ownership.
+3. Active HTTP and WebSocket surfaces.
+4. Major data relationships and cross-app dependencies.
+5. End-to-end operational flows.
+6. Current gaps, risks, and architectural drift visible in code.
 
-This is a read-only architecture map. No API behavior was changed.
+This is a documentation update only. No application behavior is changed by this file.
 
-## 2. Source of Truth
+## 2. System Summary
 
-- `core/settings.py`
-- `core/urls.py`
-- `api/urls.py`
-- `api/routing.py`
-- `accounts/urls.py`
-- `menu/urls.py`
-- `coupons_discount/urls.py`
-- `ratings/urls.py`
-- `referrals/urls.py`
+Ovena is a Django-based delivery backend for a multi-sided food ordering platform. The codebase currently supports:
 
-## 3. Runtime and Platform Systems
+- Customer authentication and ordering.
+- Business onboarding and post-onboarding operations.
+- Driver onboarding, availability, payouts, and performance views.
+- Real-time order and location updates over WebSockets.
+- Payment initialization, webhook intake, wallet and withdrawal flows.
+- Coupon, referral, notification, and support workflows.
+- Admin operational tooling for users, businesses, drivers, withdrawals, support, and referral payouts.
 
-- Django + DRF
-- `rest_framework_simplejwt`
-- Channels + Daphne + Redis channel layer
-- Celery + Redis broker/result
-- PostGIS database backend
-- S3-backed media storage (public + private buckets)
-- Paystack integration (payment init + webhook)
-- Mono integration (driver identity verification)
-- Termii integration (SMS OTP)
-- SES via Anymail (email OTP)
+Architecturally, the backend is a modular Django monolith with:
 
-## 4. Domain Systems Inventory
+- HTTP APIs exposed through Django REST Framework.
+- Realtime features exposed through Channels.
+- Asynchronous work handled by Celery.
+- PostGIS-backed relational persistence.
+- Redis-backed cache, broker, result backend, and channel layer.
 
-| App | Purpose | Status |
-|---|---|---|
-| `accounts` | Users, roles, customer/driver/business admin/staff, onboarding | Live |
-| `addresses` | Address point storage + driver live location | Live (model/service level) |
-| `menu` | Menu catalog, availability, orders, events, chat, dispatch | Live |
-| `coupons_discount` | Coupon rules + coupon wheel admin and spin | Live |
-| `ratings` | Driver/branch ratings + stats signals | Dormant (app installed, routes not mounted from root) |
-| `referrals` | Referral ledger and conversion state | Broken + Dormant (recursive `urls.py`, not mounted from root) |
-| `authflow` | Auth helpers/decorators/permissions/schemas | Live utility layer, placeholder models/views |
+## 3. Runtime Platform
 
-## 5. URL Mount Graph and Reachability
+## 3.1 Core stack
+
+- Python `>=3.14` in `pyproject.toml`
+- Django `5.1`
+- Django REST Framework
+- SimpleJWT
+- Django Channels + Daphne
+- Celery
+- PostgreSQL/PostGIS
+- Redis
+
+## 3.2 Operational integrations
+
+- Cloudflare R2 / S3-compatible object storage for public and private media
+- Paystack for payment initialization, transfers, and webhook processing
+- Termii for SMS OTP
+- Amazon SES via Anymail for email delivery
+- Google OAuth exchange support
+- OpenRouteService, Mapbox, and Google routing backends
+- Optional Prometheus metrics when `ENABLE_METRICS=True`
+
+## 3.3 Process model
+
+- `core.wsgi` for WSGI hosting
+- `core.asgi` for HTTP + WebSocket hosting
+- `core.celery` for background workers
+- `entrypoint.sh` and Docker assets for containerized deployment
+
+## 4. Installed Apps and Ownership
+
+| App                | Role                                                         | Current status          |
+| ------------------ | ------------------------------------------------------------ | ----------------------- |
+| `accounts`         | Identity, roles, onboarding, business hierarchy, driver KYC  | Live                    |
+| `addresses`        | Address storage, GIS helpers, driver location support        | Live utility/data layer |
+| `business_api`     | Authenticated business admin control surface                 | Live                    |
+| `menu`             | Catalog, menu structure, order lifecycle, chat, WebSockets   | Live                    |
+| `driver_api`       | Driver dashboard, availability, earnings, withdrawals        | Live                    |
+| `notifications`    | Notification persistence and role-specific notification APIs | Live                    |
+| `authflow`         | Shared auth, permissions, schema helpers, abstract models    | Live utility layer      |
+| `ratings`          | Order, driver, and branch rating APIs/models                 | Installed but unmounted |
+| `coupons_discount` | Coupons and coupon wheel                                     | Live                    |
+| `referrals`        | Referral relationships and referral payouts                  | Live                    |
+| `payments`         | Sales, ledger, idempotency, withdrawals, reconciliation      | Live                    |
+| `support_center`   | Driver, business, and admin support ticket APIs              | Live                    |
+| `admin_api`        | Internal operational and finance admin APIs                  | Live                    |
+
+## 4.1 Code-present but not part of the active app graph
+
+| Module         | Notes                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------ |
+| `verification` | Has views/services/serializers, but is not in `INSTALLED_APPS` and is not mounted                |
+| `image`        | Utility view module used by onboarding/business image endpoints, but not an installed Django app |
+| `api`          | URL/index/routing entrypoint, not a domain app                                                   |
+
+## 5. Root Routing Graph
+
+## 5.1 HTTP mount graph
 
 ```mermaid
 flowchart TD
@@ -60,347 +103,404 @@ flowchart TD
     A --> C[/api/]
     A --> D[/api/schema/]
     A --> E[/api/docs/]
-    A --> F[/]
 
     C --> G[api.urls]
-    G --> H[/api/accounts/ -> accounts.urls]
-    G --> I[/api/menu/ -> menu.urls]
-    G --> J[/api/ -> coupons_discount.urls]
+    G --> H[/api/accounts/]
+    G --> I[/api/admin/]
+    G --> J[/api/business/]
+    G --> K[/api/menu/]
+    G --> L[/api/driver/]
+    G --> M[/api/referrals/]
+    G --> N[/api/coupons/]
 
-    A -. not mounted .-> K[ratings.urls]
-    A -. not mounted .-> L[referrals.urls]
-    L -. recursive include .-> L
+    A -. optional .-> P[django_prometheus.urls]
 ```
 
-Reachability states used:
+## 5.2 WebSocket mount graph
 
-- `live`: reachable from `core.urls`.
-- `dormant`: route file exists but not mounted from `core.urls`.
-- `broken`: routing definition is recursive or misconfigured.
+`core.asgi` mounts `api.routing.websocket_urlpatterns` under Channels:
 
-## 6. Canonical Route Inventory
+- `/ws/orders/<order_id>/`
+- `/ws/driver/location/`
+- `/ws/branch/`
+- `/ws/driver/orders/`
+- `/ws/orders/<order_id>/chat/`
 
-### 6.1 Live HTTP Routes
+These are wrapped with:
 
-| protocol | method | path | mounted_prefix | view | auth_class | permission | state |
-|---|---|---|---|---|---|---|---|
-| HTTP | GET | `/` | `/` | `api.views.index` | Django view | Public | live |
-| HTTP | GET | `/api/schema/` | `/` | `SpectacularAPIView` | Public | Public | live |
-| HTTP | GET | `/api/docs/` | `/` | `SpectacularSwaggerView` | Public | Public | live |
-| HTTP | GET,POST | `/admin/` | `/` | Django admin site | Session/admin auth | Admin site perms | live |
-| HTTP | POST | `/api/accounts/send-otp/` | `/api/accounts/` | `accounts.views.otp_views.SendPhoneOTPView` | `JWTAuthentication` (global default) | `AllowAny` (default) | live |
-| HTTP | POST | `/api/accounts/verify-otp/` | `/api/accounts/` | `accounts.views.otp_views.VerifyOTPView` | `JWTAuthentication` (global default) | `AllowAny` (default) | live |
-| HTTP | POST | `/api/accounts/register-manager/` | `/api/accounts/` | `accounts.views.account_views.RegisterRManager` | `JWTAuthentication` (global default) | none (`[]`) | live |
-| HTTP | POST | `/api/accounts/register-user/` | `/api/accounts/` | `accounts.views.account_views.RegisterCustomer` | `CustomCustomerAuth` | `IsAuthenticated` | live |
-| HTTP | POST | `/api/accounts/oauth/exchange/` | `/api/accounts/` | `accounts.views.oath_views.OAuthExchangeView` | `JWTAuthentication` (global default) | `AllowAny` | live |
-| HTTP | GET | `/api/accounts/profile/` | `/api/accounts/` | `accounts.views.account_views.UserProfileView` | `JWTAuthentication` (global default) | `IsAuthenticated` | live |
-| HTTP | PUT | `/api/accounts/customer/update/` | `/api/accounts/` | `accounts.views.account_views.UpdateCustomer` | `CustomCustomerAuth` | `IsAuthenticated` | live |
-| HTTP | DELETE | `/api/accounts/profile/delete/` | `/api/accounts/` | `accounts.views.account_views.DeleteAccountView` | `JWTAuthentication` (global default) | `IsAuthenticated` | live |
-| HTTP | DELETE | `/api/accounts/profile/delete2/` | `/api/accounts/` | `accounts.views.account_views.Delete2AccountView` | `JWTAuthentication` (global default) | `AllowAny` (default) | live |
-| HTTP | POST | `/api/accounts/send-email-otp/` | `/api/accounts/` | `accounts.views.otp_views.SendEmailOTPView` | `JWTAuthentication` (global default) | `AllowAny` (default) | live |
-| HTTP | POST | `/api/accounts/verify-email-otp/` | `/api/accounts/` | `accounts.views.otp_views.VerifyEmailOTPView` | `JWTAuthentication` (global default) | `AllowAny` (default) | live |
-| HTTP | PATCH | `/api/accounts/branches/{branch_id}/update/` | `/api/accounts/` | `accounts.views.account_views.UpdateBranch` | `JWTAuthentication` (global default) | `AllowAny` (default) | live |
-| HTTP | POST | `/api/accounts/rotate-token/` | `/api/accounts/` | `accounts.views.jwt_views.RotateTokenView` | `JWTAuthentication` (global default) | `AllowAny` (default) | live |
-| HTTP | POST | `/api/accounts/refresh/` | `/api/accounts/` | `accounts.views.jwt_views.RefreshTokenView` | `JWTAuthentication` (global default) | `AllowAny` (default) | live |
-| HTTP | POST | `/api/accounts/logout/` | `/api/accounts/` | `accounts.views.jwt_views.LogoutView` | `JWTAuthentication` (global default) | `IsAuthenticated` | live |
-| HTTP | POST | `/api/accounts/login/` | `/api/accounts/` | `accounts.views.jwt_views.LogInView` | `JWTAuthentication` (global default) | `AllowAny` (default) | live |
-| HTTP | POST | `/api/accounts/onboard/admin/` | `/api/accounts/onboard/` | `accounts.views.account_views.RegisterBAdmin` | `JWTAuthentication` (global default) | `AllowAny` | live |
-| HTTP | POST | `/api/accounts/onboard/phase1/` | `/api/accounts/onboard/` | `accounts.views.account_views.RestaurantPhase1RegisterView` | `JWTAuthentication` (global default) | `IsBusinessAdmin` | live |
-| HTTP | POST | `/api/accounts/onboard/phase2/` | `/api/accounts/onboard/` | `accounts.views.account_views.RestaurantPhase2OnboardingView` | `CustomBAdminAuth` | `IsBusinessAdmin` | live |
-| HTTP | POST | `/api/accounts/onboard/phase3/` | `/api/accounts/onboard/` | `menu.views.registration.RegisterMenusPhase3View` | `CustomBAdminAuth` | `IsBusinessAdmin` | live |
-| HTTP | POST | `/api/accounts/onboard/batch-gen-url/` | `/api/accounts/onboard/` | `menu.views.registration.BatchGenerateUploadURLView` | `CustomBAdminAuth` | `IsBusinessAdmin` | live |
-| HTTP | GET | `/api/accounts/onboard/status/` | `/api/accounts/onboard/` | `accounts.views.account_views.BuisnnessOnboardingStatusView` | `JWTAuthentication` (global default) | `IsBusinessAdmin` | live |
-| HTTP | GET | `/api/accounts/onboard/driver/status/` | `/api/accounts/onboard/driver/` | `accounts.views.driver_reg_views.OnboardingStatusView` | `JWTAuthentication` (global default) | `IsAuthenticated` | live |
-| HTTP | PUT | `/api/accounts/onboard/driver/phase/1/` | `/api/accounts/onboard/driver/` | `accounts.views.driver_reg_views.OnboardingPhase1View` | `JWTAuthentication` (global default) | `IsAuthenticated` | live |
-| HTTP | PUT | `/api/accounts/onboard/driver/phase/2/` | `/api/accounts/onboard/driver/` | `accounts.views.driver_reg_views.OnboardingPhase2View` | `JWTAuthentication` (global default) | `IsAuthenticated` | live |
-| HTTP | PUT | `/api/accounts/onboard/driver/phase/3/` | `/api/accounts/onboard/driver/` | `accounts.views.driver_reg_views.OnboardingPhase3View` | `JWTAuthentication` (global default) | `IsAuthenticated` | live |
-| HTTP | PUT | `/api/accounts/onboard/driver/phase/4/` | `/api/accounts/onboard/driver/` | `accounts.views.driver_reg_views.OnboardingPhase4View` | `JWTAuthentication` (global default) | `IsAuthenticated` | live |
-| HTTP | POST | `/api/accounts/admin-login/` | `/api/accounts/` | `accounts.views.account_views.AdminLoginView` | `JWTAuthentication` (global default) | `AllowAny` | live |
-| HTTP | POST | `/api/accounts/driver-login/` | `/api/accounts/` | `accounts.views.account_views.DriverLoginView` | `JWTAuthentication` (global default) | `AllowAny` | live |
-| HTTP | POST | `/api/accounts/password-reset/` | `/api/accounts/` | `accounts.views.account_views.PasswordResetView` | `JWTAuthentication` (global default) | `AllowAny` | live |
-| HTTP | GET | `/api/menu/businesses/{business_id}/menus/` | `/api/menu/` | `menu.views.main.MenuView` | `JWTAuthentication` (global default) | `AllowAny` (default) | live |
-| HTTP | GET | `/api/menu/restaurant-list/` | `/api/menu/` | `menu.views.main.RestaurantView` | `JWTAuthentication` (global default) | `AllowAny` (default) | live |
-| HTTP | GET | `/api/menu/menuitem-search/` | `/api/menu/` | `menu.views.main.SearchMenuItems` | `JWTAuthentication` (global default) | `AllowAny` (default) | live |
-| HTTP | GET,POST | `/api/menu/restaurant-order/` | `/api/menu/` | `menu.views.order.ResturantOrderView` | `CustomJWTAuthentication` (via decorator) | `ScopePermission` (decorator-level) | live |
-| HTTP | GET,POST | `/api/menu/driver-order/` | `/api/menu/` | `menu.views.order.DriverOrderView` | `CustomDriverAuth` | `AllowAny` (default) | live |
-| HTTP | GET | `/api/menu/home-page/` | `/api/menu/` | `menu.views.main.HomePageView` | `JWTAuthentication` (global default) | `AllowAny` (default) | live |
-| HTTP | GET,POST | `/api/menu/order/` | `/api/menu/` | `menu.views.order.OrderView` | `CustomCustomerAuth` | `AllowAny` (default) | live |
-| HTTP | GET | `/api/menu/orders/{order_id}/` | `/api/menu/` | `menu.views.order.OrderView` | `CustomCustomerAuth` | `AllowAny` (default) | live |
-| HTTP | PATCH | `/api/menu/order/{order_id}/cancel/` | `/api/menu/` | `menu.views.order.OrderCancelView` | `CustomCustomerAuth` | `AllowAny` (default) | live |
-| HTTP | POST (expected) | `/api/menu/paystack/webhook/` | `/api/menu/` | `menu.payment_views.paystack_webhook` | Custom HMAC signature validation | Public endpoint + signature check | live |
-| HTTP | GET | `/api/coupons/eligible/` | `/api/` | `coupons_discount.views.EligibleCouponsListView` | `JWTAuthentication` (global default) | `IsAdminUser` | live |
-| HTTP | GET | `/api/coupon-wheel/` | `/api/` | `coupons_discount.views.CouponWheelGetView` | `JWTAuthentication` (global default) | `IsAuthenticated` | live |
-| HTTP | POST | `/api/coupon-wheel/spin/` | `/api/` | `coupons_discount.views.CouponWheelSpinView` | `JWTAuthentication` (global default) | `IsAuthenticated` | live |
-| HTTP | POST | `/api/admin/coupons/` | `/api/` | `coupons_discount.views.CouponCreateView` | `JWTAuthentication` (global default) | `IsAdminUser` | live |
-| HTTP | PUT,PATCH | `/api/admin/coupons/{pk}/` | `/api/` | `coupons_discount.views.CouponUpdateView` | `JWTAuthentication` (global default) | `IsAdminUser` | live |
-| HTTP | POST | `/api/admin/coupon-wheels/` | `/api/` | `coupons_discount.views.CouponWheelCreateView` | `JWTAuthentication` (global default) | `IsAdminUser` | live |
-| HTTP | PUT,PATCH | `/api/admin/coupon-wheels/{pk}/` | `/api/` | `coupons_discount.views.CouponWheelSetterView` | `JWTAuthentication` (global default) | `IsAdminUser` | live |
+- `AllowedHostsOriginValidator`
+- `menu.ws_middleware.TokenAuthMiddleware`
 
-Notes:
+## 6. Route Surface by Domain
 
-- If `ENABLE_METRICS=True`, additional prometheus routes are included at root via `django_prometheus.urls`.
-- DRF global default auth class is `rest_framework_simplejwt.authentication.JWTAuthentication`.
-- DRF default permission is `AllowAny` where no explicit class is set.
+This section summarizes the API surface by bounded area instead of listing every single method.
 
-### 6.2 Dormant and Broken HTTP Routes
+## 6.1 Public/platform routes
 
-| protocol | method | path | mounted_prefix | view | auth_class | permission | state |
-|---|---|---|---|---|---|---|---|
-| HTTP | POST | `rate-order/` | N/A (unmounted) | `ratings.views.SubmitOrderRatingsView` | `JWTAuthentication` (default if mounted) | `IsAuthenticated` | dormant |
-| HTTP | GET | `driver-ratings/` | N/A (unmounted) | `ratings.views.DriverRatingsView` | `CustomDriverAuth` | `IsAuthenticated` | dormant |
-| HTTP | GET | `branch-ratings/` | N/A (unmounted) | `ratings.views.BranchRatingsView` | `CustomJWTAuthentication` (via decorator) | `ScopePermission` (decorator-level) | dormant |
-| HTTP | include | `api/referrals/` | N/A (unmounted) | `referrals.urls -> include("referrals.urls")` | N/A | N/A | broken |
+- `GET /`
+- `GET /api/schema/`
+- `GET /api/docs/`
+- `admin/`
 
-Notes:
+## 6.2 Accounts
 
-- `ratings.urls` exists but is not included from `core.urls`/`api.urls`.
-- `referrals.urls` is recursively self-including and would recurse if mounted.
-- `referrals.views` classes exist but are unreachable from root.
+Mounted at `/api/accounts/`
 
-### 6.3 Live WebSocket Routes
+- OTP send/verify for phone and email
+- Customer registration and profile fetch/update
+- OAuth exchange
+- JWT login, refresh, rotation, logout
+- Password reset and password change
+- Business onboarding:
+  - `/api/accounts/onboard/admin/`
+  - `/api/accounts/onboard/re/admin/`
+  - `/api/accounts/onboard/phase1/`
+  - `/api/accounts/onboard/phase2/`
+  - `/api/accounts/onboard/phase3/`
+  - `/api/accounts/onboard/batch-gen-url/`
+  - `/api/accounts/onboard/status/`
+- Driver onboarding:
+  - `/api/accounts/onboard/driver/status/`
+  - `/api/accounts/onboard/driver/phase/1/` through `/phase/4/`
+- Linked-user and app-admin approval/request flows
 
-| protocol | method | path | mounted_prefix | view | auth_class | permission | state |
-|---|---|---|---|---|---|---|---|
-| WS | CONNECT | `/ws/orders/{order_id}/` | `/ws/` | `menu.consumers.OrderConsumer` | token from `TokenAuthMiddleware`, validated in consumer | order participant check (customer/driver/branch) | live |
-| WS | CONNECT | `/ws/driver/location/` | `/ws/` | `menu.consumers.DriverLocationConsumer` | token from `TokenAuthMiddleware`, validated in consumer | driver role check | live |
-| WS | CONNECT | `/ws/branch/{branch_id}/` | `/ws/` | `menu.consumers.BranchConsumer` | token from `TokenAuthMiddleware`, validated in consumer | branch staff + branch ownership check | live |
-| WS | CONNECT | `/ws/driver/orders/` | `/ws/` | `menu.consumers.DriverOrdersConsumer` | token from `TokenAuthMiddleware`, validated in consumer | driver role check | live |
-| WS | CONNECT | `/ws/orders/{order_id}/chat/` | `/ws/` | `menu.consumers.ChatConsumer` | token from `TokenAuthMiddleware`, validated in consumer | order participant check | live |
+## 6.3 Business API
 
-## 7. Model Relationship Map
+Mounted at `/api/business/`
 
-### 7.1 Aggregate Relationship View
+- Business dashboard and store analysis
+- Business payout setup and payment verification
+- Business wallet balance, transaction history, withdrawal eligibility, withdrawal request/history
+- Branch list, branch edit, branch delete
+- Branch hours and branch closure routes
+- Close-all-branches route
+- Staff list and revoke routes
+- Business admin update and verification
+- Business image update
+- Business notifications and support ticket routes included from other apps
 
-- `User -> CustomerProfile` (`OneToOne`)
-- `User -> DriverProfile` (`OneToOne`)
-- `User -> BusinessAdmin` (`OneToOne`)
-- `User -> PrimaryAgent` (`OneToOne` without explicit related_name)
-- `Business -> Branch -> BranchOperatingHours`
-- `Business -> Menu -> MenuCategory -> MenuItem`
-- `BaseItem` reused by `MenuItem` and `MenuItemAddon`
-- `Branch + BaseItem -> BaseItemAvailability` (unique pair)
-- `Order -> OrderItem -> (VariantOption M2M, MenuItemAddon M2M)`
-- `Order -> Coupon`, `Order -> DriverProfile`, `Order -> Payment`
-- `DriverProfile <-> DriverLocation` (`OneToOne`)
-- `DriverRating` and `BranchRating` link into `Order`, `CustomerProfile`, and `DriverProfile`/`Branch`
-- `Referral` links `User(referrer) -> User(referee)`
+## 6.4 Menu and ordering
 
-### 7.2 ER Diagram (Key Models)
+Mounted at `/api/menu/`
 
-```mermaid
-erDiagram
-    USER ||--o| CUSTOMER_PROFILE : has
-    USER ||--o| DRIVER_PROFILE : has
-    USER ||--o| BUSINESS_ADMIN : has
-    USER ||--o| PRIMARY_AGENT : has
+- Business menu listing
+- Restaurant list and homepage feeds
+- Menu-item search
+- Customer order create/detail/cancel
+- Restaurant order interactions
+- Driver order interactions
+- Menu update and delete surfaces for business users
+- Branch-scoped availability list and bulk update routes
 
-    BUSINESS ||--o| BUSINESS_CERD : has
-    BUSINESS ||--o| BUSINESS_PAYOUT_ACCOUNT : has
-    BUSINESS ||--o{ BRANCH : owns
-    BUSINESS ||--o{ MENU : owns
-    BUSINESS ||--o{ BASE_ITEM : owns
+## 6.5 Driver API
 
-    BRANCH ||--o{ BRANCH_OPERATING_HOURS : has
-    MENU ||--o{ MENU_CATEGORY : has
-    MENU_CATEGORY ||--o{ MENU_ITEM : has
-    BASE_ITEM ||--o{ MENU_ITEM : reused_by
-    MENU_ITEM ||--o{ VARIANT_GROUP : has
-    VARIANT_GROUP ||--o{ VARIANT_OPTION : has
-    MENU_ITEM ||--o{ MENU_ITEM_ADDON_GROUP : has
-    MENU_ITEM_ADDON }o--o{ MENU_ITEM_ADDON_GROUP : in_groups
-    BASE_ITEM ||--o{ MENU_ITEM_ADDON : reused_by
+Mounted at `/api/driver/`
 
-    BRANCH ||--o{ BASE_ITEM_AVAILABILITY : has
-    BASE_ITEM ||--o{ BASE_ITEM_AVAILABILITY : has
+- Driver dashboard
+- Driver profile
+- Driver availability
+- Earnings summary/history
+- Withdrawal eligibility, create/list, detail
+- Performance analytics
+- Driver notifications
+- Driver support FAQs and support tickets
 
-    CUSTOMER_PROFILE ||--o{ ORDER : places
-    BRANCH ||--o{ ORDER : receives
-    DRIVER_PROFILE ||--o{ ORDER : delivers
-    COUPON ||--o{ ORDER : applied_to
-    PAYMENT ||--o| ORDER : for
+## 6.6 Admin API
 
-    ORDER ||--o{ ORDER_ITEM : contains
-    MENU_ITEM ||--o{ ORDER_ITEM : selected
-    ORDER_ITEM }o--o{ VARIANT_OPTION : selected_variants
-    ORDER_ITEM }o--o{ MENU_ITEM_ADDON : selected_addons
+Mounted at `/api/admin/`
 
-    DRIVER_PROFILE ||--o| DRIVER_LOCATION : current_location
+- Admin login/profile/update
+- Dashboard stats
+- User list/detail
+- Driver list and onboarding review
+- Business list and update
+- Withdrawal list/detail/retry/mark-paid/mark-failed/batch-execute/reconcile
+- Notification list/send
+- Password reset/change/token refresh/logout
+- Coupon and coupon-wheel management
+- Admin support tickets
+- Referral payout admin APIs
 
-    CUSTOMER_PROFILE ||--o{ DRIVER_RATING : gives
-    DRIVER_PROFILE ||--o{ DRIVER_RATING : receives
-    ORDER ||--o{ DRIVER_RATING : context
+## 6.7 Payments
 
-    CUSTOMER_PROFILE ||--o{ BRANCH_RATING : gives
-    BRANCH ||--o{ BRANCH_RATING : receives
-    ORDER ||--o{ BRANCH_RATING : context
+Mounted directly from `payments.urls` under `/api/`
 
-    USER ||--o{ REFERRAL : referrer
-    USER ||--o| REFERRAL : referee
-```
+- `POST /api/sales/initialize/`
+- `POST /api/sales/<uuid:sale_id>/complete/`
+- `POST /api/sales/<uuid:sale_id>/refund/`
+- `GET /api/wallet/balance/`
+- `POST /api/wallet/withdraw/`
+- `GET /api/wallet/withdrawals/`
+- `POST /api/webhooks/paystack/`
 
-### 7.3 Cross-App Dependency Map
+## 6.8 Promotions and referrals
 
-| From app | Depends on | Why |
-|---|---|---|
-| `menu` | `accounts`, `addresses`, `coupons_discount` | Orders use user/branch/driver, location lookup, coupon FK |
-| `ratings` | `accounts`, `menu`, `authflow` | Rating entities depend on order/customer/driver/branch and auth decorators |
-| `referrals` | `accounts` | Referral model and code application use auth user/customer profile |
-| `accounts` | `authflow`, `addresses`, `menu` | token/otp utilities, address FK/M2M, driver current order FK |
-| `addresses` | `accounts` | driver location OneToOne to `DriverProfile` |
-| `coupons_discount` | `accounts`, `menu` | coupon scope by business and item/category targeting |
-| `authflow` | `accounts` | custom auth resolves `User` and linked staff |
+- `/api/coupons/eligible/`
+- `/api/coupons/wheel/`
+- `/api/coupons/wheel/spin/`
+- `/api/referrals/apply/`
+- `/api/referrals/me/status/`
+- `/api/referrals/me/list/`
 
-## 8. Operational Flows
+## 6.9 Dormant routes
 
-### 8.1 Customer Auth and Registration
+`ratings.urls` exists but is not mounted from `api.urls`:
+
+- `/rate-order/`
+- `/driver-ratings/`
+- `/branch-ratings/`
+
+Status: code-present, installed, unreachable from the root URL graph.
+
+## 7. Data Ownership and Key Models
+
+## 7.1 Identity and business structure
+
+Owned by `accounts`
+
+- `User`
+- `ProfileBase`
+- `CustomerProfile`
+- `DriverProfile`
+- `BusinessAdmin`
+- `PrimaryAgent`
+- `Business`
+- `Branch`
+- `BranchOperatingHours`
+- `BusinessOnboardStatus`
+- `BusinessCerd`
+- `BusinessPayoutAccount`
+- `DriverCred`
+- `DriverAvailability`
+- `DriverOnboardingSubmission`
+- `DriverDocument`
+- `DriverVerification`
+- `DriverBankAccount`
+
+## 7.2 Catalog and orders
+
+Owned by `menu`
+
+- `BaseItem`
+- `Menu`
+- `MenuCategory`
+- `MenuItem`
+- `VariantGroup`
+- `VariantOption`
+- `MenuItemAddonGroup`
+- `MenuItemAddon`
+- `BaseItemAvailability`
+- `Order`
+- `OrderItem`
+- `OrderEvent`
+- `ChatMessage`
+
+Current `Order.STATUS_CHOICES`:
+
+- `pending`
+- `confirmed`
+- `payment_pending`
+- `preparing`
+- `ready`
+- `driver_assigned`
+- `picked_up`
+- `on_the_way`
+- `delivered`
+- `cancelled`
+
+## 7.3 Payments and ledger
+
+Owned by `payments`
+
+- `UserAccount`
+- `PlatformConfig`
+- `PaymentIdempotencyKey`
+- `Sale`
+- `LedgerEntry`
+- `Withdrawal`
+- `PaystackWebhookLog`
+- `ReconciliationLog`
+
+## 7.4 Driver operations
+
+Owned by `driver_api`
+
+- `DriverWallet`
+- `DriverLedgerEntry`
+- `DriverWithdrawalRequest`
+- `SupportFAQCategory`
+- `SupportFAQItem`
+
+## 7.5 Support
+
+Owned by `support_center`
+
+- `SupportTicket`
+- `SupportTicketMessage`
+
+## 7.6 Promotions and trust
+
+- `coupons_discount`: `Coupons`, `CouponWheel`
+- `ratings`: `DriverRating`, `BranchRating`
+- `referrals`: `ProfileReferral`, `ReferralPayout`
+- `notifications`: `Notification`
+
+## 8. Cross-App Dependency Map
+
+| From             | Depends on                                                         | Why                                                                          |
+| ---------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `menu`           | `accounts`, `coupons_discount`, `payments`                         | orders depend on customer/branch/driver, coupon FK, and `Sale` linkage       |
+| `business_api`   | `accounts`, `payments`, `notifications`, `support_center`, `image` | business admin operations, payout flows, support and notifications           |
+| `driver_api`     | `accounts`, `payments`, `notifications`, `support_center`          | driver identity, payout state, notifications, support                        |
+| `payments`       | `accounts`, `menu`, `referrals`, `driver_api`                      | sale parties, order linkage, referral allocation, driver withdrawal bridging |
+| `referrals`      | `accounts`                                                         | profile and user linkage                                                     |
+| `ratings`        | `accounts`, `menu`, `authflow`                                     | customer/driver/branch/order and auth helpers                                |
+| `support_center` | `accounts`                                                         | ticket ownership and assignee relationships                                  |
+| `notifications`  | `accounts`                                                         | target user relationships                                                    |
+| `addresses`      | `accounts`                                                         | driver location and GIS helpers                                              |
+
+## 9. Major Runtime Flows
+
+## 9.1 Authentication and account bootstrap
 
 ```mermaid
 flowchart TD
-    A[Client send OTP] --> B[/api/accounts/send-otp/ or send-email-otp/]
-    B --> C[OTPManager stores code in cache]
-    C --> D[Client verify OTP]
-    D --> E[/api/accounts/verify-otp/ or verify-email-otp/]
-    E --> F[Get or create User]
-    F --> G[Issue JWT access + refresh]
-    G --> H[Optional profile completion]
-    H --> I[/api/accounts/register-user/]
-    I --> J[Create CustomerProfile + default Address]
+    A[Client sends OTP] --> B[accounts OTP views]
+    B --> C[common.otp providers + cache]
+    C --> D[Client verifies OTP]
+    D --> E[User resolved or created]
+    E --> F[JWT issued]
+    F --> G[Customer profile completion or role-specific onboarding]
 ```
 
-### 8.2 Business Onboarding Phase1-3 Plus Menu Registration
+## 9.2 Business onboarding
 
 ```mermaid
 flowchart TD
-    A[Business admin verify phone OTP] --> B[/api/accounts/onboard/admin/]
-    B --> C[Create User role=businessadmin]
-    C --> D[/api/accounts/onboard/phase1/]
-    D --> E[Create Business + BusinessCerd + BusinessAdmin link]
-    E --> F[/api/accounts/onboard/phase2/]
-    F --> G[Update business docs + payout + branches + operating hours]
-    G --> H[/api/accounts/onboard/phase3/]
-    H --> I[Bulk create Menu tree and BaseItems]
-    I --> J[Bootstrap BaseItemAvailability for all branches]
-    J --> K[Mark onboarding step complete]
+    A[Business admin OTP/auth] --> B[RegisterBAdmin]
+    B --> C[Phase1 creates Business structure]
+    C --> D[Phase2 captures docs, payout, branches, hours]
+    D --> E[Phase3 registers menu tree]
+    E --> F[Base item availability bootstrapped]
+    F --> G[BusinessOnboardStatus updated]
 ```
 
-### 8.3 Order Lifecycle
+## 9.3 Driver onboarding
 
 ```mermaid
 flowchart TD
-    A[Customer create order] --> B[/api/menu/order/ POST]
-    B --> C[Order status=pending + OrderEvent created]
-    C --> D[WebSocket notify branch]
-    C --> E[Celery timeout: branch confirmation]
-    D --> F[Branch accept]
-    F --> G[status=confirmed -> payment_pending]
-    G --> H[Paystack init URL sent to customer]
-    G --> I[Celery payment timeout]
-    H --> J[Paystack webhook success]
-    J --> K[status=preparing]
-    K --> L[Branch marks made]
-    L --> M[status=ready + driver search task]
-    M --> N[Driver assigned]
-    N --> O[Driver accepts]
-    O --> P[status=picked_up]
-    P --> Q[Driver verifies delivery phrase]
-    Q --> R[status=delivered]
-    E --> S[if pending timeout => cancelled]
-    I --> T[if payment timeout => cancelled]
+    A[Driver auth] --> B[Status endpoint]
+    B --> C[Phase1 personal profile]
+    C --> D[Phase2 documents]
+    D --> E[Phase3 verification/bank data]
+    E --> F[Phase4 final submission]
+    F --> G[Admin review and activation path]
 ```
 
-### 8.4 Realtime and Celery Interaction
+## 9.4 Customer order lifecycle
 
 ```mermaid
 flowchart TD
-    A[HTTP order or status mutation] --> B[Create/Update Order + OrderEvent]
-    B --> C[websocket_utils broadcasts]
+    A[Customer creates order] --> B[menu OrderView]
+    B --> C[Order + OrderItems persisted]
+    C --> D[OrderEvent created]
+    D --> E[Branch websocket notified]
+    E --> F[Branch confirms order]
+    F --> G[Payment initialized]
+    G --> H[Paystack webhook updates sale/order]
+    H --> I[Preparing]
+    I --> J[Ready]
+    J --> K[Driver discovery and assignment]
+    K --> L[Pickup]
+    L --> M[On the way]
+    M --> N[Delivered]
+```
+
+## 9.5 Realtime updates
+
+```mermaid
+flowchart TD
+    A[HTTP mutation or background task] --> B[Order/driver/support state change]
+    B --> C[menu.websocket_utils broadcasts]
     C --> D[OrderConsumer]
     C --> E[BranchConsumer]
     C --> F[DriverOrdersConsumer]
-    G[DriverLocationConsumer updates] --> H[DriverLocation table]
-    H --> D
-    I[Celery tasks] --> J[timeouts, assignment, cleanup, verify payment]
-    J --> B
-    J --> C
+    G[DriverLocationConsumer] --> H[driver location persistence]
+    H --> C
 ```
 
-## 9. Current Gaps and Risks
+## 9.6 Payment and payout flow
 
-| Severity | Area | Finding | Evidence |
-|---|---|---|---|
-| HIGH | Routing | `referrals/urls.py` is recursive (`include("referrals.urls")`) and not mounted from root. | `referrals/urls.py`, `core/urls.py`, `api/urls.py` |
-| HIGH | Exposure control | Multiple sensitive endpoints rely on default `AllowAny` (for example `Delete2AccountView`, `UpdateBranch`). | `accounts/views/account_views.py`, `accounts/urls.py` |
-| HIGH | Dormant module | `ratings` app is installed but route file is never mounted, so API is unreachable. | `core/settings.py`, `api/urls.py`, `ratings/urls.py` |
-| HIGH | Referral service-model mismatch | Referral service writes `referee_user.referred_by`, but `User` model does not define `referred_by`. | `referrals/services.py`, `accounts/models/main.py` |
-| MEDIUM | Decorator behavior | `subuser_authentication` wrapper sets permission/auth classes, potentially overriding route class permissions. | `authflow/decorators.py` |
-| MEDIUM | Location utility logic | `checkset_location` returns a point only when coordinates are missing (`None`), indicating inverted condition. | `addresses/utils/gis_point.py` |
-| MEDIUM | Runtime consistency | Some routed views reference fields that may not exist on current models (for example `is_approved` check on driver profile). | `accounts/views/account_views.py`, `accounts/models/driver.py` |
-| MEDIUM | Realtime auth hardening | WebSocket auth path contains decode fallback and manual handling; needs tighter validation and cleanup. | `menu/ws_middleware.py`, `menu/consumers.py` |
-| MEDIUM | Background task integrity | `verify_payment_status` references `Transaction` model in `menu.tasks`, but model is not present in current model exports. | `menu/tasks.py`, `menu/models/__init__.py` |
-| LOW | Naming drift | `restaurant` compatibility aliases and mixed naming (`business`, `restaurant`, `buisnessstaff`) increase maintenance risk. | `accounts/models/main.py`, views and serializers |
+```mermaid
+flowchart TD
+    A[Sale initialize endpoint] --> B[payments.services.sale_service]
+    B --> C[Paystack initialize]
+    C --> D[Sale persisted with split snapshot]
+    D --> E[Webhook intake]
+    E --> F[Webhook log + sale status changes]
+    F --> G[Ledger crediting / completion flows]
 
-## 10. Recommended Normalization Backlog (Separated From Facts)
+    H[Driver or business withdrawal request] --> I[eligibility + idempotency]
+    I --> J[payments.payouts services]
+    J --> K[Paystack transfer]
+    K --> L[Withdrawal state/reconciliation]
+```
 
-1. Mount `ratings.urls` under `/api/ratings/` in `api/urls.py`.
-2. Replace `referrals/urls.py` with concrete non-recursive endpoints and mount under `/api/referrals/`.
-3. Define explicit auth + permission classes on every routed API view, avoiding default `AllowAny` for mutating endpoints.
-4. Refactor `subuser_authentication` so it merges or respects view-level permissions.
-5. Fix `checkset_location` coordinate logic and add tests.
-6. Align referral code ownership contract (`User` vs `CustomerProfile`) and enforce one clear model path.
-7. Standardize naming (`business` only) and remove transitional aliases after migration.
-8. Audit routed views for stale model-field references and update serializers/views together.
-9. Simplify WebSocket auth path to one strict JWT validation strategy.
-10. Add architecture tests that fail on unmounted app routes or recursive include patterns.
+## 10. Architecture Strengths
 
-## 11. Important Public API / Interface Changes
+- Clear app-level separation between identity, ordering, payments, business ops, and driver ops.
+- Payments app has a strong accounting-centric model with idempotency and reconciliation concepts.
+- WebSocket paths are explicit and centered around order and driver coordination.
+- Business and driver APIs are separated from onboarding, which keeps post-onboarding operational surfaces cleaner.
+- Support and notifications are reusable surfaces mounted into role-specific APIs.
 
-- No public API/interface changes were made by this blueprint.
-- This document only describes current state and identified risks.
+## 11. Current Risks and Design Drift
 
-## 12. Test Cases and Validation Scenarios
+| Severity | Area                       | Finding                                                                                                                                                                                        | Evidence                                               |
+| -------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| High     | Access control consistency | The project relies heavily on per-view configuration and custom auth classes, while DRF default permission classes are not globally locked down. Mutating routes must be audited individually. | `core/settings.py`, multiple view modules              |
+| High     | Documentation drift        | The previous blueprint no longer matched mounted apps: referrals are live, payments/admin/business/driver routes exist, and the WebSocket branch route changed to `/ws/branch/`.               | `api/urls.py`, `api/routing.py`                        |
+| Medium   | Dormant installed app      | `ratings` is installed but not mounted, which increases maintenance cost and creates misleading expectations about available APIs.                                                             | `core/settings.py`, `ratings/urls.py`, `api/urls.py`   |
+| Medium   | Naming drift               | The code still mixes `business` and `restaurant` terminology and contains misspellings like `Buisness...`, making mental models and API naming inconsistent.                                   | `accounts`, `business_api`, `menu`                     |
+| Medium   | Support model split        | FAQ data lives in `driver_api`, while tickets live in `support_center` and are mounted through multiple apps. Ownership is workable but conceptually split.                                    | `driver_api/models.py`, `support_center/models.py`     |
+| Medium   | Utility/module drift       | `verification` exists outside the active app graph, and `image.views` is used as a utility module rather than a proper installed app.                                                          | repo structure, mounted URLs                           |
+| Medium   | Payment coupling           | `menu.Order` directly references `payments.Sale`, while driver withdrawals bridge into `payments.Withdrawal`. This is practical, but creates tight cross-app coupling.                         | `menu/models/order.py`, `driver_api/unified_bridge.py` |
+| Medium   | Worktree hygiene           | The repository already has unrelated modified/untracked files, so documentation changes should be reviewed alongside existing local work.                                                      | `git status --short`                                   |
 
-### 12.1 Route Truth Validation
+## 12. Recommended Backlog
 
-1. Every row in Section 6 must map to an actual route declaration in `core/urls.py`, `api/urls.py`, and app `urls.py`.
-2. Every declared route family must have one state: `live`, `dormant`, or `broken`.
+1. Decide whether `ratings` should be mounted, removed, or moved behind a feature flag.
+2. Add an architecture test that asserts the mounted URL graph for installed route-bearing apps.
+3. Introduce explicit default permission classes or a permission audit for every mutating endpoint.
+4. Normalize naming from `restaurant`/`buisness` toward one canonical vocabulary.
+5. Consolidate support ownership so FAQ and ticketing live under one clear domain.
+6. Decide whether `verification` should become an installed app or be removed.
+7. Consider documenting route contracts from code generation instead of maintaining them manually.
+8. Reduce cross-app leakage by formalizing service boundaries between `menu`, `payments`, and `driver_api`.
 
-### 12.2 Reachability Validation
+## 13. Validation Sources
 
-1. Live route probes should return non-404 when app is running.
-2. Dormant route probes should return 404 from root graph until mounted.
-3. Broken route family (`referrals`) should be flagged by static check before mount attempt.
+Primary files used for this blueprint:
 
-### 12.3 Model Graph Validation
+- `core/settings.py`
+- `core/urls.py`
+- `core/asgi.py`
+- `api/urls.py`
+- `api/routing.py`
+- `accounts/urls.py`
+- `business_api/urls.py`
+- `menu/urls.py`
+- `driver_api/urls.py`
+- `admin_api/urls.py`
+- `payments/urls.py`
+- `coupons_discount/urls.py`
+- `referrals/urls.py`
+- `ratings/urls.py`
+- model and README files across the mounted apps
 
-1. Every documented cross-app relationship must map to explicit model field declarations.
-2. Relationship map must not rely on migrations-only historical models.
+## 14. Assumptions
 
-### 12.4 Flow Validation
-
-1. Order flow statuses must match `Order.STATUS_CHOICES`.
-2. WebSocket flow must map to consumers in `menu/consumers.py`.
-3. Celery flow must map to tasks in `menu/tasks.py`.
-
-## 13. Assumptions and Defaults
-
-1. Scope is only `ovena-backend` workspace path above.
-2. "Everything" includes live and dormant modules.
-3. This is an as-is map, not a behavioral rewrite.
-4. Naming conflicts are documented as current-state facts.
-5. Priority is factual mapping first, recommendations second.
-
-## 14. Appendix: Unrouted View Classes (In Code, No URL Binding)
-
-Examples present in code but not bound in active URL maps:
-
-- `accounts.views.account_views.BranchOperatingHoursView`
-- `accounts.views.account_views.RestaurantPaymentView`
-- `menu.views.main.TopBranchesView`
-- `menu.views.main.AvaliabilityView`
-- `menu.views.order.CurrentActiveOrderView`
-- `ratings.views.MyDriverRatingsView`
-- `ratings.views.MyBranchRatingsView`
-- `referrals.views.ApplyReferralCodeView`
-- `referrals.views.MyReferralStatusView`
-- `referrals.views.MyReferralsListView`
-
+1. This is a current-state map, not a target-state proposal.
+2. Route summaries prioritize mounted behavior over dormant code.
+3. Live status means reachable from the root URL or ASGI graph.
+4. Some behavioral details still require runtime validation with environment variables and external services configured.

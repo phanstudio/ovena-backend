@@ -5,7 +5,6 @@ from django.utils import timezone
 from django.conf import settings
 from addresses.models import DriverLocation
 import math
-# from menu.gis_utils2 import *
 
 def calculate_distance(point1, point2):
     """

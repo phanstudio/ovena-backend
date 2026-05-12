@@ -336,6 +336,7 @@ class AppAdminApproveView(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
+        # we need a check on this that the code sent is from a proper source and not just anyone sending the role in the otp and creating an admin
         try:
             identifier = OTPManager.verify(otp_code=vd["otp"])
         except OTPInvalidError as e:
@@ -482,6 +483,89 @@ class AdminLoginView(GenericAPIView):
         )
 
 
+@extend_schema(auth=[])
+class StaffLoginView(GenericAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = InS.LinkStaffLoginSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        device_id = vd["device_id"]  # migth add branch_id
+        buisness_staff = (
+            PrimaryAgent.objects.filter(device_name=device_id, revoked=False)
+            .select_related("user")
+            .first()
+        )
+        user = buisness_staff.user
+
+        if not buisness_staff:
+            return Response(
+                {"error": "Account doesn't exist"}, status=status.HTTP_403_FORBIDDEN
+            )
+
+        if buisness_staff.revoked:
+            return Response(
+                {"error": "Account revoked"}, status=status.HTTP_403_FORBIDDEN
+            )
+
+        # if not user or not user.check_password(vd["password"]): # add this later after we remove
+        #     return Response(
+        #         {"error": "Invalid credentials"},
+        #         status=status.HTTP_401_UNAUTHORIZED
+        #     )
+
+        token = issue_jwt_for_user(user)
+        return Response(
+            {
+                "message": "Logged in successfully",
+                "access": token["access"],
+                "refresh": token["refresh"],
+            }
+        )
+
+
+# @extend_schema(auth=[])
+# class AppAdminLoginView(GenericAPIView):
+#     permission_classes = [AllowAny]
+#     serializer_class = InS.LinkStaffLoginSerializer
+
+#     def post(self, request):
+#         serializer = self.get_serializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         vd = serializer.validated_data
+
+#         device_id = vd["device_id"]  # change to username later 
+#         app_admin = (
+#             AppAdmin.objects.filter(name=device_id) # change to username later
+#             .select_related("user")
+#             .first()
+#         )
+#         user = app_admin.user
+
+#         if not app_admin:
+#             return Response(
+#                 {"error": "Account doesn't exist"}, status=status.HTTP_403_FORBIDDEN
+#             )
+
+#         if not user or not user.check_password(vd["password"]):
+#             return Response(
+#                 {"error": "Invalid credentials"},
+#                 status=status.HTTP_401_UNAUTHORIZED
+#             )
+
+#         token = issue_jwt_for_user(user)
+#         return Response(
+#             {
+#                 "message": "Logged in successfully",
+#                 "access": token["access"],
+#                 "refresh": token["refresh"],
+#             }
+#         )
+
+
 @extend_schema(
     responses={
         200: inline_serializer(
@@ -551,47 +635,3 @@ class PasswordResetView(GenericAPIView):
         # force login flow
 
         return Response({"message": "Password updated successfully"})
-
-
-@extend_schema(auth=[])
-class StaffLoginView(GenericAPIView):
-    permission_classes = [AllowAny]
-    serializer_class = InS.LinkStaffLoginSerializer
-
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        vd = serializer.validated_data
-
-        device_id = vd["device_id"]  # migth add branch_id
-        buisness_staff = (
-            PrimaryAgent.objects.filter(device_name=device_id, revoked=False)
-            .select_related("user")
-            .first()
-        )
-        user = buisness_staff.user
-
-        if not buisness_staff:
-            return Response(
-                {"error": "Account doesn't exist"}, status=status.HTTP_403_FORBIDDEN
-            )
-
-        if buisness_staff.revoked:
-            return Response(
-                {"error": "Account revoked"}, status=status.HTTP_403_FORBIDDEN
-            )
-
-        # if not user or not user.check_password(vd["password"]): # add this later after we remove
-        #     return Response(
-        #         {"error": "Invalid credentials"},
-        #         status=status.HTTP_401_UNAUTHORIZED
-        #     )
-
-        token = issue_jwt_for_user(user)
-        return Response(
-            {
-                "message": "Logged in successfully",
-                "access": token["access"],
-                "refresh": token["refresh"],
-            }
-        )

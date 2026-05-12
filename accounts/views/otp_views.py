@@ -88,7 +88,7 @@ class VerifyEmailOTPView(GenericAPIView):
 
 # add a lond ulid string for this in some way stored in the system as otp and accessed via url or something
 # maybe 2fa
-class PassWordResetSendView(GenericAPIView): 
+class PassWordResetSendView(GenericAPIView): # just an endpoint doesn't still consitute as valid 
     serializer_class = InS.PasswordResetSendSerializer
     def post(self, request):
         serializer = self.get_serializer(data=request.data)

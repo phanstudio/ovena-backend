@@ -472,8 +472,10 @@ class DriverOrdersConsumer(BaseConsumer):
                 'customer_name': order['orderer__user__name'],
             })
 
+        logger.info(f"{len(serialized)}")
+        print(len(serialized))
         DriverProfile.objects.filter(id=self.driver_id).update(
-            is_available = True if len(serialized) else False
+            is_available = False if len(serialized) else True
         )
         return serialized
     
@@ -989,7 +991,7 @@ class DriverLocationConsumer(BaseConsumer):
     
     async def broadcast_location_to_order(self, order_id, lat, lng, heading):
         """Broadcast driver location to order group"""
-        from addresses.events import DRIVER_LOCATION_UPDATE
+        from menu.events import DRIVER_LOCATION_UPDATE
         
         await self.channel_layer.group_send(
             get_order_group_name(order_id),

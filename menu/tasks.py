@@ -13,8 +13,8 @@ from .websocket_utils import (
     broadcast_order_info_to_specific_drivers
 )
 # from addresses.events import *
-from addresses.events import ORDER_DRIVER_NOT_FOUND, ORDER_DRIVER_ASSIGNED
-from .gis_utils import find_nearest_available_drivers
+from .events import ORDER_DRIVER_NOT_FOUND, ORDER_DRIVER_ASSIGNED
+from addresses.utils.calculation_utils import find_nearest_available_drivers
 import logging
 from authflow.services.phone_number import get_phone_number
 from accounts.models import User
@@ -187,14 +187,13 @@ def check_driver_pickup_timeout(order_id):
 
 
 # ===== DRIVER MATCHING TASKS =====
-MAX_RETRIES = 10
 
 @shared_task(name='orders.find_and_assign_driver')
 def find_and_assign_driver(order_id, excluded_driver_ids=None, retry_count=0):
     """
     Find nearest available driver and assign to order
     """
-    if retry_count >= MAX_RETRIES:
+    if retry_count >= settings.MAX_RETRIES:
         mark_order_failed(order)
         return "No drivers found after max retries"
     try:
@@ -242,7 +241,7 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None, retry_count=0):
             # Retry after 2 minutes
             find_and_assign_driver.apply_async(
                 args=[order_id, excluded_driver_ids, retry_count + 1],
-                countdown=120
+                countdown=settings.DRIVER_RETRY_DELAY
             )
             return "No drivers available, will retry"
         

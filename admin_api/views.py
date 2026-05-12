@@ -565,7 +565,7 @@ class AdminBusinessUpdateView(
         if not business:
             raise NotFound("Business not found")
 
-        vd = self.validate_serializer()
+        vd = self.validate_serializer(request.data)
 
         updated_fields = []
         if "onboarding_complete" in vd:
@@ -691,7 +691,7 @@ class AdminWithdrawalMarkFailedView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin
         if not withdrawal:
             raise NotFound("Withdrawal not found")
 
-        vd = self.validate_serializer()
+        vd = self.validate_serializer(request.data)
         mark_withdrawal_failed(withdrawal, vd["reason"])
         return Response(
             {
@@ -753,7 +753,7 @@ class AdminSendNotificationView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
 
     def post(self, request):
         self._require_app_admin_roles(request, self.allowed_roles)
-        vd = self.validate_serializer()
+        vd = self.validate_serializer(request.data)
 
         notification_type = (
             vd.get("notification_type") or Notification.TYPE_SYSTEM

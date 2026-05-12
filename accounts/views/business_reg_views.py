@@ -26,7 +26,7 @@ from common.phone.utils import get_phone_number
 @extend_schema(
     responses=OpS.OnboardResponseSerializer,
 )
-class BuisnnessOnboardingStatusView(APIView):
+class BusinessOnboardingStatusView(APIView):
     authentication_classes = [CustomBAdminAuth]
     permission_classes = [IsBusinessAdmin]
     def get(self, request):
@@ -142,8 +142,8 @@ class ReRegisterBAdmin(GenericAPIView):
 )
 class RestaurantPhase1RegisterView(GenericAPIView):
     """
-    Phase 1: Initial restaurant + admin user registration.
-    Creates: Business (bare), User (restaurantadmin role), BusinessAdmin link.
+    Phase 1: Initial business + admin user registration.
+    Creates: Business (bare), User (businessadmin role), BusinessAdmin link.
     No auth required — this is signup.
     """
     authentication_classes = [CustomBAdminAuth]
@@ -156,8 +156,8 @@ class RestaurantPhase1RegisterView(GenericAPIView):
         user = request.user
 
         with transaction.atomic():
-            # Create the restaurant shell
-            restaurant = Business.objects.create(
+            # Create the business shell
+            business = Business.objects.create(
                 business_name=vd["business_name"],
                 business_type=vd["business_type"],
                 country=vd["country"],
@@ -166,21 +166,21 @@ class RestaurantPhase1RegisterView(GenericAPIView):
                 phone_number=vd["phone_number"],
             )
             # if "business_image" in request.FILES:
-            #     restaurant.business_image = request.FILES["business_image"]
+            #     business.business_image = request.FILES["business_image"]
             # if "business_logo" in request.FILES:
-            #     restaurant.business_logo = request.FILES["business_logo"]
-            BusinessCerd.objects.create(business=restaurant)
+            #     business.business_logo = request.FILES["business_logo"]
+            BusinessCerd.objects.create(business=business)
             user.set_password(vd["password"])
             user.save()
 
-            # Link admin to restaurant
+            # Link admin to business
             business_admin = BusinessAdmin.objects.get(user=user)
-            business_admin.business = restaurant
+            business_admin.business = business
             business_admin.save()
             BusinessOnboardStatus.objects.filter(admin=business_admin).update(onboarding_step=1)
 
         return Response(
-            {"detail": "Business registered. Proceed to onboarding.", "business_id": restaurant.id},
+            {"detail": "Business registered. Proceed to onboarding.", "business_id": business.id},
             status=status.HTTP_201_CREATED,
         )
 
@@ -230,9 +230,9 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
             restaurant.onboarding_complete = True
             restaurant_cerds.save()
             restaurant.save()
-            BStatus:BusinessOnboardStatus = BusinessOnboardStatus.objects.get(admin=admin)
-            BStatus.onboarding_step = 2
-            BStatus.save()
+            BusinessOnboardStatus.objects.filter(
+                admin=admin
+            ).update(onboarding_step=2)
 
             # Payment info
             payment_data = vd.get("payment", {})
@@ -258,42 +258,140 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
             
             # Branches + operating hours
             branches_data = vd.get("branches", [])
-            for branch_data in branches_data:
-                branch, _ = Branch.objects.update_or_create(
-                    business=restaurant,
-                    name=branch_data["name"],
-                    defaults={
-                        "address": branch_data.get("address", "unknown"),
-                        "location": checkset_location(branch_data),
-                        "delivery_method": branch_data.get("delivery_method", "instant"),
-                        "pre_order_open_period": branch_data.get("pre_order_open_period"),
-                        "final_order_time": branch_data.get("final_order_time"),
-                    },
-                    # business=restaurant,
-                    # name=branch_data["name"],
-                    # address=branch_data.get("address", "unknown"),
-                    # location=checkset_location(branch_data),
-                    # delivery_method=branch_data.get("delivery_method", "instant"),
-                    # pre_order_open_period=branch_data.get("pre_order_open_period"),
-                    # final_order_time=branch_data.get("final_order_time"),
-                )
-
-                hours_data = branch_data.get("operating_hours", [])
-                BranchOperatingHours.objects.bulk_create(
-                    [
-                        BranchOperatingHours(
-                            branch=branch,
-                            day=h["day"],
-                            open_time=h["open_time"],
-                            close_time=h["close_time"],
-                            is_closed=h.get("is_closed", False),
-                        )
-                        for h in hours_data
-                    ], 
-                    update_conflicts=True,
-                    unique_fields=["branch", "day"],   # 🔥 what makes a row unique
-                    update_fields=["open_time", "close_time", "is_closed"],  # 🔥 what to update
-                )
+            if len(branches_data) <= 3:
+                self.sync_branches_simple(restaurant, branches_data)
+            else:
+                self.sync_branches_bulk(restaurant, branches_data)
 
         return Response({"detail": "Onboarding complete."}, status=status.HTTP_200_OK)
+    
+    def sync_branches_bulk(self, restaurant, branches_data):
+        
+        # -----------------------------------
+        # FETCH EXISTING BRANCHES ONCE
+        # -----------------------------------
+        existing_branches = {
+            (b.business_id, b.name): b
+            for b in Branch.objects.filter(
+                business=restaurant,
+                name__in=[b["name"] for b in branches_data]
+            )
+        }
 
+        branches_to_create = []
+        branches_to_update = []
+
+        for branch_data in branches_data:
+            key = (restaurant.id, branch_data["name"])
+
+            defaults = {
+                "address": branch_data.get("address", "unknown"),
+                "location": checkset_location(branch_data),
+                "delivery_method": branch_data.get("delivery_method", "instant"),
+                "pre_order_open_period": branch_data.get("pre_order_open_period"),
+                "final_order_time": branch_data.get("final_order_time"),
+            }
+
+            branch = existing_branches.get(key)
+
+            if branch:
+                for field, value in defaults.items():
+                    setattr(branch, field, value)
+
+                branches_to_update.append(branch)
+
+            else:
+                branch = Branch(
+                    business=restaurant,
+                    name=branch_data["name"],
+                    **defaults
+                )
+
+                branches_to_create.append(branch)
+                existing_branches[key] = branch
+
+        # -----------------------------------
+        # BULK CREATE
+        # -----------------------------------
+        Branch.objects.bulk_create(branches_to_create)
+
+        # -----------------------------------
+        # BULK UPDATE
+        # -----------------------------------
+        Branch.objects.bulk_update(
+            branches_to_update,
+            fields=[
+                "address",
+                "location",
+                "delivery_method",
+                "pre_order_open_period",
+                "final_order_time",
+            ]
+        )
+
+        # -----------------------------------
+        # REFRESH CREATED IDS
+        # -----------------------------------
+        all_branches = {
+            b.name: b
+            for b in Branch.objects.filter(
+                business=restaurant,
+                name__in=[b["name"] for b in branches_data]
+            )
+        }
+
+        # -----------------------------------
+        # OPERATING HOURS
+        # -----------------------------------
+        hours_to_upsert = []
+
+        for branch_data in branches_data:
+            branch = all_branches[branch_data["name"]]
+
+            for h in branch_data.get("operating_hours", []):
+                hours_to_upsert.append(
+                    BranchOperatingHours(
+                        branch=branch,
+                        day=h["day"],
+                        open_time=h["open_time"],
+                        close_time=h["close_time"],
+                        is_closed=h.get("is_closed", False),
+                    )
+                )
+
+        BranchOperatingHours.objects.bulk_create(
+            hours_to_upsert,
+            update_conflicts=True,
+            unique_fields=["branch", "day"],
+            update_fields=["open_time", "close_time", "is_closed"],
+        )
+
+    def sync_branches_simple(self, restaurant, branches_data):
+        for branch_data in branches_data:
+            branch, _ = Branch.objects.update_or_create(
+                business=restaurant,
+                name=branch_data["name"],
+                defaults={
+                    "address": branch_data.get("address", "unknown"),
+                    "location": checkset_location(branch_data),
+                    "delivery_method": branch_data.get("delivery_method", "instant"),
+                    "pre_order_open_period": branch_data.get("pre_order_open_period"),
+                    "final_order_time": branch_data.get("final_order_time"),
+                },
+            )
+            hours_data = branch_data.get("operating_hours", [])
+            BranchOperatingHours.objects.bulk_create(
+                [
+                    BranchOperatingHours(
+                        branch=branch,
+                        day=h["day"],
+                        open_time=h["open_time"],
+                        close_time=h["close_time"],
+                        is_closed=h.get("is_closed", False),
+                    )
+                    for h in hours_data
+                ], 
+                update_conflicts=True,
+                unique_fields=["branch", "day"],   # 🔥 what makes a row unique
+                update_fields=["open_time", "close_time", "is_closed"],  # 🔥 what to update
+            )

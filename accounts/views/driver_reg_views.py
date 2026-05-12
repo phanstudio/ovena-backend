@@ -118,91 +118,6 @@ class OnboardingStatusView(APIView):
         return Response(OnboardingStatusOutputSerializer(out).data)
 
 
-# ─── Phase 1 — Personal Info ──────────────────────────────────────────────────
-
-# class OnboardingPhase1View(GenericAPIView):
-#     """
-#     PUT /onboarding/phase/1/
-#     Saves personal info, contact details, and next-of-kin.
-#     Driver can re-submit to update until final submission.
-#     """
-#     permission_classes = [AllowAny]
-#     serializer_class = OnboardingPhase1InputSerializer
-
-#     def put(self, request):
-#         serializer = self.get_serializer(
-#             data=request.data,
-#             context={"driver_user_id": request.user.pk},
-#         )
-#         serializer.is_valid(raise_exception=True)
-#         data = serializer.validated_data
-
-#         user = User.objects.get_or_create(email=data["email"])
-#         profile, _ = DriverProfile.objects.get_or_create(user=request.user)
-#         submission = _get_or_create_submission(profile)
-
-#         guard = _guard_submitted(submission, None)
-#         if guard:
-#             return guard        
-
-#         # ── Persist to DriverProfile ──
-#         profile.first_name = data["first_name"]
-#         profile.last_name = data["last_name"]
-#         profile.gender = data["gender"]
-#         profile.birth_date = data["birth_date"]
-#         profile.residential_address = data["residential_address"]
-#         profile.save(update_fields=["first_name", "last_name", "gender", "birth_date", "residential_address"])
-
-#         # ── Persist to User ──
-#         user = request.user
-#         user.phone_number = data["phone_number"]
-#         user.email = data["email"]
-#         user.name = f"{data['first_name']} {data['last_name']}"
-#         user.set_password(data["password"])
-#         user.save(update_fields=["phone_number", "email", "name"])
-
-#         # ── Persist next-of-kin to DriverCred ──
-#         cred, _ = DriverCred.objects.get_or_create(user=profile)
-#         cred.next_of_kin_name = data["next_of_kin_name"]
-#         cred.next_of_kin_phone = data["next_of_kin_phone"]
-#         cred.save(update_fields=["next_of_kin_name", "next_of_kin_phone"])
-
-#         ensure_profile_base(profile)
-
-#         referre_code = data.get("referre_code", "")
-#         if referre_code:
-#             try:
-#                 apply_referral_code(profile=profile, code=referre_code)
-#             except DjangoValidationError as exc:
-#                 msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
-#                 return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # ── Snapshot into submission answers ──
-#         answers = submission.answers or {}
-#         answers["phase_1"] = {
-#             "first_name": data["first_name"],
-#             "last_name": data["last_name"],
-#             "phone_number": data["phone_number"],
-#             "email": data["email"],
-#             "gender": data["gender"],
-#             "birth_date": str(data["birth_date"]),
-#             "residential_address": data["residential_address"],
-#             "next_of_kin_name": data["next_of_kin_name"],
-#             "next_of_kin_phone": data["next_of_kin_phone"],
-#             "next_of_kin_address": data["next_of_kin_address"],
-#         }
-#         answers["phase_1_complete"] = True
-#         submission.answers = answers
-#         submission.updated_at = timezone.now()
-#         submission.save(update_fields=["answers", "updated_at"])
-
-#         out = {
-#             "phase": 1,
-#             "status": "saved",
-#             **answers["phase_1"],
-#         }
-#         return Response(OnboardingPhase1OutputSerializer(out).data)
-
 class OnboardingPhase1View(GenericAPIView):
     """
     PUT /onboarding/phase/1/
@@ -429,7 +344,6 @@ class OnboardingPhase2View(GenericAPIView):
             )
 
         serializer = self.get_serializer(data=request.data)
-        # OnboardingPhase2InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
@@ -627,7 +541,6 @@ class OnboardingPhase4View(GenericAPIView):
             )
 
         serializer = self.get_serializer(data=request.data)
-        # OnboardingPhase4InputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 

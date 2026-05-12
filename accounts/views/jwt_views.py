@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework.permissions import IsAuthenticated
 from accounts.serializers import InS
 from authflow.services import issue_jwt_for_user
 from django.contrib.auth import get_user_model
@@ -26,6 +27,7 @@ class RefreshTokenView(APIView):
             return Response({"error": "Invalid or expired refresh"}, status=401)
 
 class RotateTokenView(APIView):
+    # permission_classes = [IsAuthenticated] not sure if we need is authenticated
     def post(self, request):
         refresh_token = request.data.get("refresh")
 
@@ -51,6 +53,7 @@ class RotateTokenView(APIView):
 
 class LogoutView(GenericAPIView):
     serializer_class = InS.LogoutSerializer
+    # permission_classes = [IsAuthenticated] not sure if we need is authenticated
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -58,8 +61,8 @@ class LogoutView(GenericAPIView):
 
         try:
             token = RefreshToken(vd["refresh"])
-            if str(token["user_id"]) != str(request.user.id):
-                return Response({"error": "Token mismatch"}, status=400)
+            # if str(token["user_id"]) != str(request.user.id):
+            #     return Response({"error": "Token mismatch"}, status=400)
             token.blacklist()
         except Exception as e:
             print(f"error: Invalid token: {e}")
