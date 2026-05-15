@@ -90,12 +90,14 @@ class SearchMenuItems(APIView):# the search should show the restorunt the menu i
 class HomePageView(BaseCustomerAPIView):
     def get(self, request):
         # user_point = resolve_user_point(request)
-        user_point = self.get_customer_profile(request).default_address
-        if not user_point:
-            return Response(
-                {"detail": "Provide current location (lat,lng) or set a default address with a location."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        profile = self.get_customer_profile(request)
+        user_point = profile.default_address.location
+        
+        # if not user_point:
+        #     return Response(
+        #         {"detail": "Provide current location (lat,lng) or set a default address with a location."},
+        #         status=status.HTTP_400_BAD_REQUEST,
+        #     )
 
         nearest_branch_qs = (
             Branch.objects
