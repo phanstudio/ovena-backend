@@ -5,9 +5,11 @@ from rest_framework.generics import GenericAPIView
 from ..serializers import OpS
 from ..models import (
     Menu, MenuItem,
-    Business, Branch, BaseItemAvailability, Order,
+    Business, Branch, BaseItemAvailability, Order, CustomerProfile
 )
 from ..pagifications import StandardResultsSetPagination
+from authflow.permissions import IsCustomer
+from authflow.authentication import CustomCustomerAuth
 
 from accounts.models import User
 
@@ -16,9 +18,19 @@ from django.db.models import OuterRef, Subquery, IntegerField, Avg, Count, Q
 from django.contrib.gis.db.models.functions import Distance
 from addresses.utils import resolve_user_point
 from django.db.models.functions import Coalesce
+from django.http import Http404
 
 logger = logging.getLogger(__name__)
 
+
+class BaseCustomerAPIView(GenericAPIView):
+    authentication_classes = [CustomCustomerAuth]
+    permission_classes = [IsCustomer]
+
+    def get_customer_profile(self, request) -> CustomerProfile:
+        profile = request.user.customer_profile
+        if not profile:
+            raise Http404("Customer profile not found")
 
 # add a defualt branch with is the main or first branch of the resurant
 # auhentication for the resturant view
@@ -74,9 +86,10 @@ class SearchMenuItems(APIView):# the search should show the restorunt the menu i
 # we get restrants 
 # top picks
 # recently visited
-class HomePageView(APIView):
+class HomePageView(BaseCustomerAPIView):
     def get(self, request):
-        user_point = resolve_user_point(request)
+        # user_point = resolve_user_point(request)
+        user_point = self.get_customer_profile(request).default_address
         if not user_point:
             return Response(
                 {"detail": "Provide current location (lat,lng) or set a default address with a location."},
