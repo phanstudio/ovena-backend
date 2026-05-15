@@ -31,6 +31,7 @@ class BaseCustomerAPIView(GenericAPIView):
         profile = request.user.customer_profile
         if not profile:
             raise Http404("Customer profile not found")
+        return profile
 
 # add a defualt branch with is the main or first branch of the resurant
 # auhentication for the resturant view
