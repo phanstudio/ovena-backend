@@ -4,6 +4,7 @@ from django.contrib.auth.hashers import check_password, make_password
 from authflow.services import generate_referral_code
 from django.db import models, IntegrityError, transaction
 from .main import User, Branch, Business
+from ratings.models.mixin import RatingModelMixin
 
 
 # profile
@@ -131,6 +132,61 @@ class CustomerProfile(
         return 0
 
 
+class DriverProfile(RatingModelMixin, ProfileBase):
+    profilebase_ptr = models.OneToOneField(
+        ProfileBase,
+        on_delete=models.CASCADE,
+        parent_link=True,
+        related_name="driver_profile"
+    )
+
+    # Personal info
+    birth_date = models.DateField(null=True, blank=True) # should this be moveed to creds
+    first_name = models.CharField(max_length=80, blank=True)
+    last_name = models.CharField(max_length=80, blank=True)
+    gender = models.CharField(
+        max_length=20,
+        choices=[("male","Male"),("female","Female"),("other","Other"),("na","Prefer not to say")],
+        default="na"
+    )
+    residential_address = models.TextField(blank=True) # same as this
+    
+    # Availability
+    is_online = models.BooleanField(default=False)
+    is_available = models.BooleanField(default=False)  # Online but not on delivery
+    current_order = models.ForeignKey('menu.Order', on_delete=models.SET_NULL, null=True, blank=True, related_name='current_driver')
+    
+    
+    # Tracking
+    last_location_update = models.DateTimeField(blank=True, null=True)
+    
+    # Vehicle info
+    vehicle_make = models.CharField(max_length=60, blank=True)
+    vehicle_type = models.CharField(max_length=50, blank=True, null=True,
+        # choices=[("bike","Bike"),("car","Car"),("van","Van")],
+    )  # bike, car, etc.
+    vehicle_number = models.CharField(max_length=50, blank=True, null=True)
+
+    # Stats
+    total_deliveries = models.IntegerField(default=0)
+    
+    
+    def __str__(self):
+        return f"Driver: {self.full_name or (self.user.email or self.user.phone_number)}"
+
+    @property
+    def full_name(self):
+        return (self.first_name + " " + self.last_name).strip()
+    
+    def save(self, *args, **kwargs):
+        if not self.pk:
+            self.profile_type = ProfileBase.PROFILE_DRIVER
+        else:
+            if self.profile_type != ProfileBase.PROFILE_DRIVER:
+                raise ValueError("Cannot change profile_type on DriverProfile")
+        super().save(*args, **kwargs)
+
+
 class BusinessAdmin(models.Model):
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="business_admin"
@@ -194,5 +250,4 @@ class PrimaryAgent(
         ]
 
 
-# admin Profle connected to the restaurant:
 # password;

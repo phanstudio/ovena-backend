@@ -15,22 +15,22 @@ from .serializers import (
 from .services import RatingService
 from authflow.permissions import IsBusinessStaff
 from authflow.authentication import CustomDriverAuth, CustomBStaffAuth
+from common.customer.view import BaseCustomerAPIView
 
-class SubmitOrderRatingsView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
+class SubmitOrderRatingsView(BaseCustomerAPIView):
+    serializer_class = SubmitOrderRatingsSerializer
     def post(self, request):
-        s = SubmitOrderRatingsSerializer(data=request.data)
+        s = self.get_serializer(data=request.data)
         s.is_valid(raise_exception=True)
 
         order = get_object_or_404(
             Order.objects.select_related("driver", "branch"),
             id=s.validated_data["order_id"],
         )
-        rater = request.user.customerprofile
+        # rater = request.user.customerprofile
+        rater = self.get_customer_profile(request)
 
-        # business rules (adjust to your app)
-        if getattr(order, "customer_id", None) != rater.id:
+        if order.orderer != rater:
             return Response({"detail": "You cannot rate this order."}, status=status.HTTP_403_FORBIDDEN)
 
         if getattr(order, "status", None) not in ("delivered", "completed"):
@@ -85,4 +85,3 @@ class BranchRatingsView(ListAPIView):
         _, primaryagent = self.get_linkeduser()
         self.request.user
         return BranchRating.objects.filter(branch=primaryagent.branch).select_related("branch", "order").order_by("-created_at")
-

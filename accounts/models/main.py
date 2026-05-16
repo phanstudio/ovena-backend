@@ -3,11 +3,12 @@ from django.contrib.gis.db import models as gis_models
 from django.db import models
 from accounts.services.roles import get_user_roles, has_role_all as role_checker
 from phonenumber_field.modelfields import PhoneNumberField # type: ignore
+from ratings.models.mixin import RatingModelMixin
 
 # if what we are check gets big i'm thing of having a separte model for cert inke in driver but only if it gets out of hand
 # and a main branch option, on creation of jwt for the resturant create add it to the token
 # one database request ediable items, etc?
-class Business(models.Model):
+class Business(RatingModelMixin, models.Model):
     BUSINESS_TYPE_CHOICES = [
         ("restaurant", "Restaurant"),
         ("hotel", "Hotel"),
@@ -35,7 +36,7 @@ class Business(models.Model):
 
 # recheck if indexing is possible on foreign keys and checking can work?
 # this branch is not connected to any restorant why
-class Branch(gis_models.Model):
+class Branch(RatingModelMixin, gis_models.Model):
     business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name="branches", null=True, blank=True)
     name = models.CharField(max_length=200)
     
@@ -53,10 +54,6 @@ class Branch(gis_models.Model):
     average_prep_time = models.IntegerField(default=30, help_text="Minutes")
     
     created_at = models.DateTimeField(auto_now_add=True)
-
-    rating_sum = models.IntegerField(default=0)          # total stars
-    rating_count = models.PositiveIntegerField(default=0)
-    avg_rating = models.FloatField(default=0.0, db_index=True)  # optional but convenient
 
     # new
     delivery_method = models.CharField(

@@ -3,6 +3,7 @@ from django.db import transaction
 from django.db.models import Avg, Count
 
 from .models import DriverRating, BranchRating
+from accounts.models import DriverProfile, Branch, Business
 # come back
 
 @dataclass(frozen=True)
@@ -46,15 +47,16 @@ class RatingService:
         driver_payload: dict | None = None,
         branch_payload: dict | None = None,
     ):
-        """
-        Submit driver and/or branch rating in one transaction.
-        - Safe to call from one endpoint after delivery.
-        - Uses update_or_create so user can edit their rating for that order.
-        """
         created_or_updated = {}
 
         if driver_payload is not None:
-            obj, _ = DriverRating.objects.update_or_create(
+            # Get old rating if exists
+            old_rating = DriverRating.objects.filter(
+                order=order,
+                rater=rater,
+            ).values('stars').first()
+
+            obj, created = DriverRating.objects.update_or_create(
                 order=order,
                 rater=rater,
                 driver=order.driver,
@@ -64,13 +66,35 @@ class RatingService:
                     "complaint_type": driver_payload.get("complaint_type"),
                 },
             )
-            # enforce model-level validation
             obj.full_clean()
             obj.save()
             created_or_updated["driver_rating"] = obj
 
+            # Update driver stats incrementally
+            driver = order.driver
+            if created:
+                # New rating
+                driver.rating_sum += obj.stars
+                driver.rating_count += 1
+            else:
+                # Updated rating - adjust the difference
+                old_stars = old_rating['stars']
+                driver.rating_sum += (obj.stars - old_stars)
+                # count stays the same
+            
+            driver.avg_rating = (
+                driver.rating_sum / driver.rating_count 
+                if driver.rating_count > 0 else 0.0
+            )
+            driver.save(update_fields=['rating_sum', 'rating_count', 'avg_rating'])
+
         if branch_payload is not None:
-            obj, _ = BranchRating.objects.update_or_create(
+            old_rating = BranchRating.objects.filter(
+                order=order,
+                rater=rater,
+            ).values('stars').first()
+
+            obj, created = BranchRating.objects.update_or_create(
                 order=order,
                 rater=rater,
                 branch=order.branch,
@@ -83,5 +107,39 @@ class RatingService:
             obj.full_clean()
             obj.save()
             created_or_updated["branch_rating"] = obj
+
+            # Update branch stats
+            branch = order.branch
+            if created:
+                branch.rating_sum += obj.stars
+                branch.rating_count += 1
+            else:
+                old_stars = old_rating['stars']
+                branch.rating_sum += (obj.stars - old_stars)
+            
+            branch.avg_rating = (
+                branch.rating_sum / branch.rating_count 
+                if branch.rating_count > 0 else 0.0
+            )
+            branch.save(update_fields=['rating_sum', 'rating_count', 'avg_rating'])
+
+            # Update business stats (rollup from all branches)
+            if branch.business:
+                business = branch.business
+                # Recalculate business rating from all its branches
+                from django.db.models import Sum
+                branch_stats = Branch.objects.filter(
+                    business=business
+                ).aggregate(
+                    total_sum=Sum('rating_sum'),
+                    total_count=Sum('rating_count')
+                )
+                business.rating_sum = branch_stats['total_sum'] or 0
+                business.rating_count = branch_stats['total_count'] or 0
+                business.avg_rating = (
+                    business.rating_sum / business.rating_count 
+                    if business.rating_count > 0 else 0.0
+                )
+                business.save(update_fields=['rating_sum', 'rating_count', 'avg_rating'])
 
         return created_or_updated
