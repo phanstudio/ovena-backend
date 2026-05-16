@@ -316,9 +316,9 @@ class BusinessDetailSerializer(serializers.ModelSerializer):
         model = Business
         fields = [
             "id", "business_name", "business_type",
-            "description", "business_logo", "business_image", #"banner_image",
+            "business_logo", "business_image", #"banner_image",
             "avg_rating", "rating_count",
-            "nearest_branch", "menus",
+            "nearest_branch", "menus", #"description",
         ]
 
     def get_menus(self, obj):
