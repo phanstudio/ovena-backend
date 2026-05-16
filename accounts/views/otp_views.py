@@ -15,7 +15,9 @@ class SendPhoneOTPView(GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
-        return request_phone_otp(get_phone_number(vd["phone_number"]))
+        # return request_phone_otp(get_phone_number(vd["phone_number"]))
+        sent_at = timezone.now()
+        return Response({"detail": "OTP sent.", "sent_at": sent_at.strftime("%b %d, %Y %H:%M:%S %Z"), 'pin_id': pin_id})
 
 class SendEmailOTPView(GenericAPIView):
     serializer_class = InS.EmailOptSendSerializer
@@ -39,7 +41,7 @@ class VerifyPhoneOTPView(GenericAPIView): # we need to revoke the jwt also use t
         #     identifier = verify_phonenumber(vd["otp_code"], get_phone_number(vd["phone_number"]), vd["pin_id"])
         # except OTPInvalidError as e:
         #     return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)      
-        identifier = vd["phone_number"]  
+        identifier = vd["phone_number"]
 
         # ✅ Create or get the user
         user, created = User.objects.get_or_create(
