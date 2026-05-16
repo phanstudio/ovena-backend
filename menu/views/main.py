@@ -1,88 +1,14 @@
 # logger = logging.getLogger(__name__)
 
-
-# class BaseCustomerAPIView(GenericAPIView):
-#     authentication_classes = [CustomCustomerAuth]
-#     permission_classes = [IsCustomer]
-
-#     def get_customer_profile(self, request) -> CustomerProfile:
-#         profile = request.user.customer_profile
-#         if not profile:
-#             raise Http404("Customer profile not found")
-#         return profile
-
 # # add a defualt branch with is the main or first branch of the resurant
 # # auhentication for the resturant view
-# class RestaurantView(APIView):
-#     def get(self, request):
-#         businesses = Business.objects.prefetch_related(
-#             "menus__categories__items__variant_groups__options",
-#             "menus__categories__items__addon_groups__addons",
-#             "menus__categories__items__branch_availabilities",
-#         )
-#         serializer = OpS.BusinessSerializer(businesses, many=True)
-#         return Response(serializer.data)
-
-# class TopBranchesView(APIView):
-#     def get(self, request):
-#         top_branches = Branch.objects.annotate(
-#             avg_rating=Avg('branch_ratings_received__stars'),
-#             rating_count=Count('branch_ratings_received')
-#         ).select_related("business"
-#         ).filter(
-#             rating_count__gt=0
-#         ).order_by('-avg_rating', '-rating_count')[:10]
-#         serializer = OpS.TopBranchSerilazer(top_branches, many=True)
-#         return Response({'data': serializer.data})
-
-# class MenuView(APIView):
-#     def get(self, request, business_id):
-#         menus = Menu.objects.filter(business_id=business_id)\
-#                             .prefetch_related("categories__items")
-#         serializer = OpS.MenuSerializer(menus, many=True)
-#         return Response(serializer.data)
-
-# # how to test searching 
-# class SearchMenuItems(APIView):# the search should show the restorunt the menu item came from 
-#     def get(self, request):
-#         query = request.query_params.get("q", "") # add is active? and is available
-#         items = MenuItem.objects.filter(
-#             Q(custom_name__icontains=query) |
-#             Q(description__icontains=query) |
-#             Q(category__name__icontains=query) |
-#             Q(category__menu__business__business_name__icontains=query)
-#         ).select_related("category__menu__business")
-
-#         serializer = OpS.MenuItemSerializer(items, many=True)
-#         return Response(serializer.data)
 
 # # # we need to be able to get the a list of the menus, and the resturants, 
 # # # we need perform proper searching whether wth caching and other techniques
 # # # we search by categories resturants and so on?
 
-
-# # we want reviews associated to the branches and resturants
-# # we get restrants 
-# # top picks
-# # recently visited
-
 # # # another for getting the other resturants
 # # # the same resturants
-
-# # class UsersActivites(APIView):
-# #     def post(self, request):
-# #         # send all the users info as thime passes 
-# #         # if the user order add that 
-# #         pass
-
-
-#     # orderer = models.ForeignKey(CustomerProfile, on_delete= models.CASCADE, related_name="orders")
-#     # branch = models.ForeignKey(Branch, on_delete= models.CASCADE, related_name= "orders")
-#     # # delivery_price = models.DecimalField(decimal_places= 5, max_digits= 10, default= 0)
-#     # # ovena_commision = models.DecimalField(max_digits=5, decimal_places=2, default= 10)
-#     # coupons = models.ForeignKey(Coupons, on_delete= models.CASCADE, related_name= "coupons", blank=True, null= True)
-
-#     # # status = models.CharField(max_length= 30, choices= STATUS_CHOICES, default= "pending")
 
 # # who is this for the user before payment is made, the payment gatway has been made no pyment is made yet so we need to kill that transaction
 # # custom authentication with select related for this, we need paginification here
