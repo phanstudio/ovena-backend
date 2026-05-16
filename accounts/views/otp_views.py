@@ -18,7 +18,7 @@ class SendPhoneOTPView(GenericAPIView):
         vd = serializer.validated_data
         # return request_phone_otp(get_phone_number(vd["phone_number"]))
         sent_at = timezone.now()
-        return Response({"detail": "OTP sent.", "sent_at": sent_at.strftime("%b %d, %Y %H:%M:%S %Z"), 'pin_id': pin_id})
+        return Response({"detail": "OTP sent.", "sent_at": sent_at.strftime("%b %d, %Y %H:%M:%S %Z"), 'pin_id': "98765433456789976"})
 
 class SendEmailOTPView(GenericAPIView):
     serializer_class = InS.EmailOptSendSerializer
