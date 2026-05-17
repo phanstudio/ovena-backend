@@ -216,7 +216,6 @@ class LinkApproveView(GenericAPIView):
 
                 # ♻️ reuse
                 user = existing_agent.user
-                user.name = vd["username"] or device_id
                 user.phone_number = vd["phone_number"]
                 user.save()
 
@@ -237,7 +236,6 @@ class LinkApproveView(GenericAPIView):
                 # ✅ NOW SAFE — no existing row
                 user, _ = User.objects.get_or_create(
                     phone_number=vd["phone_number"],
-                    defaults={"name": vd["username"] or device_id},
                 )
 
                 sub_user = PrimaryAgent.objects.create(
@@ -255,10 +253,7 @@ class LinkApproveView(GenericAPIView):
                 "message": "Account registered successfully",
                 "refresh": token["refresh"],
                 "access": token["access"],
-                "user": {
-                    "id": sub_user.id,
-                    "name": sub_user.device_name,
-                },
+                "user": {"id": sub_user.id, "name": sub_user.device_name,},
             }
         )
 
@@ -345,12 +340,11 @@ class AppAdminApproveView(GenericAPIView):
         try:
             with transaction.atomic():
                 user = User.objects.create_user(
-                    name=vd["full_name"],
                     phone_number=vd["phone_number"],
                     email=vd["email"],
                     password=vd["password"],
                 )
-                AppAdmin.objects.create(user=user, role=identifier)
+                subadmin = AppAdmin.objects.create(user=user, role=identifier, name=vd["full_name"])
         except IntegrityError as e:
             return Response(
                 {
@@ -370,7 +364,7 @@ class AppAdminApproveView(GenericAPIView):
                 "message": "Account registered successfully",
                 "refresh": token["refresh"],
                 "access": token["access"],
-                "user": {"id": user.id, "name": user.name},
+                "user": {"id": user.id, "name": subadmin.name,},
             }
         )
         return Response(

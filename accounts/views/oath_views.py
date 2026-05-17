@@ -29,8 +29,9 @@ class AuthLogic():
             'email': info['email']
         }
         
-        if mainname != "":
-            data["name"] = mainname
+        # if mainname != "":
+        #     data["name"] = mainname
+        # add name for oath
         
         user, info["created"] = User.objects.get_or_create(
             email=info['email'],

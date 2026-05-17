@@ -112,7 +112,7 @@ class RestaurantProfileSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "email", "phone_number", "name")
+        fields = ("id", "email", "phone_number")
 
 
 class OAuthCodeSerializer(serializers.Serializer):
@@ -170,7 +170,7 @@ class CreateCustomerSerializer(serializers.Serializer):
 
         update_fields = []
 
-        for field in ("name", "email", "phone_number"):
+        for field in ("email", "phone_number"):
             if validated_data.get(field):
                 setattr(user, field, validated_data[field])
                 update_fields.append(field)
@@ -196,6 +196,7 @@ class CreateCustomerSerializer(serializers.Serializer):
             user=user,
             birth_date=validated_data.get("birth_date"),
             default_address=location,
+            name=validated_data["name"]
         )
         ensure_profile_base(profile)
 
@@ -331,10 +332,6 @@ class UpdateCustomerSerializer(serializers.Serializer):
         # ─── USER UPDATES ─────────────────────
         user_fields = []
 
-        if validated_data.get("name"):
-            user.name = validated_data["name"]
-            user_fields.append("name")
-
         if validated_data.get("email"):
             user.email = validated_data["email"]
             user_fields.append("email")
@@ -351,6 +348,9 @@ class UpdateCustomerSerializer(serializers.Serializer):
 
         if validated_data.get("birth_date"):
             profile_updates["birth_date"] = validated_data["birth_date"]
+        
+        if validated_data.get("name"):
+            profile_updates["name"] = validated_data["name"]
 
         lat = validated_data.get("lat")
         long = validated_data.get("long")

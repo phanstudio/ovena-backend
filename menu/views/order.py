@@ -13,7 +13,7 @@ from authflow.authentication import (
     CustomBStaffAuth,
 )
 from authflow.permissions import IsCustomer, IsBusinessStaff, IsDriver
-from authflow.services import verify_delivery_phrase
+from authflow.services import verify_delivery_phrase, verify_resturant_otp, mint_driver_pin
 
 from django.shortcuts import get_object_or_404
 from django.conf import settings
@@ -26,6 +26,7 @@ from menu.websocket_utils import (
     notify_order_confirmed,
     notify_order_delivered,
     notify_order_picked_up,
+    notify_on_the_way,
 )
 from menu.tasks import (
     check_branch_confirmation_timeout,
@@ -42,7 +43,7 @@ from payments.services.sale_service import complete_service, assign_driver
 from driver_api.services import ledger_credit_for_delivered_order
 
 logger = logging.getLogger(__name__)
-
+# add atomcity
 
 class OrderView(APIView):
     authentication_classes = [CustomCustomerAuth]
@@ -294,8 +295,9 @@ class ResturantOrderView(GenericAPIView):
     def post(self, request):
         action = request.data.get("action")
         order_id = request.data.get("order_id")
+        order_code = request.data.get("order_code")
 
-        if not action or action not in ["accept", "cancel", "made"]:
+        if not action or action not in ["accept", "cancel", "made", "pickup"]:
             return Response(
                 {"error": "Action required"}, status=status.HTTP_400_BAD_REQUEST
             )
@@ -310,6 +312,8 @@ class ResturantOrderView(GenericAPIView):
             return self.accept_order(order)
         elif action == "made":
             return self.order_made(order)
+        elif action == "pickup":
+            return self.pickup_order(order, order_code)
         else:
             return self.cancel_order(order)
 
@@ -415,6 +419,51 @@ class ResturantOrderView(GenericAPIView):
             status=status.HTTP_200_OK,
         )
 
+    def pickup_order(self, order: Order, order_code: str):
+        """Driver delivers order with verification code"""
+        if not order_code:
+            return Response(
+                {"error": "Order code missing"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        """Driver accepts order and heads to restaurant"""
+        if order.status != "picked_up":
+            return Response(
+                {"error": "Order not ready for Pick up"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        verified = verify_resturant_otp(order, order_code)
+        if not verified:
+            return Response(
+                {"error": "Invalid delivery code"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order.status = "on_the_way"
+        order.picked_up_at = timezone.now()
+        order.save(update_fields=["status", "picked_up_at", "last_modified_at"])
+
+        # Log event
+        OrderEvent.objects.create(
+            order=order,
+            event_type="on_the_way",
+            actor_type="branch",
+            actor_id=order.branch_id,
+            old_status="picked_up",
+            new_status="on_the_way",
+        )
+
+        # 🔥 Notify customer and branch
+        notify_on_the_way(order)
+
+        logger.info(f"Order {order.id} accepted by driver {order.driver_id}")
+
+        return Response(
+            {"message": "Order accepted. Head to the restaurant!"},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
     def cancel_order(self, order: Order):
         """Branch cancels order"""
         if order.status in ["delivered", "on_the_way", "picked_up"]:
@@ -485,7 +534,7 @@ class DriverOrderView(GenericAPIView):
         order_code = request.data.get("order_code")
         user = self.request.user
 
-        if not action or action not in ["accept", "deliver", "reject", "pickup"]:
+        if not action or action not in ["accept", "deliver", "reject"]:
             return Response(
                 {"error": "Action required"}, status=status.HTTP_400_BAD_REQUEST
             )
@@ -500,8 +549,6 @@ class DriverOrderView(GenericAPIView):
             return self.accept_order(order, user)
         elif action == "deliver":
             return self.complete_order(order, order_code)
-        elif action == "pickup":
-            return self.pickup_order(order, user)
         elif action == "reject":
             return self.reject_order(order)
 
@@ -517,6 +564,8 @@ class DriverOrderView(GenericAPIView):
         order.picked_up_at = timezone.now()
         order.save(update_fields=["status", "picked_up_at", "last_modified_at"])
 
+        code = mint_driver_pin(order)
+
         # Log event
         OrderEvent.objects.create(
             order=order,
@@ -525,6 +574,7 @@ class DriverOrderView(GenericAPIView):
             actor_id=order.driver_id,
             old_status="driver_assigned",
             new_status="picked_up",
+            metadata=f"Your code is {code}"
         )
         assign_driver(order, user.id)
 
@@ -534,40 +584,7 @@ class DriverOrderView(GenericAPIView):
         logger.info(f"Order {order.id} accepted by driver {order.driver_id}")
 
         return Response(
-            {"message": "Order accepted. Head to the restaurant!"},
-            status=status.HTTP_202_ACCEPTED,
-        )
-
-    def pickup_order(self, order: Order, user: User):  # help with this later
-        """Driver accepts order and heads to restaurant"""
-        if order.status != "picked_up":
-            return Response(
-                {"error": "Order not ready for Pick up"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        order.status = "on_the_way"
-        order.picked_up_at = timezone.now()
-        order.save(update_fields=["status", "picked_up_at", "last_modified_at"])
-
-        # Log event
-        OrderEvent.objects.create(
-            order=order,
-            event_type="on_the_way",
-            actor_type="driver",
-            actor_id=order.driver_id,
-            old_status="driver_assigned",
-            new_status="on_the_way",
-        )
-        assign_driver(order, user.id)
-
-        # 🔥 Notify customer and branch
-        notify_order_picked_up(order)
-
-        logger.info(f"Order {order.id} accepted by driver {order.driver_id}")
-
-        return Response(
-            {"message": "Order accepted. Head to the restaurant!"},
+            {"message": f"Order accepted. Head to the restaurant! Your code is {code}", "code": code},
             status=status.HTTP_202_ACCEPTED,
         )
 
@@ -579,7 +596,7 @@ class DriverOrderView(GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if order.status not in ["picked_up", "on_the_way"]:
+        if order.status not in ["on_the_way"]: #"picked_up", 
             return Response(
                 {"error": "Order not ready for delivery"},
                 status=status.HTTP_400_BAD_REQUEST,

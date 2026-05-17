@@ -823,7 +823,7 @@ class OrderConsumer(BaseConsumer):
 
                 'driver': {
                     'id': order.driver.id,
-                    'name': order.driver.user.name,
+                    'name': order.driver.full_name,
                     'location': driver_location
                 } if order.driver else None,
 

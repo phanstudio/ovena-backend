@@ -9,7 +9,7 @@ class AppAdmin(models.Model):
         FINANCE = "finance", "Finance"
         ADMIN = "admin", "Admin"
 
-    name = models.CharField(max_length=100) # change to username 
+    name = models.CharField(max_length=100) # change to username
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,

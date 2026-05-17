@@ -362,8 +362,7 @@ class BuisnessAdminUpdateReceiverView(BaseBuisAdminAPIView):
         update_fields = []
 
         if "full_name" in vaild_data:
-            user.name = vaild_data["full_name"]
-            update_fields.append("name")
+            BusinessAdmin.objects.filter(user=user).update(name=vaild_data["full_name"])
 
         if "phone_number" in vaild_data:
             user.phone_number = vaild_data["phone_number"]

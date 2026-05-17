@@ -4,6 +4,7 @@ from django.db import models
 from accounts.services.roles import get_user_roles, has_role_all as role_checker
 from phonenumber_field.modelfields import PhoneNumberField # type: ignore
 from ratings.models.mixin import RatingModelMixin
+# from django.db.models import Q
 
 # if what we are check gets big i'm thing of having a separte model for cert inke in driver but only if it gets out of hand
 # and a main branch option, on creation of jwt for the resturant create add it to the token
@@ -121,10 +122,9 @@ class UserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, null=True, blank=True)
-    phone_number = PhoneNumberField(null=True, blank=True)
-    # models.CharField(max_length=18,  null=True, blank=True) #unique=True,
-    name = models.CharField(max_length=150, blank=True, null= True)
-    # username = models.CharField(max_length=150, blank=True, null= True)
+    phone_number = PhoneNumberField(unique=True, null=True, blank=True)
+    # name = models.CharField(max_length=150, blank=True, null= True)
+    # username = models.CharField(max_length=150, blank=True, null= True, unique=True)
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
@@ -134,7 +134,15 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     # how to swap
     USERNAME_FIELD = "email"   # but you can swap to phone if OTP-only
-    REQUIRED_FIELDS = ["name"]
+    REQUIRED_FIELDS = []
+
+    # class Meta:
+    #     constraints = [
+    #         models.CheckConstraint(
+    #             condition=Q(email__isnull=False) | Q(phone_number__isnull=False),
+    #             name="user_must_have_email_or_phone"
+    #         )
+    #     ]
 
     def __str__(self):
         return self.email or str(self.phone_number)
@@ -145,6 +153,10 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def has_role(self, role: str) -> bool:
         return role_checker(self, role)
+    
+    @property
+    def identifier(self):
+        return self.email or str(self.phone_number)
 
     @property
     def customer_profile(self):

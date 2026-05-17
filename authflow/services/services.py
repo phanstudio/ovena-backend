@@ -8,6 +8,9 @@ import hashlib
 import string
 from .otp import OTPManager, OTPError, OTPRateLimitError, OTPDeliveryError, OTPInvalidError
 from rest_framework.response import Response
+import secrets
+import string
+from django.db import IntegrityError
 
 def issue_jwt_for_user(user: User, *, active_profile: str | None = None):
     refresh = RefreshToken.for_user(user)
@@ -28,6 +31,22 @@ def calculate_time(start):
     duration = time.perf_counter() - start
     print(f"View took {duration:.4f} seconds")
 
+def mint_driver_pin(order):
+    digits = string.digits
+
+    for _ in range(5):  # small retry cap
+        code = ''.join(secrets.choice(digits) for _ in range(6))
+
+        try:
+            order.driver_number = code
+            order.save(update_fields=["driver_number"])
+            return code
+
+        except IntegrityError:
+            continue
+
+    raise Exception("Failed to generate unique PIN")
+
 # passphrases:
 def generate_passphrase(): # i can increase the size of this add rate limiting for this later
     words = ["mango", "horse", "bright", "storm", "leaf", "river", "cloud", "stone"]
@@ -44,6 +63,14 @@ def verify_delivery_phrase(order, entered_phrase):
         order.delivery_verified = True
         order.delivery_verified_at = timezone.now()
         order.save(update_fields=["status", "delivery_verified", "delivery_verified_at"])
+        return True
+    return False
+
+# When driver verifies:
+def verify_resturant_otp(order, otp):
+    hashed = hash_phrase(str(otp))
+    driver_hash = hash_phrase(str(order.driver_number))
+    if hashed == driver_hash:
         return True
     return False
 

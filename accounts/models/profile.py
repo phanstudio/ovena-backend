@@ -99,6 +99,7 @@ class CustomerProfile(
     )
     birth_date = models.DateField(null=True, blank=True)
     addresses = models.ManyToManyField(Address, related_name="customers", blank=True)
+    name = models.CharField(max_length=150, blank=True, null= True)
     default_address = models.ForeignKey(
         Address,
         on_delete=models.SET_NULL,
@@ -144,6 +145,7 @@ class DriverProfile(RatingModelMixin, ProfileBase):
     birth_date = models.DateField(null=True, blank=True) # should this be moveed to creds
     first_name = models.CharField(max_length=80, blank=True)
     last_name = models.CharField(max_length=80, blank=True)
+    full_name = models.CharField(max_length=150, blank=True, null= True)
     gender = models.CharField(
         max_length=20,
         choices=[("male","Male"),("female","Female"),("other","Other"),("na","Prefer not to say")],
@@ -195,6 +197,7 @@ class BusinessAdmin(models.Model):
         Business, on_delete=models.CASCADE, related_name="admin", null=True, blank=True
     )
     transaction_pin_hash = models.CharField(max_length=128, blank=True, default="")
+    name = models.CharField(max_length=150, blank=True, null= True)
     # we can change to null later else might be an issue
 
     def __str__(self):

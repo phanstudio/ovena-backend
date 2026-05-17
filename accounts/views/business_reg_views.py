@@ -68,12 +68,11 @@ class RegisterBAdmin(GenericAPIView):
         
         try:
             with transaction.atomic():
-                user = User.objects.create(
-                    name=vd["full_name"],
+                user, _ = User.objects.get_or_create(
                     phone_number=identifier,
                     email=vd["email"],
                 )
-                business_admin = BusinessAdmin.objects.create(user=user)
+                business_admin = BusinessAdmin.objects.create(user=user, name=vd["full_name"],)
                 BusinessOnboardStatus.objects.create(admin=business_admin, onboarding_step= 0)
         except IntegrityError as e:
             return Response(
@@ -92,7 +91,7 @@ class RegisterBAdmin(GenericAPIView):
             "message": "User registered successfully",
             "refresh": token["refresh"],
             "access": token["access"],
-            "user": {"id": user.id, "name": user.name},
+            "user": {"id": user.id, "name": business_admin.name},
         })
         return Response(response_data.data, status=status.HTTP_201_CREATED)
 
@@ -117,10 +116,10 @@ class ReRegisterBAdmin(GenericAPIView):
         try:
             # identifier = vd["phone_number"]
             user = User.objects.filter(id=request.user.id).update(
-                name=vd["full_name"],
                 phone_number=identifier,
                 email=vd["email"],
             )
+            business_admin = BusinessAdmin.objects.filter(user=user).update(name=vd["full_name"],)
         except Exception as e:
             return Response(
                 {"detail": f"Registration failed: {str(e)}"},
@@ -130,7 +129,7 @@ class ReRegisterBAdmin(GenericAPIView):
 
         response_data = OpS.RegisterBAdminResponseSerializer({
             "message": "User Updated registered successfully",
-            "user": {"id": user.id, "name": user.name},
+            "user": {"id": user.id, "name": business_admin.name},
         })
         return Response(response_data.data, status=status.HTTP_201_CREATED)
 

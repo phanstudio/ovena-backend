@@ -40,7 +40,7 @@ class LinkApproveSerializer(serializers.Serializer):
     device_id = serializers.CharField()
     # branch_id = serializers.IntegerField()
     phone_number = PhoneNumberField()
-    username = serializers.CharField(required=False, allow_blank=True)
+    username = serializers.CharField(required=False, allow_blank=True) # depeciated
     # password = serializers.CharField()
 
 

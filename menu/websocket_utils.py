@@ -238,6 +238,18 @@ def notify_driver_assigned(order):
     )
     broadcast_to_specific_drivers([order.driver_id], driver_event)
 
+def notify_on_the_way(order):
+    """Notify customer and branch when driver picks up the order"""
+    from .events import ORDER_IN_TRANSIT
+
+    event_data = build_order_event(
+        ORDER_IN_TRANSIT,
+        order,
+        message="Your order is on the way!"
+    )
+    broadcast_to_order_group(order.id, event_data)
+    # broadcast_to_branch(order.branch_id, event_data)
+
 def notify_order_picked_up(order):
     """Notify customer and branch when driver picks up the order"""
     from .events import ORDER_PICKED_UP
@@ -245,21 +257,14 @@ def notify_order_picked_up(order):
     event_data = build_order_event(
         ORDER_PICKED_UP,
         order,
-        message="Your order has been picked up and is on the way!"
+        message="Your order is being picked up"
     )
     broadcast_to_order_group(order.id, event_data)
-    broadcast_to_branch(order.branch_id, event_data)
-
-def notify_order_picked_up(order):
-    """Notify customer and branch when driver picks up the order"""
-    from .events import ORDER_PICKED_UP
-
     event_data = build_order_event(
         ORDER_PICKED_UP,
         order,
-        message="Your order has been picked up and is on the way!"
+        message="Your driver is coming to picked up the order"
     )
-    broadcast_to_order_group(order.id, event_data)
     broadcast_to_branch(order.branch_id, event_data)
 
 

@@ -42,7 +42,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "email", "phone_number", "name"]
+        fields = ["id", "email", "phone_number"]
 
 class DriverUserSerializer(UserSerializer):
     class Meta(UserSerializer.Meta):
@@ -60,7 +60,7 @@ class UpdateAppAdminSerializer(serializers.Serializer):
     phone_number = PhoneNumberField(required=False, allow_blank=True)
 
     # app admin
-    device_name = serializers.FloatField(required=False)
+    # device_name = serializers.FloatField(required=False)
 
     def validate(self, data):
         user = self.context["user"]
@@ -93,9 +93,9 @@ class UpdateAppAdminSerializer(serializers.Serializer):
         # ─── USER UPDATES ─────────────────────
         user_fields = []
 
-        if validated_data.get("name"):
-            user.name = validated_data["name"]
-            user_fields.append("name")
+        # if validated_data.get("name"):
+        #     user.name = validated_data["name"]
+        #     user_fields.append("name")
 
         if validated_data.get("email"):
             user.email = validated_data["email"]
@@ -111,8 +111,10 @@ class UpdateAppAdminSerializer(serializers.Serializer):
         # ─── PROFILE UPDATES ──────────────────
         profile_updates = {}
 
-        if validated_data.get("device_name"):
-            profile_updates["name"] = validated_data["device_name"]
+        # if validated_data.get("device_name"): # we have to add device name if we want to
+        #     profile_updates["name"] = validated_data["device_name"]
+        if validated_data.get("name"):
+            profile_updates["name"] = validated_data["name"]
 
         if profile_updates:
             for field, value in profile_updates.items():
@@ -128,7 +130,7 @@ class AdminUserListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "email", "phone_number", "name", "is_active", "is_staff", "roles"]
+        fields = ["id", "email", "phone_number", "is_active", "is_staff", "roles"]
 
     def get_roles(self, obj):
         # Uses the derived roles system (profiles + legacy fallback).

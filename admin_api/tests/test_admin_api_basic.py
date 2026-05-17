@@ -14,7 +14,6 @@ def test_app_admin_can_login_and_access_dashboard():
         email="admin@example.com",
         phone_number="+2348012345678",
         password="pass1234",
-        name="Admin",
         is_staff=True,
     )
     AppAdmin.objects.create(user=user, name="Admin", role=AppAdmin.Role.ADMIN)
