@@ -56,7 +56,7 @@ class Order(models.Model): # do we add a coupon snap shot or not also a discount
     delivery_verified_at = models.DateTimeField(blank=True, null=True)
 
     # driver number
-    driver_number = models.IntegerField(max_length=8, null=True, blank=True)
+    driver_number = models.CharField(max_length=8, null=True, blank=True)
     
     # Order tracking
     order_number = models.IntegerField(default=0)
