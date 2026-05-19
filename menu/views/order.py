@@ -302,7 +302,11 @@ class ResturantOrderView(GenericAPIView):
                 {"error": "Action required"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        order = self.get_queryset().filter(id=order_id).first()
+        if action == "pickup":
+            order = self.get_queryset().filter(driver_number=order_code).first()
+        else:
+            order = self.get_queryset().filter(id=order_id).first()
+        
         if not order:
             return Response(
                 {"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND
@@ -419,24 +423,11 @@ class ResturantOrderView(GenericAPIView):
             status=status.HTTP_200_OK,
         )
 
-    def pickup_order(self, order: Order, order_code: str):
-        """Driver delivers order with verification code"""
-        if not order_code:
-            return Response(
-                {"error": "Order code missing"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+    def pickup_order(self, order: Order):
         """Driver accepts order and heads to restaurant"""
         if order.status != "picked_up":
             return Response(
                 {"error": "Order not ready for Pick up"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        
-        verified = verify_resturant_otp(order, order_code)
-        if not verified:
-            return Response(
-                {"error": "Invalid delivery code"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
