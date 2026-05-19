@@ -317,7 +317,7 @@ class ResturantOrderView(GenericAPIView):
         elif action == "made":
             return self.order_made(order)
         elif action == "pickup":
-            return self.pickup_order(order, order_code)
+            return self.pickup_order(order)
         else:
             return self.cancel_order(order)
 
