@@ -258,7 +258,7 @@ class CurrentActiveOrderView(APIView):
                     "total_price": float(order.grand_total),
                     "created_at": order.created_at.isoformat(),
                     "branch_name": order.branch.name,
-                    "driver_name": order.driver.user.get_full_name()
+                    "driver_name": order.driver.full_name
                     if order.driver
                     else None,
                     "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",

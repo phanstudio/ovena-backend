@@ -298,7 +298,7 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None, retry_count=0):
             },
             'distance_km': float(distance),
             'message': f'New order #{order.order_number} assigned to you!',
-            'customer_name': order_user.name,
+            'customer_name': order.orderer.name,
             'customer_phone': get_phone_number(order_user),
             'customer_destination': {
                 'lat': default_address.location.y,

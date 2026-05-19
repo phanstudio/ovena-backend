@@ -288,14 +288,14 @@ class BranchConsumer(BaseConsumer): # supports primary and linked staff
         orders = Order.objects.filter(
             branch_id=self.branch_id,
             status__in=['pending', 'confirmed', 'payment_pending', 'preparing', 'ready']
-        ).select_related('orderer__user').annotate(
+        ).select_related('orderer').annotate(
             last_event_type=Subquery(last_event.values('event_type')[:1]),
             last_event_time=Subquery(last_event.values('timestamp')[:1]),
             last_event_metadata=Subquery(last_event.values('metadata')[:1]),
             
         ).values(
             'id','order_number','status','created_at',
-            'orderer__user__name','last_event_type','last_event_time', 
+            'orderer__name','last_event_type','last_event_time', 
             'last_event_metadata'
         )
 
@@ -436,14 +436,14 @@ class DriverOrdersConsumer(BaseConsumer):
         orders = Order.objects.filter(
             driver_id=self.driver_id,
             status__in=['driver_assigned', 'picked_up', 'on_the_way']
-        ).select_related('branch','orderer__user').annotate(
+        ).select_related('branch','orderer').annotate(
             last_event_type=Subquery(last_event.values('event_type')[:1]),
             last_event_time=Subquery(last_event.values('timestamp')[:1]),
             last_event_metadata=Subquery(last_event.values('metadata')[:1]),
         ).values(
             'id','order_number','status',
             'created_at','branch__name',
-            'branch__location','orderer__user__name',
+            'branch__location','orderer__name',
             'last_event_type','last_event_time', 'last_event_metadata'
         )
 
@@ -469,7 +469,7 @@ class DriverOrdersConsumer(BaseConsumer):
                     } if order['branch__location'] else None
                 },
                 "delivery_type": "Meet at door",
-                'customer_name': order['orderer__user__name'],
+                'customer_name': order['orderer__name'],
             })
 
         logger.info(f"{len(serialized)}")

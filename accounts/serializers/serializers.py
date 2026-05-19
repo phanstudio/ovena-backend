@@ -48,6 +48,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
             "birth_date",
             "age",
             "referral_code",
+            "name",
         ]
 
 
