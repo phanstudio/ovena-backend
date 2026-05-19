@@ -451,7 +451,7 @@ class ResturantOrderView(GenericAPIView):
         logger.info(f"Order {order.id} accepted by driver {order.driver_id}")
 
         return Response(
-            {"message": "Order accepted. Head to the Customer!"},
+            {"message": "Order Picked Up."},
             status=status.HTTP_202_ACCEPTED,
         )
 
