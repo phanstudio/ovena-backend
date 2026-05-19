@@ -49,6 +49,7 @@ from abc import ABC
 from authflow.services import OTPManager
 import msgpack
 import zlib
+from common.phone.utils import get_phone_number
 
 
 def _decimal_sum(field_name: str):
@@ -189,8 +190,8 @@ class SendVerifyView(BaseBuisAdminAPIView):
     def send(self, vd, user, channel: str = "phone"):
         data = encode_dict(vd)
         code = OTPManager.send_blank(data)
-        OTPManager.send_code(channel, str(user.phone_number), code)
-        print(channel, str(user.phone_number), code)
+        OTPManager.send_code(channel, get_phone_number(user.phone_number), code)
+        print(channel, get_phone_number(user.phone_number), code)
         return code
 
 
@@ -703,7 +704,7 @@ class BusinessDashboardView(BaseBuisAdminAPIView):
         data = {
             "username": business_admin.name
             or request.user.email
-            or request.user.phone_number
+            or get_phone_number(request.user.phone_number)
             or "",
             "today_sales": today_totals["today_sales"],
             "today_sales_count": today_totals["sales_count"],

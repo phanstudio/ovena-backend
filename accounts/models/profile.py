@@ -5,6 +5,7 @@ from authflow.services import generate_referral_code
 from django.db import models, IntegrityError, transaction
 from .main import User, Branch, Business
 from ratings.models.mixin import RatingModelMixin
+from common.phone.utils import get_phone_number
 
 
 # profile
@@ -174,7 +175,7 @@ class DriverProfile(RatingModelMixin, ProfileBase):
     
     
     def __str__(self):
-        return f"Driver: {self.full_name or (self.user.email or self.user.phone_number)}"
+        return f"Driver: {self.full_name or (self.user.email or get_phone_number(self.user.phone_number))}"
 
     @property
     def full_name(self):
