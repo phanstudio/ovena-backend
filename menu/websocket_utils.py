@@ -248,7 +248,12 @@ def notify_on_the_way(order):
         message="Your order is on the way!"
     )
     broadcast_to_order_group(order.id, event_data)
-    # broadcast_to_branch(order.branch_id, event_data)
+    if order.driver_id:
+        broadcast_to_specific_drivers([order.driver_id], build_order_event(
+            ORDER_IN_TRANSIT,
+            order,
+            message="Delivery Picked up! You can go to the customer now."
+        ))
 
 def notify_order_picked_up(order):
     """Notify customer and branch when driver picks up the order"""
