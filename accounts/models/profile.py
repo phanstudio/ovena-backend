@@ -201,7 +201,7 @@ class BusinessAdmin(models.Model):
     # we can change to null later else might be an issue
 
     def __str__(self):
-        return f"{self.user.name} admin @ {self.business.business_name}"
+        return f"{self.name} admin @ {self.business.business_name}"
 
     @property
     def has_transaction_pin(self) -> bool:
@@ -238,7 +238,7 @@ class PrimaryAgent(
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.user.name} - vendor agent @ {self.branch.name}"
+        return f"{self.device_name} - vendor agent @ {self.branch.name}"
 
     class Meta:
         constraints = [

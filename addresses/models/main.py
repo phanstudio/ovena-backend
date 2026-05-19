@@ -72,7 +72,7 @@ class DriverLocation(gis_models.Model):
         ]
     
     def __str__(self):
-        return f"{self.driver.user.name} @ {self.location}"
+        return f"{self.driver.full_name} @ {self.location}"
     
     @classmethod
     def find_nearest_drivers(cls, point, radius_km=5, limit=10):

@@ -25,14 +25,12 @@ class PrimaryAgentBranchSerializer(LocationFieldMixin, serializers.ModelSerializ
     branch_address = serializers.CharField(source="branch.address", read_only=True)
     branch_location = serializers.SerializerMethodField(method_name="get_location")
     location_field = "branch.location"
-    user_name = serializers.CharField(source="user.name", read_only=True)
 
     class Meta:
         model = PrimaryAgent
         fields = [
             "id",           # primary agent id
             "device_name",
-            "user_name",    # optional, can show the user name
             "branch_id",
             "branch_name",
             "branch_location",

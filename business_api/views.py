@@ -701,7 +701,7 @@ class BusinessDashboardView(BaseBuisAdminAPIView):
         # total shipment filtered, total order filtered
 
         data = {
-            "username": request.user.name
+            "username": business_admin.name
             or request.user.email
             or request.user.phone_number
             or "",
