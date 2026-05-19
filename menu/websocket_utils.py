@@ -217,7 +217,7 @@ def notify_driver_assigned(order):
     """
     from .events import ORDER_DRIVER_ASSIGNED
 
-    driver_name = order.driver.name if order.driver else "Driver"
+    driver_name = order.driver.full_name if order.driver else "Driver"
 
     # Customer + branch (via order group)
     order_event = build_order_event(
