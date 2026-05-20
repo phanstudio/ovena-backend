@@ -2,7 +2,8 @@
 FROM carrycat/gis:latest
 
 # Install Python + required system libs
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN rm -rf /var/cache/apt/archives/* /var/lib/apt/lists/* && \
+    apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip \
     libdeflate0 liblerc4 libwebp7 libgeos-c1v5 \
     && rm -rf /var/lib/apt/lists/*
