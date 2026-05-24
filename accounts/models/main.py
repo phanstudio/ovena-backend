@@ -72,6 +72,12 @@ class Branch(RatingModelMixin, gis_models.Model):
     
     def __str__(self):
         return self.name
+    
+    @property
+    def display_name(self):
+        if self.business:
+            return f"{self.business.business_name} - {self.name}"
+        return self.name
 
     @property
     def restaurant(self):

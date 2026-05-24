@@ -18,10 +18,11 @@ class BulkDeleteRequestSerializer(serializers.Serializer):
     categories = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     items      = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     addons     = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    varity     = serializers.ListField(child=serializers.CharField(), required=False, default=list)
 
     def validate(self, data):
-        if not any([data.get("menus"), data.get("categories"), data.get("items"), data.get("addons")]):
-            raise serializers.ValidationError("At least one ID must be provided across menus, categories, items, or addons.")
+        if not any([data.get("menus"), data.get("categories"), data.get("items"), data.get("addons"), data.get("varity")]):
+            raise serializers.ValidationError("At least one ID must be provided across menus, categories, items, or addons or varity.")
         return data
 
 
@@ -61,6 +62,7 @@ class BulkDeletedCountsSerializer(serializers.Serializer):
     categories = serializers.IntegerField()
     items      = serializers.IntegerField()
     addons     = serializers.IntegerField()
+    varity    = serializers.IntegerField()
 
 
 class BulkDeleteResponseSerializer(serializers.Serializer):

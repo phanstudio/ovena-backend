@@ -11,7 +11,7 @@ from payments.services.base import ensure_valid_cred
 from payments.integrations.paystack.errors import PaystackAPIError
 from django.db import transaction, IntegrityError
 from authflow.services import (
-    issue_jwt_for_user, verify_phonenumber
+    issue_jwt_for_user, verify_phonenumber, OTPInvalidError
 )
 from authflow.authentication import CustomBAdminAuth
 from authflow.permissions import IsBusinessAdmin
@@ -59,12 +59,12 @@ class RegisterBAdmin(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
-        try:
-            identifier = verify_phonenumber(vd["otp_code"], get_phone_number(vd["phone_number"]), vd["pin_id"])
-        except OTPInvalidError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        # try:
+        #     identifier = verify_phonenumber(vd["otp_code"], get_phone_number(vd["phone_number"]), vd["pin_id"])
+        # except OTPInvalidError as e:
+        #     return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # identifier = vd["phone_number"]
+        identifier = vd["phone_number"]
         
         try:
             with transaction.atomic():

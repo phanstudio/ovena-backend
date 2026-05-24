@@ -8,5 +8,6 @@ urlpatterns = [
     path("driver/", include("driver_api.urls")),
     path("referrals/", include("referrals.urls")),
     path("coupons/", include("coupons_discount.urls")),
+    path("customer/", include("customer_api.urls")),
     path("", include("payments.urls")),
 ]

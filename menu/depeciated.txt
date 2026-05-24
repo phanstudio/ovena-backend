@@ -1,0 +1,349 @@
+
+
+# # ============================================================================
+# # SHARED HELPERS
+# # ============================================================================
+
+
+# def get_nearby_branches(user_point, max_km=15):
+#     """
+#     ONE GIS QUERY ONLY.
+#     This replaces expensive correlated subqueries.
+#     """
+
+#     return (
+#         Branch.objects
+#         .filter(
+#             is_active=True,
+#             is_accepting_orders=True,
+#             location__isnull=False,
+#             location__distance_lte=(user_point, D(km=max_km)),
+#         )
+#         .annotate(
+#             distance=Distance("location", user_point)
+#         )
+#         .select_related("business")
+#         .only(
+#             "id",
+#             "business_id",
+#             "location",
+#             "is_active",
+#             "is_accepting_orders",
+#         )
+#         .order_by("business_id", "distance")
+#     )
+
+
+# def build_business_maps(user_point, max_km=15):
+#     """
+#     Builds:
+#     - nearest branch per business
+#     - nearby business ids
+#     - business distance map
+
+#     ALL from one query.
+#     """
+
+#     nearby_branches = get_nearby_branches(user_point, max_km)
+
+#     nearest_branch_by_business = OrderedDict()
+
+#     for branch in nearby_branches:
+
+#         # first branch encountered is nearest because
+#         # queryset already ordered by distance
+#         if branch.business_id not in nearest_branch_by_business:
+#             nearest_branch_by_business[branch.business_id] = branch
+
+#     business_ids = list(nearest_branch_by_business.keys())
+
+#     return {
+#         "business_ids": business_ids,
+#         "branches_by_business_id": nearest_branch_by_business,
+#     }
+
+
+# def attach_branch_annotations(businesses, branches_by_business_id):
+#     """
+#     Mimic annotated fields in memory.
+#     """
+
+#     for business in businesses:
+
+#         branch = branches_by_business_id.get(business.id)
+
+#         if branch:
+#             business.nearest_branch_id = branch.id
+#             business.nearest_branch_distance = branch.distance
+#         else:
+#             business.nearest_branch_id = None
+#             business.nearest_branch_distance = None
+
+#     return businesses
+
+
+
+# # ============================================================================
+# # HOMEPAGE
+# # ============================================================================
+
+# class HomePageView(BaseCustomerAPIView):
+#     """
+#     Optimized homepage:
+#     - ONE GIS query
+#     - NO correlated subqueries
+#     - minimal DB roundtrips
+#     """
+
+#     def get(self, request):
+
+#         profile = self.get_customer_profile(request)
+
+#         if not profile.default_address:
+#             return Response(
+#                 {"detail": "No default address set."},
+#                 status=status.HTTP_400_BAD_REQUEST,
+#             )
+
+#         user_point = profile.default_address.location
+
+#         if not user_point:
+#             return Response(
+#                 {"detail": "No default address location set."},
+#                 status=status.HTTP_400_BAD_REQUEST,
+#             )
+
+#         # ====================================================================
+#         # BUILD NEARBY BUSINESS MAPS
+#         # ====================================================================
+
+#         maps = build_business_maps(user_point)
+
+#         business_ids = maps["business_ids"]
+
+#         branches_by_business_id = maps["branches_by_business_id"]
+
+#         # ====================================================================
+#         # LOAD BUSINESSES ONCE
+#         # ====================================================================
+
+#         all_businesses = list(
+#             Business.objects
+#             .filter(id__in=business_ids)
+#             .only(
+#                 "id",
+#                 "business_name",
+#                 "business_logo",
+#                 "avg_rating",
+#             )
+#         )
+
+#         # attach nearest branch fields in memory
+#         attach_branch_annotations(
+#             all_businesses,
+#             branches_by_business_id,
+#         )
+
+#         # quick lookup
+#         business_map = {
+#             b.id: b
+#             for b in all_businesses
+#         }
+
+#         # ====================================================================
+#         # TOP PICKS
+#         # ====================================================================
+
+#         top_picks = sorted(
+#             all_businesses,
+#             key=lambda b: (
+#                 -(b.avg_rating or 0),
+#                 float(b.nearest_branch_distance.m)
+#                 if b.nearest_branch_distance
+#                 else 999999
+#             )
+#         )[:10]
+
+#         # ====================================================================
+#         # FEATURED
+#         # ====================================================================
+
+#         featured_businesses = sorted(
+#             all_businesses,
+#             key=lambda b: (
+#                 float(b.nearest_branch_distance.m)
+#                 if b.nearest_branch_distance
+#                 else 999999
+#             )
+#         )[:10]
+
+#         # ====================================================================
+#         # RECENTLY VIEWED
+#         # ====================================================================
+
+#         recently_viewed_ids = request.session.get(
+#             "recently_viewed",
+#             []
+#         )[:10]
+
+#         recently_viewed = [
+#             business_map[bid]
+#             for bid in recently_viewed_ids
+#             if bid in business_map
+#         ]
+
+#         # ====================================================================
+#         # SERIALIZER CONTEXT
+#         # ====================================================================
+
+#         context = {
+#             "branches_by_business_id": branches_by_business_id,
+#         }
+
+#         return Response({
+#             "top_picks": BusinessListSerializer(
+#                 top_picks,
+#                 many=True,
+#                 context=context,
+#             ).data,
+
+#             "featured": BusinessFeaturedSerializer(
+#                 featured_businesses,
+#                 many=True,
+#                 context=context,
+#             ).data,
+
+#             "recently_viewed": BusinessListSerializer(
+#                 recently_viewed,
+#                 many=True,
+#                 context=context,
+#             ).data,
+#         })
+
+
+# def get_nearest_branches_for_top_businesses(user_point, limit=100, max_km=15):
+#     """
+#     Get nearest branch for top N businesses by distance.
+#     Uses a window function to get only the nearest branch per business.
+#     """
+#     from django.db.models import Window, F, RowNumber
+#     from django.db.models.functions import RowNumber as RN
+    
+#     # Subquery approach: for each business, get ONLY the nearest branch
+#     branches_with_rank = (
+#         Branch.objects
+#         .filter(
+#             is_active=True,
+#             is_accepting_orders=True,
+#             location__isnull=False,
+#             location__distance_lte=(user_point, D(km=max_km)),
+#         )
+#         .annotate(
+#             distance=Distance("location", user_point),
+#             rank=Window(
+#                 expression=RowNumber(),
+#                 partition_by=F('business_id'),
+#                 order_by=F('distance').asc()
+#             )
+#         )
+#         .filter(rank=1)  # Only nearest branch per business
+#         .select_related('business')  # NOW we can select_related
+#         .only(
+#             "id",
+#             "business_id",
+#             "location",
+#             "business__id",
+#             "business__business_name",
+#             "business__business_logo",
+#             "business__avg_rating",
+#         )
+#         .order_by('distance')[:limit]  # Only get top 100 closest businesses
+#     )
+    
+#     return list(branches_with_rank)
+
+
+# class HomePageView(BaseCustomerAPIView):
+#     def get(self, request):
+#         profile = self.get_customer_profile(request)
+#         user_point = profile.default_address.location
+
+#         if not user_point:
+#             return Response(
+#                 {"detail": "No default address location set."},
+#                 status=status.HTTP_400_BAD_REQUEST,
+#             )
+
+#         # ================================================================
+#         # GET ONLY NEAREST BRANCHES (not all branches)
+#         # ================================================================
+        
+#         # Use DISTINCT ON to get only one branch per business
+#         # PostgreSQL specific but very efficient
+#         from django.db.models import OuterRef, Subquery
+        
+#         # Subquery to get nearest branch ID for each business
+#         nearest_branch_subq = (
+#             Branch.objects
+#             .filter(
+#                 business_id=OuterRef('pk'),
+#                 is_active=True,
+#                 is_accepting_orders=True,
+#                 location__isnull=False,
+#                 location__distance_lte=(user_point, D(km=15)),
+#             )
+#             .annotate(dist=Distance("location", user_point))
+#             .order_by("dist")
+#             .values('id')[:1]
+#         )
+        
+#         # Annotate businesses with their nearest branch
+#         base_qs = (
+#             Business.objects
+#             .annotate(
+#                 nearest_branch_id=Subquery(nearest_branch_subq),
+#                 nearest_branch_distance=Subquery(
+#                     Branch.objects
+#                     .filter(
+#                         business_id=OuterRef('pk'),
+#                         is_active=True,
+#                         is_accepting_orders=True,
+#                         location__isnull=False,
+#                         location__distance_lte=(user_point, D(km=15)),
+#                     )
+#                     .annotate(dist=Distance("location", user_point))
+#                     .order_by("dist")
+#                     .values('dist')[:1]
+#                 )
+#             )
+#             .filter(nearest_branch_id__isnull=False)
+#             .only("id", "business_name", "business_logo", "avg_rating")
+#         )
+        
+#         # NOW we only query for 10 at a time
+#         top_picks = list(
+#             base_qs.order_by('-avg_rating', 'nearest_branch_distance')[:10]
+#         )
+        
+#         featured = list(
+#             base_qs.order_by('nearest_branch_distance')[:10]
+#         )
+        
+#         recently_viewed_ids = request.session.get("recently_viewed", [])[:10]
+#         recently_viewed = list(
+#             base_qs.filter(id__in=recently_viewed_ids)
+#         ) if recently_viewed_ids else []
+        
+#         # Load actual branch objects for serialization
+#         all_businesses = top_picks + featured + recently_viewed
+#         branch_ids = [b.nearest_branch_id for b in all_businesses if b.nearest_branch_id]
+#         branches_by_id = Branch.objects.in_bulk(branch_ids)
+        
+#         context = {"branches_by_id": branches_by_id}
+        
+#         return Response({
+#             "top_picks": BusinessListSerializer(top_picks, many=True, context=context).data,
+#             "featured": BusinessFeaturedSerializer(featured, many=True, context=context).data,
+#             "recently_viewed": BusinessListSerializer(recently_viewed, many=True, context=context).data,
+#         })
+

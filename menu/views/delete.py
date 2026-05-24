@@ -14,6 +14,7 @@ from authflow.authentication import CustomBAdminAuth
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers as s
 import menu.serializers.input_ser.delete as delete_selerizers
+from django.db.models import Count
 
 
 def get_user_business(buisness_admin: BusinessAdmin):
@@ -294,6 +295,7 @@ class BulkDeleteMenuView(BaseBuisAdminAPIView):
         category_ids = data["categories"]
         item_ids     = data["items"]
         addon_ids    = data["addons"]
+        varity_ids   = data["varity"]
 
         # ── Collect all affected base_item IDs before any deletion ────────────
         affected_base_ids = set()
@@ -369,7 +371,34 @@ class BulkDeleteMenuView(BaseBuisAdminAPIView):
                     groups__item__category__menu__business=business,
                 )
                 counts["addons"] = qs.count()
+                qs.delete()    
+
+            if varity_ids:
+                qs = VariantOption.objects.filter(
+                    id__in=varity_ids,
+                    group__item__category__menu__business=business
+                )
+
+                counts["varity"] = qs.count()
+
+                # collect affected groups BEFORE delete
+                affected_group_ids = list(
+                    VariantGroup.objects.filter(
+                        options__in=qs
+                    ).values_list("id", flat=True).distinct()
+                )
+
+                # delete variants
                 qs.delete()
+
+                # delete groups that now have no variants
+                VariantGroup.objects.filter(
+                    id__in=affected_group_ids
+                ).annotate(
+                    variant_count=Count("options")
+                ).filter(
+                    variant_count=0
+                ).delete()
 
             # ── Cleanup orphaned BaseItems once ───────────────────────────────
             deleted_base_ids = _cleanup_orphaned_base_items(business, list(affected_base_ids))

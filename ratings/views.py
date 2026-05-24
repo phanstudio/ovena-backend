@@ -51,20 +51,20 @@ class SubmitOrderRatingsView(BaseCustomerAPIView):
 
         return Response(payload, status=status.HTTP_200_OK)
 
-class MyDriverRatingsView(ListAPIView):
+class MyDriverRatingsView(BaseCustomerAPIView, ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = DriverRatingReadSerializer
 
     def get_queryset(self):
-        rater = self.request.user.customerprofile
+        rater = self.get_customer_profile(self.request)
         return DriverRating.objects.filter(rater=rater).select_related("driver", "order").order_by("-created_at")
 
-class MyBranchRatingsView(ListAPIView):
+class MyBranchRatingsView(BaseCustomerAPIView, ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = BranchRatingReadSerializer
 
     def get_queryset(self):
-        rater = self.request.user.customerprofile
+        rater = self.get_customer_profile(self.request)
         return BranchRating.objects.filter(rater=rater).select_related("branch", "order").order_by("-created_at")
 
 class DriverRatingsView(ListAPIView):

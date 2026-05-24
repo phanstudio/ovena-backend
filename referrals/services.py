@@ -6,6 +6,7 @@ import json
 
 from accounts.models import CustomerProfile, DriverProfile, ProfileBase
 from referrals.models import ProfileReferral, ReferralPayout
+from django.db.models import Count, Q
 
 REFERRALS_PER_UNIT = 10
 
@@ -89,10 +90,28 @@ def successful_referrals(profile) -> int:
     ).count()
 
 
+def referral_stats(profile):
+    base = _ensure_profile_base(profile)
+
+    qs = ProfileReferral.objects.filter(referrer_user=base.user)
+
+    stats = qs.aggregate(
+        total=Count("id"),
+        successful=Count("id", filter=Q(converted_at__isnull=False)),
+    )
+
+    return {
+        "total": stats["total"],
+        "successful": stats["successful"],
+        "pending": stats["total"] - stats["successful"],
+    }
+
+
 def referred_by(user):
     return ProfileReferral.objects.filter(
         referee_user=user,
     ).first()
+
 
 @transaction.atomic
 def convert_referral_once(*, referee_profile) -> bool:

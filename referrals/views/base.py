@@ -13,10 +13,11 @@ from referrals.serializers import (
 )
 from referrals.services import (
     apply_referral_code,
-    referral_count,
-    successful_referrals,
     ensure_profile_base,
+    referral_stats
 )
+from common.customer.view import BaseCustomerAPIView
+from rest_framework.exceptions import NotFound
 
 
 class ApplyReferralCodeView(APIView):
@@ -59,7 +60,7 @@ class ApplyReferralCodeView(APIView):
 class MyReferralStatusView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request):
+    def get_profile(self, request):
         profile_type = request.query_params.get("profile_type", "customer")
         if profile_type == "customer":
             profile = getattr(request.user, "customer_profile", None)
@@ -67,23 +68,22 @@ class MyReferralStatusView(APIView):
             profile = getattr(request.user, "driver_profile", None)
 
         if not profile:
-            return Response(
-                {"detail": f"{profile_type.capitalize()} profile not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            raise NotFound(f"{profile_type.capitalize()} profile not found.")
+        return profile
+
+    def get(self, request):
+        profile = self.get_profile(request)
 
         base_profile = ensure_profile_base(profile)
         code = base_profile.referral_code
 
-        total = referral_count(profile)
-        successful = successful_referrals(profile)
-        pending = total - successful
+        stats = referral_stats(profile)
 
         data = {
             "referral_code": code,
-            "total_referrals": total,
-            "successful_referrals": successful,
-            "pending_referrals": pending,
+            "total_referrals": stats["total"],
+            "successful_referrals": stats["successful"],
+            "pending_referrals": stats["pending"],
         }
         return Response(MyReferralStatusSerializer(data).data)
 
@@ -94,3 +94,8 @@ class MyReferralsListView(ListAPIView):
 
     def get_queryset(self):
         return ProfileReferral.objects.filter(referrer_user=self.request.user).order_by("-created_at")
+
+
+class CustomerMyReferralStatusView(MyReferralStatusView, BaseCustomerAPIView):
+    def get_profile(self, request):
+        return self.get_customer_profile(request)

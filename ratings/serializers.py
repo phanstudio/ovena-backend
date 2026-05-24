@@ -89,20 +89,20 @@ from rest_framework import serializers
 from .models import DriverRating, BranchRating, DriverComplaintType, BranchComplaintType
 
 
-class DriverRatingWriteSerializer(serializers.Serializer):
+class RatingWriteSerializer(serializers.Serializer):
     stars = serializers.IntegerField(min_value=1, max_value=5)
+    review = serializers.CharField(required=False, allow_blank=True)
+
+class DriverRatingWriteSerializer(serializers.Serializer):
     complaint_type = serializers.ChoiceField(
         choices=DriverComplaintType.choices, required=False, allow_null=True
     )
-    review = serializers.CharField(required=False, allow_blank=True)
 
 
 class BranchRatingWriteSerializer(serializers.Serializer):
-    stars = serializers.IntegerField(min_value=1, max_value=5)
     complaint_type = serializers.ChoiceField(
         choices=BranchComplaintType.choices, required=False, allow_null=True
     )
-    review = serializers.CharField(required=False, allow_blank=True)
 
 
 class SubmitOrderRatingsSerializer(serializers.Serializer):

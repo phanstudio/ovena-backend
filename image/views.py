@@ -79,12 +79,13 @@ class BatchGenerateUploadURLBaseView(GenericAPIView): # add a check to make sure
                 },
                 ExpiresIn=900,
             )
-
             results.append({
                 "ref_id": f.get("ref_id"),
                 "upload_url": upload_url,
                 # uses your configured custom_domain automatically
-                "public_url": storage.url(key),
+                "public_url": f"https://{storage.custom_domain}/{key}",#storage.url(key),
+                # CLOUD_PUBLIC_CUSTOM_DOMAIN
+                
                 # "public_url": f"https://{storage.custom_domain}/{key}",
             })
 

@@ -25,7 +25,11 @@ class AddressSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Address
-        fields = ["id", "label", "address", "lat", "long", "created_at"]
+        fields = [
+            "id", "label", "address", 
+            "lat", "long", 
+            "created_at"
+        ]
 
     def get_lat(self, obj):
         return obj.location.y if obj.location else None  # y = latitude

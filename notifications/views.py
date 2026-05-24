@@ -4,8 +4,8 @@ from rest_framework.mixins import ListModelMixin
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from authflow.authentication import CustomDriverAuth, CustomBusinessAgentsAuth
-from authflow.permissions import IsDriver, IsBusinessAgent
+from authflow.authentication import CustomDriverAuth, CustomBusinessAgentsAuth, CustomCustomerAuth
+from authflow.permissions import IsDriver, IsBusinessAgent, IsCustomer
 
 from notifications.serializers import NotificationSerializer
 from notifications.services import (
@@ -83,6 +83,12 @@ class DriverNotificationViewSet(BaseNotificationViewSet):
     authentication_classes = [CustomDriverAuth]
     permission_classes = [IsDriver]
 
+
 class BuisnessNotificationViewSet(BaseNotificationViewSet):
     authentication_classes = [CustomBusinessAgentsAuth]
     permission_classes = [IsBusinessAgent]
+
+
+class CustomerNotificationViewSet(BaseNotificationViewSet):
+    authentication_classes = [CustomCustomerAuth]
+    permission_classes = [IsCustomer]

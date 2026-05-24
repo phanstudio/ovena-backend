@@ -1,12 +1,13 @@
 from rest_framework import serializers
 from urllib.parse import urlparse
+from decimal import Decimal
 
 # Check description and name becuase they are set at initail creation of all this, 
 class BaseItemSerializer(serializers.Serializer):
     name = serializers.CharField()
     description = serializers.CharField(required=False, allow_blank=True)
-    price = serializers.DecimalField(max_digits=10, decimal_places=2)  # default_price
-    image = serializers.CharField(required=False, allow_blank=True)  # canonical
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)  # default_price
+    image = serializers.URLField(required=False, allow_blank=True)
 
     def validate_image(self, value):
         if not value:
@@ -22,7 +23,7 @@ class BaseItemSerializer(serializers.Serializer):
 
 class VariantOptionSerializer(serializers.Serializer):
     name = serializers.CharField()
-    price_diff = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
+    price_diff = serializers.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
 
 
 class VariantGroupSerializer(serializers.Serializer):
@@ -30,26 +31,35 @@ class VariantGroupSerializer(serializers.Serializer):
     is_required = serializers.BooleanField(default=True)
     options = VariantOptionSerializer(many=True)
 
+    def validate_options(self, value):
+        names = [v["name"].lower() for v in value]
+
+        if len(names) != len(set(names)):
+            raise serializers.ValidationError(
+                "Duplicate option names are not allowed."
+            )
+
+        return value
+
 
 class MenuItemAddonSerializer(serializers.Serializer):
-    price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
     base_item = BaseItemSerializer()   # wraps a base item (e.g., "Cheese Slice")
 
 
 class MenuItemAddonGroupSerializer(serializers.Serializer):
     name = serializers.CharField()
     is_required = serializers.BooleanField(default=False)
-    max_selection = serializers.IntegerField(default=0)
+    max_selection = serializers.IntegerField(default=0, min_value=0)
     addons = MenuItemAddonSerializer(many=True)
 
 class MenuItemSerializer(serializers.Serializer):
-    custom_name = serializers.CharField(required=False)  # wrapper label, e.g. "Cheeseburger"
+    custom_name = serializers.CharField(required=False, allow_blank=True)  # wrapper label, e.g. "Cheeseburger"
     description = serializers.CharField(required=False, allow_blank=True)
-    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
-    image = serializers.CharField(required=False, allow_blank=True)  # optional override
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, min_value=0)
+    image = serializers.URLField(required=False, allow_blank=True)
 
     base_item = BaseItemSerializer()  # every menu item must wrap a base item
-
     variant_groups = VariantGroupSerializer(many=True, required=False)
     addon_groups = MenuItemAddonGroupSerializer(many=True, required=False)
     

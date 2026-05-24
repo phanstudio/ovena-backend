@@ -39,6 +39,7 @@ from rest_framework.mixins import ListModelMixin, CreateModelMixin, RetrieveMode
 from django.utils import timezone
 from admin_api.models import AppAdmin
 from support_center.task import auto_assign_ticket
+from common.customer.view import BaseCustomerAPIView
 
 class SupportPagination(LimitOffsetPagination):
     default_limit = 20
@@ -340,7 +341,7 @@ class AppAdminSupportTicketViewSet(
 
     def get_queryset(self):
         return SupportTicket.objects.filter(
-            assigned_to=self.request.user,
+            # assigned_to=self.request.user,
         ).order_by("-created_at")
 
     @extend_schema(methods=["GET"], responses=BusinessTicketMessageSerializer(many=True))
@@ -433,6 +434,28 @@ class AppAdminSupportTicketViewSet(
             },
             status=status.HTTP_200_OK
         )
+
+
+class CustomerSupportTicketViewSet(
+    BaseCustomerAPIView,
+    BaseSupportTicketViewSet
+):
+
+    owner_role = Role.OWNER_CUSTOMER
+    sender_role = Role.OWNER_CUSTOMER
+
+    list_serializer = TicketListSerializer
+    detail_serializer = TicketDetailSerializer
+    create_serializer = TicketCreateSerializer
+    message_serializer = TicketMessageSerializer
+    message_create_serializer = TicketMessageCreateSerializer
+
+    @extend_schema(methods=["GET"], responses=TicketMessageSerializer(many=True))
+    @extend_schema(methods=["POST"], request=TicketMessageCreateSerializer, responses=TicketMessageSerializer)
+    @action(detail=True, methods=["get", "post"])
+    def messages(self, request, pk=None):
+        return super().messages(request, pk=pk)
+
 
 # we need system views
 # we need customer views

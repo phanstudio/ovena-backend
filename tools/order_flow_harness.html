@@ -506,6 +506,10 @@
               <label>Order ID</label
               ><input id="branchOrderId" placeholder="auto" />
             </div>
+            <div class="field">
+              <label>Driver Number</label
+              ><input id="driverNumber" placeholder="Type the driver number" />
+            </div>
           </div>
 
           <div class="row">
@@ -1172,8 +1176,13 @@
           `POST /menu/restaurant-order/ (${action}) order=${orderId}`,
           "send",
         );
-        const body = { action, order_id: orderId };
-        if (action === "pickup") body.order_code = code;
+        const code = document.getElementById("driverNumber").value.trim();
+        const body = { action };
+        if (action === "pickup") {
+          body.order_code = code;
+        } else {
+          body.order_id = orderId;
+        }
         const res = await apiFetch(
           "branch",
           "/menu/restaurant-order/",

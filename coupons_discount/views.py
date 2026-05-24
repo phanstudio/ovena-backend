@@ -15,6 +15,77 @@ from admin_api.views import BaseAppAdminAPIView
 # time left should be added everywhere
 # change if needed, the cred
 
+from rest_framework import generics, permissions, filters
+from common.customer.view import BaseCustomerAPIView
+
+class CouponListView(generics.ListAPIView):
+    serializer_class = CouponSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["code", "description", "title"]
+
+    def get_queryset(self):
+        qs = Coupons.objects.select_related(
+            "business",
+            "category",
+            "item",
+        )
+
+        # optional: only eligible coupons
+        only_eligible = self.request.query_params.get("eligible")
+        if only_eligible == "true":
+            qs = qs.filter(eligible_coupon_q())
+
+        # scope filter
+        scope = self.request.query_params.get("scope")
+        if scope:
+            qs = qs.filter(scope=scope)
+
+        # business filter
+        business_id = self.request.query_params.get("business_id")
+        if business_id:
+            qs = qs.filter(business_id=business_id)
+
+        # type filter
+        coupon_type = self.request.query_params.get("coupon_type")
+        if coupon_type:
+            qs = qs.filter(coupon_type=coupon_type)
+
+        return qs.order_by("-created_at", "-valid_from")
+
+class CustomerCouponListView(CouponListView, BaseCustomerAPIView):
+    def get_queryset(self):
+        qs = Coupons.objects.filter(self.request.user).select_related(
+            "business",
+            "category",
+            "item",
+        )
+
+        # optional: only eligible coupons
+        only_eligible = self.request.query_params.get("eligible")
+        if only_eligible == "true":
+            qs = qs.filter(eligible_coupon_q())
+
+        # scope filter
+        scope = self.request.query_params.get("scope")
+        if scope:
+            qs = qs.filter(scope=scope)
+
+        # business filter
+        business_id = self.request.query_params.get("business_id")
+        if business_id:
+            qs = qs.filter(business_id=business_id)
+
+        # type filter
+        coupon_type = self.request.query_params.get("coupon_type")
+        if coupon_type:
+            qs = qs.filter(coupon_type=coupon_type)
+
+        return qs.order_by("-created_at", "-valid_from")
+
+
+# i'm confused here
 class EligibleCouponsListView(generics.ListAPIView):
     """
     GET /api/coupons/eligible/
