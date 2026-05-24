@@ -15,7 +15,7 @@ class BaseItem(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     default_price = models.DecimalField(max_digits=10, decimal_places=2)
-    image = models.ImageField(upload_to="base/items/", null=True, blank=True)
+    image = models.URLField(max_length=500, null=True, blank=True)
 
     @property
     def restaurant(self):
@@ -78,7 +78,7 @@ class MenuItem(models.Model):
     custom_name = models.CharField(max_length=255)   # e.g., "Cheeseburger"
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    image = models.ImageField(upload_to="menu/items/", null=True, blank=True)
+    image = models.URLField(max_length=500, null=True, blank=True)
     favorite = models.ManyToManyField(CustomerProfile) # check
 
     # objects = MenuItemManager()  # attach the custom manager
