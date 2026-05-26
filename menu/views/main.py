@@ -364,6 +364,7 @@ class BusinessSearchView(LocationDependantMixin, GenericAPIView):
 
 # ============================================================================
 # BUSINESS DETAIL — Full menu, branch-aware pricing
+# cachable but avalability is updated;
 # ============================================================================
 
 class BusinessDetailView(LocationDependantMixin,APIView):

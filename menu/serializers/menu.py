@@ -34,10 +34,11 @@ class MenuItemAddonSerializer(serializers.ModelSerializer):
     Branch override price is handled at MenuItem level via BaseItemAvailability.
     """
     name = serializers.CharField(source='base_item.name', read_only=True)
+    image = serializers.URLField(source='base_item.image', read_only=True)
 
     class Meta:
         model = MenuItemAddon
-        fields = ["id", "name", "price"]
+        fields = ["id", "name", "price", "image"]
 
 
 class MenuItemAddonGroupSerializer(serializers.ModelSerializer):
@@ -67,7 +68,7 @@ class MenuItemDetailSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(
         source='effective_price', max_digits=10, decimal_places=2, read_only=True
     )
-    image = serializers.ImageField(
+    image = serializers.URLField(
         source='effective_image', read_only=True
     )
     variant_groups = VariantGroupSerializer(many=True, read_only=True)
@@ -133,7 +134,7 @@ class MenuItemFeaturedSerializer(serializers.ModelSerializer):
     price = serializers.DecimalField(
         source='effective_price', max_digits=10, decimal_places=2, read_only=True
     )
-    image = serializers.ImageField(source='effective_image', read_only=True)
+    image = serializers.URLField(source='effective_image', read_only=True)
     variant_groups = VariantGroupSerializer(many=True, read_only=True)
     addon_groups = MenuItemAddonGroupSerializer(many=True, read_only=True)
 

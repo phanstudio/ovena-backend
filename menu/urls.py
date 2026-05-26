@@ -6,7 +6,6 @@ from business_api.routers import BaseBranchRouter
 
 router = BaseBranchRouter("")
 
-
 business_urls = [
     *router.register("availability", bmenuview.AvailabilityListView),
     *router.register("availability/bulk-update", bmenuview.AvaliabilityView),
@@ -31,7 +30,7 @@ business_urls = [
     path("business/addon/<str:addon_id>/delete/", deleteview.DeleteAddonView.as_view(), name="delete-addon"),
 ]
 
-user_urls = [
+customer_urls = [
     # Homepage with sections
     path('homepage/', views.HomePageView.as_view(), name='homepage'),
     
@@ -49,14 +48,6 @@ user_urls = [
 ]
 
 urlpatterns = [
-    # path(
-    #     "businesses/<int:business_id>/menus/",
-    #     views.MenuView.as_view(),
-    #     name="menu-list",
-    # ),
-    # path("restaurant-list/", views.RestaurantView.as_view(), name="restaurant-list"),
-    # path("menuitem-search/", views.SearchMenuItems.as_view(), name="menuitem-search"),
-    # path("home-page/", views.HomePageView.as_view(), name="home-page"),
     path(
         "restaurant-order/", views.ResturantOrderView.as_view(), name="restaurant-order"
     ),
@@ -70,5 +61,5 @@ urlpatterns = [
     ),
     path("update-menus/", views.UpdateMenusView.as_view(), name="update-menus"),
     path("", include(business_urls)),
-    path("", include(user_urls)),
+    path("", include(customer_urls)),
 ]

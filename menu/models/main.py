@@ -92,7 +92,7 @@ class MenuItem(models.Model):
     
     @property
     def effective_image(self):
-        return self.image if self.image else self.base_item.image
+        return self.image if self.image is not None else self.base_item.image
 
 # extras, what about (addon and variant) availability?
 class VariantGroup(models.Model):
