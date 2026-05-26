@@ -110,7 +110,7 @@ def annotate_business_metrics(qs, user_point):
         nearest_branch_distance=Subquery(branch_qs.values("dist")[:1]),
 
         # rating signal
-        # avg_rating=Avg("branches__ratings__value"),
+        avg_rating=Avg("branches__ratings__value"),
 
         # demand signal (orders in last 30 days)
         order_count_30d=Count(
@@ -128,8 +128,8 @@ def apply_top_picks_ranking(qs):
         top_pick_score=ExpressionWrapper(
             (F("avg_rating") * 0.4) +
             (F("order_count_30d") * 0.4) +
-            (F("total_orders") * 0.1) -
-            (F("nearest_branch_distance") * 0.1),
+            #(F("total_orders") * 0.1) -
+            - (F("nearest_branch_distance") * 0.1),
             output_field=FloatField()
         )
     )
