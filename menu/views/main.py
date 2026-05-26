@@ -36,6 +36,7 @@ from ..serializers.menu import (
 
 from common.customer.view import BaseCustomerAPIView
 from collections import OrderedDict
+from abc import ABC, abstractmethod
 
 
 from django.contrib.gis.db.models.functions import Distance
@@ -134,14 +135,6 @@ def apply_top_picks_ranking(qs):
     )
 
 
-def get_user_point(request):
-    lat = request.query_params.get('lat')
-    lng = request.query_params.get('lng')
-    if not lat or not lng:
-        return None
-    return Point(float(lng), float(lat), srid=4326)
-
-
 # def annotate_with_nearest_branch(qs, user_point, max_km=15):
 #     branch_qs = nearest_branch_subquery(user_point, max_km)
 #     return qs.annotate(
@@ -157,22 +150,56 @@ def get_user_point(request):
 #     ]
 #     return Branch.objects.in_bulk(branch_ids)
 
+class LocationProviderMixin(ABC):
+    @abstractmethod
+    def get_user_point(self, request):
+        pass
+
+    @abstractmethod
+    def get_point_error(self):
+        pass
+
+    def point_error(self) -> Response:
+        return Response(
+            {"detail": self.get_point_error()},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+class LocationDependantMixin(LocationProviderMixin):
+    def get_user_point(self, request):
+        lat = request.query_params.get('lat')
+        lng = request.query_params.get('lng')
+        if not lat or not lng:
+            return None
+        return Point(float(lng), float(lat), srid=4326)
+    
+    def get_point_error(self):
+        return "No location sent, either (longitude or latitude) is missing or incorrect."
+
+
+class AddressDependantMixin(LocationProviderMixin):
+    def get_user_point(self, request):
+        profile = self.get_customer_profile(request)
+        if not profile.default_address or not profile.default_address.location:
+            return None
+        return profile.default_address.location
+    
+    def get_point_error(self):
+        return "No default address location set."
+
 
 # ======================================================================
 # VIEW
 # ======================================================================
 
-class HomePageView(BaseCustomerAPIView):
+class HomePageView(LocationDependantMixin, BaseCustomerAPIView):
 
     def get(self, request):
-        profile = self.get_customer_profile(request)
-        user_point = self.get_user_point(profile)
+        user_point = self.get_user_point(request)
 
         if not user_point:
-            return Response(
-                {"detail": "No default address location set."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return self.point_error()
 
         base_qs = annotate_business_metrics(
             Business.objects.all(),
@@ -220,11 +247,6 @@ class HomePageView(BaseCustomerAPIView):
                 recently_viewed, many=True, context=context
             ).data,
         })
-
-    def get_user_point(profile):
-        if not profile.default_address or not profile.default_address.location:
-            return None
-        return profile.default_address.location
 ##
 
 
@@ -232,19 +254,16 @@ class HomePageView(BaseCustomerAPIView):
 # BUSINESS LIST — Infinite Scroll (ultra-lightweight)
 # ============================================================================
 
-class BusinessListView(APIView):
+class BusinessListView(LocationDependantMixin, APIView):
     """
     GET /businesses/?lat=&lng=&page=
     2 queries per page.
     """
 
     def get(self, request):
-        user_point = get_user_point(request)
+        user_point = self.get_user_point(request)
         if not user_point:
-            return Response(
-                {"error": "lat and lng are required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return self.point_error()
 
         businesses = (
             annotate_with_nearest_branch(Business.objects.all(), user_point)
@@ -266,19 +285,16 @@ class BusinessListView(APIView):
 # BUSINESS LIST WITH MENU NAMES — No addons/variants
 # ============================================================================
 
-class BusinessListWithMenuNamesView(APIView):
+class BusinessListWithMenuNamesView(LocationDependantMixin, APIView):
     """
     GET /businesses/with-menus/?lat=&lng=&page=
     ~5 queries per page (business + branches + menus + categories + items)
     """
 
     def get(self, request):
-        user_point = get_user_point(request)
+        user_point = self.get_user_point(request)
         if not user_point:
-            return Response(
-                {"error": "lat and lng are required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return self.point_error()
 
         businesses = (
             annotate_with_nearest_branch(Business.objects.all(), user_point)
@@ -301,7 +317,7 @@ class BusinessListWithMenuNamesView(APIView):
 # SEARCH & FILTER
 # ============================================================================
 
-class BusinessSearchView(GenericAPIView):
+class BusinessSearchView(LocationDependantMixin, GenericAPIView):
     """
     GET /businesses/search/?lat=&lng=&q=&type=&min_rating=&max_distance=&page=
 
@@ -318,12 +334,9 @@ class BusinessSearchView(GenericAPIView):
     pagination_class = BusinessPagination
 
     def get(self, request):
-        user_point = get_user_point(request)
+        user_point = self.get_user_point(request)
         if not user_point:
-            return Response(
-                {"error": "lat and lng are required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return self.point_error()
 
         query = request.query_params.get('q', '').strip()
         business_type = request.query_params.get('type', '').strip()
@@ -368,7 +381,7 @@ class BusinessSearchView(GenericAPIView):
 # BUSINESS DETAIL — Full menu, branch-aware pricing
 # ============================================================================
 
-class BusinessDetailView(APIView):
+class BusinessDetailView(LocationDependantMixin,APIView):
     """
     GET /businesses/<id>/?lat=&lng=
     - Full menu with variants and addons
@@ -378,7 +391,10 @@ class BusinessDetailView(APIView):
     """
     
     def get(self, request, business_id):
-        user_point = get_user_point(request)
+        user_point = self.get_user_point(request)
+
+        if not user_point:
+            return self.point_error()
         
         try:
             business = (
