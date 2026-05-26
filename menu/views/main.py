@@ -110,7 +110,7 @@ def annotate_business_metrics(qs, user_point):
         nearest_branch_distance=Subquery(branch_qs.values("dist")[:1]),
 
         # rating signal
-        avg_rating=Avg("branches__ratings__value"),
+        # avg_rating=Avg("branches__ratings__value"), # was conflicting and was removed
 
         # demand signal (orders in last 30 days)
         order_count_30d=Count(
@@ -134,21 +134,6 @@ def apply_top_picks_ranking(qs):
         )
     )
 
-
-# def annotate_with_nearest_branch(qs, user_point, max_km=15):
-#     branch_qs = nearest_branch_subquery(user_point, max_km)
-#     return qs.annotate(
-#         nearest_branch_id=Subquery(branch_qs.values("id")[:1]),
-#         nearest_branch_distance=Subquery(branch_qs.values("dist")[:1]),
-#     ).filter(nearest_branch_id__isnull=False)
-
-
-# def bulk_load_branches(businesses):
-#     branch_ids = [
-#         b.nearest_branch_id for b in businesses
-#         if b.nearest_branch_id
-#     ]
-#     return Branch.objects.in_bulk(branch_ids)
 
 class LocationProviderMixin(ABC):
     @abstractmethod
