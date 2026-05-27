@@ -19,6 +19,7 @@ class VariantGroupSerializer(serializers.ModelSerializer):
 class MenuItemAddonSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     base_item_id = serializers.IntegerField(source="base_item.id", read_only=True)
+    image = serializers.URLField(source="base_item.image", read_only=True)
     is_available = serializers.SerializerMethodField()
 
     class Meta:
@@ -28,6 +29,7 @@ class MenuItemAddonSerializer(serializers.ModelSerializer):
             "base_item_id",
             "name", "price",
             "is_available",
+            "image"
         ]
     
     def get_name(self, obj):

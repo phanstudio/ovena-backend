@@ -49,7 +49,7 @@ class BusinessMenuView(APIView):
             business_id=self.get_business_id(user)
         ).prefetch_related(
             "categories__items__variant_groups__options",
-            "categories__items__addon_groups__addons",
+            "categories__items__addon_groups__addons__base_item",
         )
 
         serializer = OpS.BusinessMenuSerializer(
