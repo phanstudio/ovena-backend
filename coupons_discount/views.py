@@ -169,7 +169,7 @@ class CouponWheelSpinView(APIView):
                     Coupons.objects
                     .filter(pk=picked.pk)
                     .filter(eligible_coupon_q())  # re-check at DB time
-                    .update(uses_count=F("uses_count") + 1)
+                    .update(uses_count=F("uses_count") + 1) # this is wrong
                 )
                 if updated == 0:
                     continue
@@ -221,9 +221,12 @@ class CouponWheelSetterView(BaseAppAdminAPIView, generics.UpdateAPIView):
 
         serializer.save()
 
-class CouponWheelCreateView(BaseAppAdminAPIView, generics.CreateAPIView):
+class CouponWheelCreateView(BaseAppAdminAPIView, generics.CreateAPIView): # does this create??
     """
     POST /api/admin/coupon-wheels/
     """
     serializer_class = CouponWheelSetSerializer
     queryset = CouponWheel.objects.all()
+
+# look for coupon updating
+# anything coupon/wheel creation/update is for admins; listing coupons users has and 

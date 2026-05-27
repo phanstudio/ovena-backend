@@ -4,8 +4,8 @@ set -e
 # Always use the venv's python
 
 echo "Running migrations..."
-python manage.py makemigrations --noinput
-python manage.py migrate --noinput
+# python manage.py makemigrations --noinput
+# python manage.py migrate --noinput
 
 echo "Collecting static files..."
 # python3 manage.py collectstatic --noinput

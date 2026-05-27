@@ -44,13 +44,14 @@ class Coupons(models.Model): # are coupons for the entire order or a single orde
     # min_order_value = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     max_uses = models.PositiveIntegerField(null=True, blank=True)
     uses_count = models.PositiveIntegerField(default=0)
+    is_reward = models.BooleanField(default=True)
 
     valid_from = models.DateTimeField()
     valid_until = models.DateTimeField(blank=True, null= True)
     is_active = models.BooleanField(default=True)
 
+
 class CouponWheel(models.Model):
     coupons = models.ManyToManyField(Coupons)
     max_entries_amount = models.SmallIntegerField(default=6)
     is_active = models.BooleanField(default=False)
-    

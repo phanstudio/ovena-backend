@@ -1,7 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 from .models import Coupons, CouponWheel
-from .services import eligible_coupon_q
+from .services import eligible_coupon_q, eligible_coupon_for_wheel_q
 
 class CouponSerializer(serializers.ModelSerializer):
     exhausted = serializers.SerializerMethodField()
@@ -144,11 +144,14 @@ class CouponWheelSetSerializer(serializers.ModelSerializer):
         # Update wheel fields
         for k, v in validated_data.items():
             setattr(instance, k, v)
-        instance.save()
+        instance.save() # makes no sense
 
         # If coupons provided, set them (but only eligible ones)
         if coupon_ids is not None:
-            eligible = Coupons.objects.filter(id__in=coupon_ids).filter(eligible_coupon_q()).distinct()
+            eligible = Coupons.objects.filter(id__in=coupon_ids).filter(eligible_coupon_for_wheel_q()).distinct()
+            # we need to count how many coupons didn't save??
+            # we have the eligable so we check in python the id's that weren't eligable;
+            # reasons include is not a reward for marketing; 
             instance.coupons.set(eligible)
 
         return instance

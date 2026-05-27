@@ -36,3 +36,6 @@ class OrderRetrieveView(BaseCustomerAPIView, RetrieveAPIView):
         return (Order.objects.filter(orderer=customer).select_related("branch__business", "branch", "driver")
                 .prefetch_related("items"))
                 
+# class UpdateAdressView
+# favorite view for menuitem and addons; but endpoint
+

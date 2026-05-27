@@ -78,3 +78,16 @@ reviews matter;
 cunsomer code needs work the availabilty,
 start deliver action
 do we brodcast rejection from drivers, not like uber so maybe no
+depeciate the is available in the consumer [hold it for now]
+
+# depeciated
+
+# add name for oath
+
+we need to test media
+change the coupon system;
+fix the menu problem;
+uploading images;
+subscriptions.
+location update??
+is closed we aren't sending that in the users end.

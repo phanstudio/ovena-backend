@@ -3,7 +3,7 @@ from django.db import transaction
 from rest_framework import serializers
 from accounts.models import Branch, User, ProfileBase
 from ..models import Coupons, BaseItemAvailability, MenuItem, MenuItemAddon, VariantOption, Order, OrderItem
-from ..services import CouponService
+from coupons_discount.services import CouponService
 from authflow.services import generate_passphrase, hash_phrase
 from addresses.utils import get_distance_km_from_2points
 from django.db.models import Prefetch
@@ -56,7 +56,7 @@ class OrderCreateSerializer(serializers.Serializer):
         coupon = None
         code = (attrs.get("coupon_code") or "").strip()
         if code:
-            coupon = Coupons.objects.filter(code=code).first()
+            coupon = Coupons.objects.filter(code=code).first()# this area of use
             if not coupon:
                 raise serializers.ValidationError({"coupon_code": "Coupon not found."})
         attrs["coupon"] = coupon
