@@ -20,7 +20,9 @@ from drf_spectacular.utils import extend_schema, inline_serializer # type: ignor
 from rest_framework import serializers as s
 from accounts.serializers import InS, OpS
 from menu.views import BatchGenerateUploadURLView, RegisterMenusPhase3View  # noqa: F401
+from business_api.views import BaseBuisAdminAPIView
 from common.phone.utils import get_phone_number
+from image.views import ImageMixin
 
 # edge case of going back
 @extend_schema(
@@ -139,49 +141,64 @@ class ReRegisterBAdmin(GenericAPIView):
         "business_id": s.CharField(),
     })}
 )
-class RestaurantPhase1RegisterView(GenericAPIView):
+class RestaurantPhase1RegisterView(BaseBuisAdminAPIView, ImageMixin):
     """
     Phase 1: Initial business + admin user registration.
     Creates: Business (bare), User (businessadmin role), BusinessAdmin link.
     No auth required — this is signup.
     """
-    authentication_classes = [CustomBAdminAuth]
-    permission_classes = [IsBusinessAdmin]
     serializer_class = InS.RestaurantPhase1Serializer
     def post(self, request):
+        business_admin = self.get_buisnessadmn(request)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
         user = request.user
 
-        with transaction.atomic():
-            # Create the business shell
-            business = Business.objects.create(
-                business_name=vd["business_name"],
-                business_type=vd["business_type"],
-                country=vd["country"],
-                business_address=vd["business_address"],
-                email=vd["email"],
-                phone_number=vd["phone_number"],
+        try:
+            with transaction.atomic():
+                # Create the business shell
+                business_image = None
+                if "business_image" in request.FILES:
+                    business_image = self.validate_image(request.FILES["business_image"])
+                if "business_logo" in request.FILES:
+                    business_logo = self.validate_image(request.FILES["business_logo"])
+                
+                business = Business.objects.create(
+                    business_name=vd["business_name"],
+                    business_type=vd["business_type"],
+                    country=vd["country"],
+                    business_address=vd["business_address"],
+                    email=vd["email"],
+                    phone_number=vd["phone_number"],
+                    business_image=business_image,
+                    business_logo=business_logo
+                )
+                
+                
+                BusinessCerd.objects.create(business=business)
+                user.set_password(vd["password"])
+                user.save()
+
+                # Link admin to business
+                BusinessAdmin.objects.filter(id=business_admin.id).update(business=business)
+                BusinessOnboardStatus.objects.filter(admin=business_admin).update(onboarding_step=1)
+
+            return Response(
+                {"detail": "Business registered. Proceed to onboarding.", "business_id": business.id},
+                status=status.HTTP_201_CREATED,
             )
-            # if "business_image" in request.FILES:
-            #     business.business_image = request.FILES["business_image"]
-            # if "business_logo" in request.FILES:
-            #     business.business_logo = request.FILES["business_logo"]
-            BusinessCerd.objects.create(business=business)
-            user.set_password(vd["password"])
-            user.save()
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-            # Link admin to business
-            business_admin = BusinessAdmin.objects.get(user=user)
-            business_admin.business = business
-            business_admin.save()
-            BusinessOnboardStatus.objects.filter(admin=business_admin).update(onboarding_step=1)
-
-        return Response(
-            {"detail": "Business registered. Proceed to onboarding.", "business_id": business.id},
-            status=status.HTTP_201_CREATED,
-        )
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 @extend_schema(
     responses={200: inline_serializer("Phase1Response", fields={
@@ -219,10 +236,6 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
             restaurant_cerds.business_type = vd.get("business_type", restaurant.business_type)
             restaurant_cerds.doc_type = vd.get("doctype", "cac")
 
-            if "business_image" in request.FILES:
-                restaurant.business_image = request.FILES["business_image"]
-            if "business_logo" in request.FILES:
-                restaurant.business_logo = request.FILES["business_logo"]
             if "business_documents" in request.FILES:
                 restaurant_cerds.business_doc = request.FILES["business_documents"]
             

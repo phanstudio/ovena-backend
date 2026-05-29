@@ -77,8 +77,8 @@ def nearest_branch_subquery(user_point, max_km=15):
     )
 
 
-def annotate_with_nearest_branch(qs, user_point):
-    branch_qs = nearest_branch_subquery(user_point)
+def annotate_with_nearest_branch(qs, user_point, max_km=15):
+    branch_qs = nearest_branch_subquery(user_point, max_km)
 
     return qs.annotate(
         nearest_branch_id=Subquery(branch_qs.values("id")[:1]),
