@@ -1,205 +1,44 @@
-from django.db.models import F
-from rest_framework import generics, permissions
-from .models import Coupons, CouponWheel
-from .serializers import CouponSerializer, CouponWheelSerializer
-from .services import eligible_coupon_q
+import random
+
+from django.db import transaction
+from django.db.models import Q, Prefetch
+
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
-import random
-from django.db import transaction
-from .serializers import CouponCreateUpdateSerializer
-from .serializers import CouponWheelSetSerializer
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import generics, permissions, filters
+
+from .models import Coupons, CouponWheel, UserCouponWallet
+from .serializers import (
+    CouponSerializer, CouponCreateUpdateSerializer,
+    CouponWheelSerializer, CouponWheelSetSerializer,
+    UserCouponWalletSerializer, CouponWheelBaseSerializer,
+)
+from .services import WheelService, eligible_coupon_q, eligible_coupon_for_wheel_with_min_lifetime_q
+
+from common.pagination import StandardResultsSetPagination
+from common.customer.view import BaseCustomerAPIView
 from admin_api.views import BaseAppAdminAPIView
 
-# time left should be added everywhere
-# change if needed, the cred
 
-from rest_framework import generics, permissions, filters
-from common.customer.view import BaseCustomerAPIView
-
-class CouponListView(generics.ListAPIView):
-    serializer_class = CouponSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    filter_backends = [filters.SearchFilter]
-    search_fields = ["code", "description", "title"]
-
-    def get_queryset(self):
-        qs = Coupons.objects.select_related(
-            "business",
-            "category",
-            "item",
-        )
-
-        # optional: only eligible coupons
-        only_eligible = self.request.query_params.get("eligible")
-        if only_eligible == "true":
-            qs = qs.filter(eligible_coupon_q())
-
-        # scope filter
-        scope = self.request.query_params.get("scope")
-        if scope:
-            qs = qs.filter(scope=scope)
-
-        # business filter
-        business_id = self.request.query_params.get("business_id")
-        if business_id:
-            qs = qs.filter(business_id=business_id)
-
-        # type filter
-        coupon_type = self.request.query_params.get("coupon_type")
-        if coupon_type:
-            qs = qs.filter(coupon_type=coupon_type)
-
-        return qs.order_by("-created_at", "-valid_from")
-
-class CustomerCouponListView(CouponListView, BaseCustomerAPIView):
-    def get_queryset(self):
-        qs = Coupons.objects.filter(self.request.user).select_related(
-            "business",
-            "category",
-            "item",
-        )
-
-        # optional: only eligible coupons
-        only_eligible = self.request.query_params.get("eligible")
-        if only_eligible == "true":
-            qs = qs.filter(eligible_coupon_q())
-
-        # scope filter
-        scope = self.request.query_params.get("scope")
-        if scope:
-            qs = qs.filter(scope=scope)
-
-        # business filter
-        business_id = self.request.query_params.get("business_id")
-        if business_id:
-            qs = qs.filter(business_id=business_id)
-
-        # type filter
-        coupon_type = self.request.query_params.get("coupon_type")
-        if coupon_type:
-            qs = qs.filter(coupon_type=coupon_type)
-
-        return qs.order_by("-created_at", "-valid_from")
-
-
-# i'm confused here
-class EligibleCouponsListView(generics.ListAPIView):
-    """
-    GET /api/coupons/eligible/
-    Returns coupons that can be added / shown (not exhausted, active, valid).
-    Optional filters:
-      ?scope=global|restaurant
-      ?business_id=123
-      ?coupon_type=delivery|itemdiscount|...
-    """
-    serializer_class = CouponSerializer
-    permission_classes = [permissions.IsAuthenticated] 
-
-    def get_queryset(self):
-        qs = Coupons.objects.filter(eligible_coupon_q()).select_related("business", "category", "item")
-
-        scope = self.request.query_params.get("scope")
-        if scope:
-            qs = qs.filter(scope=scope)
-
-        business_id = self.request.query_params.get("business_id") or self.request.query_params.get("restaurant_id")
-        if business_id:
-            qs = qs.filter(business_id=business_id)
-
-        coupon_type = self.request.query_params.get("coupon_type")
-        if coupon_type:
-            qs = qs.filter(coupon_type=coupon_type)
-
-        return qs.order_by("-valid_from", "code")
-
-class CouponWheelGetView(APIView):
-    """
-    GET /api/coupon-wheel/
-    Shows the active wheel (if any) and the eligible coupon options.
-    """
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request):
-        wheel = CouponWheel.objects.filter(is_active=True).first()
-        if not wheel:
-            return Response({"detail": "No active coupon wheel."}, status=status.HTTP_404_NOT_FOUND)
-
-        eligible = wheel.coupons.filter(eligible_coupon_q()).distinct()
-        data = {
-            "wheel_id": wheel.id,
-            "max_entries_amount": wheel.max_entries_amount,
-            "options": CouponSerializer(eligible, many=True).data,
-        }
-        return Response(data)
-
-class CouponWheelSpinView(APIView):
-    """
-    POST /api/coupon-wheel/spin/
-    Picks a random eligible coupon from the active wheel.
-    If no eligible coupons remain => 409.
-    """
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        wheel = CouponWheel.objects.filter(is_active=True).first()
-        if not wheel:
-            return Response({"detail": "No active coupon wheel."}, status=status.HTTP_404_NOT_FOUND)
-
-        for _ in range(3):
-            eligible_qs = wheel.coupons.filter(eligible_coupon_q()).distinct()
-
-            count = eligible_qs.count()
-            if count == 0:
-                return Response(
-                    {"detail": "No eligible coupons left on the wheel."},
-                    status=status.HTTP_409_CONFLICT,
-                )
-
-            # Efficient random pick without pulling all rows:
-            idx = random.randint(0, count - 1)
-            picked = eligible_qs.order_by("id")[idx]  # stable order, then index
-
-            # If you want spinning to "consume" a use (optional):
-            # This is concurrency-safe and won't exceed max_uses.
-            with transaction.atomic():
-                updated = (
-                    Coupons.objects
-                    .filter(pk=picked.pk)
-                    .filter(eligible_coupon_q())  # re-check at DB time
-                    .update(uses_count=F("uses_count") + 1) # this is wrong
-                )
-                if updated == 0:
-                    continue
-                picked.refresh_from_db()
-
-            return Response({"picked": CouponSerializer(picked).data})
-
-        return Response({"detail": "Coupon just exhausted. Spin again."}, status=409)
-
-class CouponWheelAdminView(BaseAppAdminAPIView, generics.RetrieveAPIView):
-    queryset = CouponWheel.objects.prefetch_related("coupons")
-    serializer_class = CouponWheelSerializer
-
-class CouponCreateView(BaseAppAdminAPIView, generics.CreateAPIView):
+# Admin coupons functions
+class AdminCouponCreateView(BaseAppAdminAPIView, generics.CreateAPIView):
     """
     POST /api/admin/coupons/
     """
-    permission_classes = [permissions.IsAuthenticated]
     serializer_class = CouponCreateUpdateSerializer
-    queryset = Coupons.objects.all()
 
-class CouponUpdateView(BaseAppAdminAPIView, generics.UpdateAPIView):
+
+class AdminCouponUpdateView(BaseAppAdminAPIView, generics.UpdateAPIView):
     """
     PATCH/PUT /api/admin/coupons/<id>/
     """
     serializer_class = CouponCreateUpdateSerializer
     queryset = Coupons.objects.all()
 
-# add probabity settings
-class CouponWheelSetterView(BaseAppAdminAPIView, generics.UpdateAPIView):
+
+class AdminCouponWheelUpdateView(BaseAppAdminAPIView, generics.UpdateAPIView):
     """
     PATCH /api/admin/coupon-wheels/<id>/
     Body can include:
@@ -221,12 +60,262 @@ class CouponWheelSetterView(BaseAppAdminAPIView, generics.UpdateAPIView):
 
         serializer.save()
 
-class CouponWheelCreateView(BaseAppAdminAPIView, generics.CreateAPIView): # does this create??
+
+class AdminCouponWheelCreateView(BaseAppAdminAPIView, generics.CreateAPIView):
     """
     POST /api/admin/coupon-wheels/
     """
     serializer_class = CouponWheelSetSerializer
-    queryset = CouponWheel.objects.all()
 
-# look for coupon updating
-# anything coupon/wheel creation/update is for admins; listing coupons users has and 
+
+# ---------------------------------------------------------------------------
+# EligibleCouponsListView
+# ---------------------------------------------------------------------------
+
+class AdminCouponsListView(APIView):
+    """
+    GET /coupons/eligible/
+
+    Returns all currently eligible *marketing* coupons (is_reward=False).
+    Reward coupons are not listed here — they live in the user's wallet.
+
+    Optional query param:
+        ?scope=global|business
+        ?business_id=<id>
+        ?coupon_type=delivery|itemdiscount|...
+        ?eligable=true
+        ?reward=true|false|all
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = (
+            Coupons.objects
+            .all()
+        )
+
+        scope = request.query_params.get("scope")
+        business_id = request.query_params.get("business_id")
+        coupon_type = self.request.query_params.get("coupon_type")
+        only_eligable = self.request.query_params.get("eligable").lower()
+        is_reward = (self.request.query_params.get("reward", "false").lower())
+
+        if is_reward != "all":
+            qs = qs.filter(is_reward=(is_reward=="true"))
+        if only_eligable == "true":
+            qs = qs.filter(eligible_coupon_q())
+        if scope:
+            qs = qs.filter(scope=scope)
+        if business_id:
+            qs = qs.filter(business_id=business_id)
+        if coupon_type:
+            qs = qs.filter(coupon_type=coupon_type)
+        
+        qs = qs.order_by("-created_at", "-valid_from")
+
+        serializer = CouponSerializer(qs, many=True)
+        return Response(serializer.data)
+
+
+# ---------------------------------------------------------------------------
+# CouponWheelGetView
+# ---------------------------------------------------------------------------
+# a way to check if the wheel is empty
+
+class CouponWheelGetView(BaseCustomerAPIView):
+    """
+    GET /coupons/wheel/
+
+    Returns the currently active wheel with its eligible reward coupons.
+    Coupons that have been exhausted (uses_count >= max_uses) are already
+    removed from the wheel by WheelService.award_coupon_to_user, so whatever
+    is in wheel.coupons is safe to display.
+    """
+
+    def get(self, request):
+        wheel = (
+            CouponWheel.objects
+            .filter(is_active=True)
+            .prefetch_related(
+                Prefetch(
+                    "coupons",
+                    queryset=Coupons.objects.filter(eligible_coupon_for_wheel_with_min_lifetime_q()),
+                )
+            )
+            .first()
+        )
+        if not wheel:
+            return Response(
+                {"detail": "No active wheel at the moment."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = CouponWheelSerializer(wheel)
+        return Response(serializer.data)
+
+
+class AdminCouponWheelListView(BaseAppAdminAPIView, generics.ListAPIView):
+    """
+    GET /coupons/wheel/
+
+    Returns the currently active wheel with its eligible reward coupons.
+    Coupons that have been exhausted (uses_count >= max_uses) are already
+    removed from the wheel by WheelService.award_coupon_to_user, so whatever
+    is in wheel.coupons is safe to display.
+    """
+    serializer_class = CouponWheelBaseSerializer
+    pagination_class = StandardResultsSetPagination
+
+    def get_queryset(self):
+        qs = (
+            CouponWheel.objects
+            # .prefetch_related("coupons")
+            .all()
+        )
+
+        # scope = self.request.query_params.get("scope")
+        # if scope:
+        #     qs = qs.filter(scope=scope)
+
+        return qs
+
+
+class AdminCouponWheelDetailView(BaseAppAdminAPIView, generics.RetrieveAPIView):
+    queryset = CouponWheel.objects.prefetch_related("coupons")
+    serializer_class = CouponWheelSerializer
+    # lookup_field = "id"
+
+
+# ---------------------------------------------------------------------------
+# CouponWheelSpinView
+# ---------------------------------------------------------------------------
+# we need at add a permission like wheel chance
+
+class CouponWheelSpinView(BaseCustomerAPIView):
+    """
+    POST /coupons/wheel/spin/
+
+    Spins the wheel for the authenticated user:
+      1. Loads the active wheel and its eligible reward coupons.
+      2. Randomly selects one coupon from the wheel entries.
+      3. Delegates to WheelService.award_coupon_to_user which:
+         - Atomically increments uses_count on the coupon.
+         - Removes the coupon from the wheel if it is now exhausted.
+         - Creates a UserCouponWallet entry for the user.
+      4. Returns the awarded wallet entry.
+
+    If the wheel is empty (all coupons exhausted between load and spin)
+    a 409 is returned — the client should refresh the wheel display.
+
+    Body: none required.
+    """
+
+    def post(self, request):
+        wheel = (
+            CouponWheel.objects
+            .filter(is_active=True)
+            .prefetch_related(
+                Prefetch(
+                    "coupons",
+                    # Only bring in coupons that are still eligible at spin time.
+                    # This is a best-effort filter; WheelService does the atomic
+                    # check so there is no race condition risk here.
+                    queryset=Coupons.objects.filter(eligible_coupon_for_wheel_with_min_lifetime_q(3)),
+                )
+            )
+            .first()
+        )
+
+        if not wheel:
+            return Response(
+                {"detail": "No active wheel at the moment."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Build the weighted entry list:
+        # Each coupon fills exactly one slot in the list, so a uniform random
+        # pick gives equal probability. If you ever want weighted odds, multiply
+        # each coupon by a weight here.
+        eligible_coupons = list(wheel.coupons.all())
+
+        if not eligible_coupons:
+            return Response(
+                {"detail": "The wheel has no available prizes right now."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        chosen_coupon: Coupons = random.choice(eligible_coupons)
+
+        wallet_entry = WheelService.award_coupon_to_user(
+            coupon=chosen_coupon,
+            user=request.user,
+            from_spin=True,
+        )
+
+        if wallet_entry is None:
+            # The chosen coupon was claimed by another concurrent spin.
+            # Return the result anyway with a different coupon if any remain,
+            # otherwise tell the client to retry.
+            remaining = [c for c in eligible_coupons if c.pk != chosen_coupon.pk]
+            if not remaining:
+                return Response(
+                    {"detail": "All prizes were just claimed. Please try again shortly."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            # Try once more with another random coupon from the remaining list.
+            fallback = random.choice(remaining)
+            wallet_entry = WheelService.award_coupon_to_user(
+                coupon=fallback,
+                user=request.user,
+                from_spin=True,
+            )
+            if wallet_entry is None:
+                return Response(
+                    {"detail": "All prizes were just claimed. Please try again shortly."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+        serializer = UserCouponWalletSerializer(wallet_entry)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+# ---------------------------------------------------------------------------
+# UserCouponWalletView
+# ---------------------------------------------------------------------------
+
+class UserCouponWalletListView(BaseCustomerAPIView, generics.ListAPIView):
+    """
+    GET /coupons/wallet/
+
+    Returns the authenticated user's reward coupon wallet.
+
+    Query params:
+        ?unused=true
+        ?search=code|description
+
+    Each entry includes the full coupon details and an is_expired flag so
+    the client can visually separate usable from expired entries without
+    additional requests.
+    """
+    serializer_class = UserCouponWalletSerializer
+
+    def get_queryset(self):
+        qs = UserCouponWallet.objects.select_related("coupon").filter(
+            user=self.request.user
+        )
+
+        only_unused = self.request.query_params.get("unused")
+        if only_unused == "true":
+            qs = qs.filter(is_used=False)
+        
+        search = self.request.query_params.get("search")
+
+        if search:
+            qs = qs.filter(
+                Q(coupon__code__icontains=search) |
+                Q(coupon__description__icontains=search)
+            )
+
+        return qs.order_by("-awarded_at")
