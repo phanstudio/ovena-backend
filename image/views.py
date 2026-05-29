@@ -109,8 +109,7 @@ class BatchGenerateBuisnessURLView(BatchGenerateUploadURLBaseView): # add a chec
         )
 
 
-class UpdateBusinessImagesView(BaseBuisAdminAPIView):
-
+class ImageMixin():
     parser_classes = [MultiPartParser, FormParser]
     MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
 
@@ -145,6 +144,9 @@ class UpdateBusinessImagesView(BaseBuisAdminAPIView):
         # # Reset file pointer after verify()
         # file.seek(0)
 
+
+class UpdateBusinessImagesView(BaseBuisAdminAPIView, ImageMixin):
+    
     def patch(self, request):
         business_admin = self.get_buisnessadmn(request)
         restaurant = business_admin.business
