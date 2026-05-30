@@ -205,16 +205,42 @@ class NearestBranchSerializer(serializers.Serializer):
     distance_km = serializers.FloatField()
 
 
+class BaseWithAddressMixin():
+    def get_lat(self, obj):
+        return obj.location.y if obj.location else None  # y = latitude
+
+    def get_long(self, obj):
+        return obj.location.x if obj.location else None  # x = longitude
+
+
+class BaseWithNearestSerializer(serializers.ModelSerializer, BaseWithAddressMixin):
+    nearest_branch = serializers.SerializerMethodField()
+
+    def get_nearest_branch(self, obj):
+        branches_by_id = self.context.get("branches_by_id", {})
+        branch:Branch = branches_by_id.get(obj.nearest_branch_id)
+        if not branch:
+            return None
+        return {
+            "id": branch.id,
+            "name": branch.name,
+            "distance_km": round(obj.nearest_branch_distance.km, 2),
+            "lat": self.get_lat(branch),
+            "long": self.get_long(branch),
+            "address": branch.address,
+        }
+
+
+
 # ============================================================================
 # BUSINESS SERIALIZERS
 # ============================================================================
 
-class BusinessListSerializer(serializers.ModelSerializer):
+class BusinessListSerializer(BaseWithNearestSerializer):
     """
     Ultra-lightweight. Infinite scroll homepage list.
     2 queries total for 20 businesses.
     """
-    nearest_branch = serializers.SerializerMethodField()
 
     class Meta:
         model = Business
@@ -224,25 +250,13 @@ class BusinessListSerializer(serializers.ModelSerializer):
             "nearest_branch",
         ]
 
-    def get_nearest_branch(self, obj):
-        branches_by_id = self.context.get("branches_by_id", {})
-        branch = branches_by_id.get(obj.nearest_branch_id)
-        if not branch:
-            return None
-        return {
-            "id": branch.id,
-            "name": branch.name,
-            "distance_km": round(obj.nearest_branch_distance.km, 2),
-        }
 
-
-class BusinessWithMenuNamesSerializer(serializers.ModelSerializer):
+class BusinessWithMenuNamesSerializer(BaseWithNearestSerializer):
     """
     Business + flat item names per menu. NO variants/addons.
     Requires prefetch: menus__categories__items
     """
     menus = MenuSimpleSerializer(many=True, read_only=True)
-    nearest_branch = serializers.SerializerMethodField()
 
     class Meta:
         model = Business
@@ -252,26 +266,14 @@ class BusinessWithMenuNamesSerializer(serializers.ModelSerializer):
             "nearest_branch", "menus",
         ]
 
-    def get_nearest_branch(self, obj):
-        branches_by_id = self.context.get("branches_by_id", {})
-        branch = branches_by_id.get(obj.nearest_branch_id)
-        if not branch:
-            return None
-        return {
-            "id": branch.id,
-            "name": branch.name,
-            "distance_km": round(obj.nearest_branch_distance.km, 2),
-        }
 
-
-class BusinessFeaturedSerializer(serializers.ModelSerializer):
+class BusinessFeaturedSerializer(BaseWithNearestSerializer):
     """
     Business with featured items.
     is_featured filtered at QUERYSET level in the view (not in Python).
     Requires prefetch with filtered queryset for items.
     """
     # featured_items = serializers.SerializerMethodField()
-    nearest_branch = serializers.SerializerMethodField()
 
     class Meta:
         model = Business
@@ -292,19 +294,8 @@ class BusinessFeaturedSerializer(serializers.ModelSerializer):
     #                     return result
     #     return result
 
-    def get_nearest_branch(self, obj):
-        branches_by_id = self.context.get("branches_by_id", {})
-        branch = branches_by_id.get(obj.nearest_branch_id)
-        if not branch:
-            return None
-        return {
-            "id": branch.id,
-            "name": branch.name,
-            "distance_km": round(obj.nearest_branch_distance.km, 2),
-        }
 
-
-class BusinessDetailSerializer(serializers.ModelSerializer):
+class BusinessDetailSerializer(serializers.ModelSerializer, BaseWithAddressMixin):
     """
     Full detail page serializer. Branch-aware pricing and availability.
     Requires context['availability_map'] built in view.
@@ -338,4 +329,7 @@ class BusinessDetailSerializer(serializers.ModelSerializer):
             "id": branch.id,
             "name": branch.name,
             "distance_km": round(distance.km, 2) if distance else None,
+            "lat": self.get_lat(branch),
+            "long": self.get_long(branch),
+            "address": branch.address,
         }

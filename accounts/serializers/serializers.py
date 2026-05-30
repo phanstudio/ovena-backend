@@ -77,7 +77,7 @@ class BuisnessAdminProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessAdmin
         fields = [
-            "id",  # "referral_code"
+            "id", "name"
         ]
 
 
