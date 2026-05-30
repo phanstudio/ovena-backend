@@ -159,6 +159,7 @@ class RestaurantPhase1RegisterView(BaseBuisAdminAPIView, ImageMixin):
             with transaction.atomic():
                 # Create the business shell
                 business_image = None
+                business_logo = None
                 if "business_image" in request.FILES:
                     business_image = self.validate_image(request.FILES["business_image"])
                 if "business_logo" in request.FILES:
