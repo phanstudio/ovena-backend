@@ -247,7 +247,7 @@ class BusinessListSerializer(BaseWithNearestSerializer):
         fields = [
             "id", "business_name", "business_type",
             "business_logo", "avg_rating", "rating_count",
-            "nearest_branch",
+            "nearest_branch", "business_image"
         ]
 
 

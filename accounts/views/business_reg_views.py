@@ -154,16 +154,17 @@ class RestaurantPhase1RegisterView(BaseBuisAdminAPIView, ImageMixin):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
         user = request.user
+        files: dict = request.FILES
 
         try:
             with transaction.atomic():
                 # Create the business shell
-                business_image = None
-                business_logo = None
-                if "business_image" in request.FILES:
-                    business_image = self.validate_image(request.FILES["business_image"])
-                if "business_logo" in request.FILES:
-                    business_logo = self.validate_image(request.FILES["business_logo"])
+                business_image = files.get("business_image")
+                business_logo = files.get("business_image")
+                if business_image:
+                    self.validate_image(business_image)
+                if business_logo:
+                    self.validate_image(business_logo)
                 
                 business = Business.objects.create(
                     business_name=vd["business_name"],
