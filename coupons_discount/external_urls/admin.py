@@ -7,8 +7,11 @@ from coupons_discount.views import (
 )
 
 urlpatterns = [
+    path("wheel/create/", AdminCouponWheelCreateView.as_view(), name="coupon-wheel-create"),
+    path("wheel/update/<int:pk>/", AdminCouponWheelUpdateView.as_view(), name="coupon-wheel-update"),
     path("wheel/<int:pk>/", AdminCouponWheelDetailView.as_view(), name="coupon-wheel-detail"),
     path("wheel/all/", AdminCouponWheelListView.as_view(), name="coupon-wheel-all"),
     path("create/", AdminCouponCreateView.as_view(), name="coupon-create"),
     path("update/<int:pk>/", AdminCouponUpdateView.as_view(), name="coupon-update"),
+    path("all/", AdminCouponsListView.as_view(), name="coupon-all"),
 ]

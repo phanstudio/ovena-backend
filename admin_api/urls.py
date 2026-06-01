@@ -46,7 +46,8 @@ urlpatterns = [
     path("password-reset/", PasswordResetView.as_view(), name="password-reset"),
     path("password-reset/send/", PassWordResetSendView.as_view(), name="password-reset-send"),
     path("change-password/", ChangePasswordView.as_view(), name="change-password"),
-    path("", include("coupons_discount.external_urls.admin")),
+    path("coupons/", include("coupons_discount.external_urls.admin")),
     path("", include("support_center.urls.admin")),
     path("referrals/", include("referrals.admin_urls")),
+    path("", include("payments.subscriptions.urls.admin")),
 ]

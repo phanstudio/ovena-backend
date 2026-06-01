@@ -66,4 +66,92 @@ class PaystackClient:
     
     def verfy_account(self, payload: dict[str, Any]) ->  dict[str, Any]:
         return self._call(self._client.verification.verify_account, payload) 
+    
+    def create_customer(self, payload: dict[str, Any]) ->  dict[str, Any]:
+        """
+        Create a customer in Paystack.
 
+        payload = {
+            "email": email,
+            "first_name": first_name, <opt>
+            "last_name": last_name, <opt>
+        }
+        """
+        return self._call(self._client.customer.create, payload)
+    
+    def create_subscription(self, payload: dict[str, Any]) ->  dict[str, Any]:
+        """
+        Create a subscription in Paystack.
+            
+        payload = {
+            "customer": customer_code,
+            "plan": plan_code,
+            "metadata": metadata or {},
+        }
+        """
+        return self._call(self._client.subscription.create, payload)
+
+    def disable_subscription(self, payload: dict[str, Any]) ->  dict[str, Any]:
+        """
+        Disable a subscription (cancel at Paystack).
+
+        payload = {
+            "code": subscription_code,
+            "token": email_token, <opt>
+        }
+        """
+        return self._call(self._client.subscription.disable, payload)
+
+    def fetch_subscription(self, subscription_code: str) -> dict[str, Any]:
+        """Fetch subscription details from Paystack."""
+        return self._call(self._client.subscription.fetch, {"code": subscription_code})
+
+    def create_plan(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        Create a recurring plan on Paystack.
+
+        payload = {
+            "name": str,
+            "interval": "daily" | "weekly" | "monthly" | "yearly",
+            "amount": int,          # in kobo (lowest denomination)
+            "description": str,     # optional
+            "send_invoices": bool,  # optional
+            "send_sms": bool,       # optional
+            "currency": str,        # default "NGN"
+        }
+        """
+        return self._call(self._client.plan.create, payload)
+
+    def update_plan(self, plan_code: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        Update an existing plan (only name, description, amount? Paystack allows limited fields).
+        Note you can't change interval after subscription.
+
+        payload = {
+            "name": str,
+            "description": str,
+            "amount": int,   # optional, but cannot be increased after subscriptions exist
+        }
+        """
+        # Note: Paystack endpoint is PUT /plan/:code
+        # The SDK might have plan.update(plan_code, **payload)
+        # If not, you may need a raw request. Assuming the SDK has:
+        return self._call(lambda: self._client.plan.update(plan_code, **payload))
+
+    def get_subscription_update_link(self, subscription_code: str) -> dict[str, Any]:
+        """Generate a hosted link for the customer to update their card."""
+        return self._call(
+            self._client.subscription.manage_link,
+            {"code": subscription_code}
+        )
+
+    def send_subscription_update_email(self, subscription_code: str) -> dict[str, Any]:
+        """Trigger Paystack to email the customer a card-update link."""
+        return self._call(
+            self._client.subscription.manage_email,
+            {"code": subscription_code}
+        )
+
+    # def newone(self):
+    #     # self._call
+    #     self._client.su

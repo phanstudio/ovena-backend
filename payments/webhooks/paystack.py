@@ -15,6 +15,10 @@ from payments.models import PaystackWebhookLog, Sale, Withdrawal
 from payments.observability.metrics import increment, observe_ms
 from payments.payouts.services import mark_withdrawal_failed, mark_withdrawal_paid
 from menu.payment_handlers import order_fail, order_update
+from payments.models.subscription import (
+    Subscription, User, Plan, Invoice, Status
+)
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +90,78 @@ def _record_webhook_lag(body: dict[str, Any], event_type: str) -> None:
     lag_ms = max((timezone.now() - event_time).total_seconds() * 1000.0, 0.0)
     observe_ms("payments.webhook.processing_lag_ms", lag_ms, tags={"event": event_type})
 
+# payload = {
+#     "email": user.email,
+#     "plan": plan.paystack_plan_code,
+#     "metadata": {
+#         "user_id": user.id,
+#         "plan_id": plan.id
+#     }
+# } # use later
+
+@transaction.atomic
+def on_subscription_created(data):
+    # TODO: switch to metadata["user_id"] lookup once payload includes it
+    user = User.objects.select_for_update().get(email=data["customer"]["email"])
+    plan = Plan.objects.get(paystack_plan_code=data["plan"]["plan_code"])
+    sub_code = data["subscription_code"]
+
+    # Lock existing active subs to prevent race with the UniqueConstraint
+    Subscription.objects.select_for_update().filter(user=user, active=True)
+    Subscription.objects.filter(user=user, active=True).update(active=False)
+
+    Subscription.objects.update_or_create(
+        paystack_subscription_code=sub_code,
+        defaults={
+            "user": user,
+            "plan": plan,
+            "active": True,
+            "start_date": parse_datetime(data.get("createdAt")) or timezone.now(),
+        },
+    )
+
+
+@transaction.atomic
+def on_invoice_created(data):
+    sub_code = data["subscription"]["subscription_code"]
+    subscription = Subscription.objects.get(paystack_subscription_code=sub_code)
+
+    Invoice.objects.get_or_create(
+        paystack_invoice_code=data["invoice_code"],
+        defaults={
+            "subscription": subscription,
+            "amount": data["amount"],
+            "due_date": parse_datetime(data["due_date"]),
+            "status": Status.PENDING,
+            "raw_payload": data,
+        },
+    )
+
+
+@transaction.atomic
+def on_invoice_payment_success(data):
+    invoice = Invoice.objects.select_related("subscription").get(
+        paystack_invoice_code=data["invoice_code"]
+    )
+    invoice.status = Status.PAID
+    invoice.paid_at = parse_datetime(data["paid_at"])
+    invoice.save(update_fields=["status", "paid_at", "updated_at"])
+
+    subscription = invoice.subscription
+    subscription.active = True
+    subscription.next_payment_date = parse_datetime(data["next_payment_date"])
+    subscription.save(update_fields=["active", "next_payment_date", "updated_at"])
+
+
+@transaction.atomic
+def on_invoice_payment_failed(data):
+    Invoice.objects.filter(
+        paystack_invoice_code=data["invoice_code"]
+    ).update(
+        status=Status.FAILED,
+        failure_reason=data.get("description", ""),  # e.g. "Insufficient Funds"
+    )
+
 
 def process_event(body: dict[str, Any]) -> None:
     event = body.get("event")
@@ -94,15 +170,15 @@ def process_event(body: dict[str, Any]) -> None:
     if event == "charge.success":
         order_update(data)
         ref = data.get("reference")
-        sale = Sale.objects.filter(paystack_reference=ref).first()
-        if sale:
-            sale.status = "in_escrow"
-            sale.save(update_fields=["status", "updated_at"])
+        Sale.objects.filter(paystack_reference=ref).update(
+            status="in_escrow",
+            updated_at=timezone.now()
+        )
         return
-    
-    elif event == "charge.failed":
+
+    if event == "charge.failed":
         order_fail(data)
-        return 
+        return
 
     if event in TRANSFER_EVENTS:
         reference = data.get("reference", "")
@@ -130,6 +206,29 @@ def process_event(body: dict[str, Any]) -> None:
                 transfer_status=transfer_status,
                 reason=reason,
             )
+        return
+
+
+    if event == "subscription.create":
+        on_subscription_created(data)
+        return
+
+    if event == "invoice.create":
+        on_invoice_created(data)
+        return
+
+    if event == "invoice.payment_success":
+        on_invoice_payment_success(data)
+        return
+
+    if event == "invoice.payment_failed":
+        on_invoice_payment_failed(data)
+        return
+
+    if event == "subscription.disable":
+        Subscription.objects.filter(
+            paystack_subscription_code=data["subscription_code"]
+        ).update(active=False, cancelled_at=timezone.now())
         return
 
     logger.info("[WEBHOOK] Unhandled event: %s", event)

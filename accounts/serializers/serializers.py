@@ -74,10 +74,12 @@ class DriverProfileSerializer(serializers.ModelSerializer):
 
 
 class BuisnessAdminProfileSerializer(serializers.ModelSerializer):
+    business_image = serializers.ImageField(source="business.business_image", read_only=True)
+    business_logo = serializers.ImageField(source="business.business_logo", read_only=True)
     class Meta:
         model = BusinessAdmin
         fields = [
-            "id", "name"
+            "id", "name", "business_logo", "business_image"
         ]
 
 

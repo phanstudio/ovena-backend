@@ -364,7 +364,7 @@ class AppAdminApproveView(GenericAPIView):
                 "message": "Account registered successfully",
                 "refresh": token["refresh"],
                 "access": token["access"],
-                "user": {"id": user.id, "name": subadmin.name,},
+                "user": {"id": user.id, "name": subadmin.name, "role": subadmin.role},
             }
         )
         return Response(

@@ -15,4 +15,5 @@ urlpatterns = [
     path("rating/", include("ratings.external_ulrs.customer")),
     path("", include("support_center.urls.customer")),
     path("", include("notifications.urls.customer")),
+    path("", include("payments.subscriptions.urls.client")),
 ]

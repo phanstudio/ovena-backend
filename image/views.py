@@ -21,7 +21,6 @@ from rest_framework import status
 # CAC certification image
 
 # might be a little harder than i thought
-
 @extend_schema(
     responses=OpS.BatchGenerateUploadURLResponseSerializer
 )
@@ -199,4 +198,3 @@ class UpdateBusinessImagesView(BaseBuisAdminAPIView, ImageMixin):
                 {"detail": "Failed to upload images."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
