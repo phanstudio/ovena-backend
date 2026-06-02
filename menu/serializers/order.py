@@ -15,9 +15,7 @@ from menu.models import (
 
 PRICE_PER_KM = 1000
 MINIMUM_PRICE_KM = 100 #1000
-
 MIN_ORDER_SUBTOTAL = Decimal("5000.00")
-
 
 class OrderItemCreateSerializer(serializers.Serializer):
     menu_item_id = serializers.IntegerField()
