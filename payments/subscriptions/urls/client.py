@@ -6,7 +6,7 @@ urlpatterns = [ # /client
     path("subscription/cancle/", views.CancelSubscriptionView.as_view(), name="subscription-cancle"),
     path("subscription/current/", views.CurrentSubscriptionView.as_view(), name="subscription-current"),
     path("invoice/history/", views.InvoiceHistoryView.as_view(), name="invoice-history"),
-    path("invoice/retry/", views.RetryInvoicePaymentView.as_view(), name="invoice-retry"),
+    path("invoice/retry/<int:invoice_id>", views.RetryInvoicePaymentView.as_view(), name="invoice-retry"),
     path("update/card/link/", views.SubscriptionUpdateCardView.as_view(), name="update-card"),
-    path("plans/list/", views.ClientPlanListCreateView.as_view(), name="client-plan-list"),
+    path("plans/list/", views.ClientPlanListView.as_view(), name="client-plan-list"),
 ]

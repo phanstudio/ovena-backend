@@ -96,4 +96,5 @@ urlpatterns = [
         UpdateBusinessImagesView.as_view(),
         name="update-business-images",
     ),
+    path("", include("payments.subscriptions.urls.business")),
 ]

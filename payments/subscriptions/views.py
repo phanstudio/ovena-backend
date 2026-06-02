@@ -12,6 +12,7 @@ from .serializers import (
 )
 from payments.integrations.client import client
 from admin_api.views import BaseAppAdminAPIView
+from business_api.views import BaseBuisAdminAPIView
 from rest_framework.generics import (
     ListCreateAPIView, RetrieveUpdateAPIView, 
     RetrieveUpdateDestroyAPIView, CreateAPIView, 
@@ -84,7 +85,7 @@ class CreateSubscriptionView(GenericAPIView):
         return Response(data)
 
 
-class CancelSubscriptionView(APIView):
+class CancelSubscriptionView(GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     @transaction.atomic
@@ -110,7 +111,7 @@ class CancelSubscriptionView(APIView):
         return Response({"status": "cancelled"})
 
 
-class CurrentSubscriptionView(APIView):
+class CurrentSubscriptionView(GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -125,7 +126,7 @@ class CurrentSubscriptionView(APIView):
             return Response({"active": False}, status=status.HTTP_200_OK)
 
 
-class InvoiceHistoryView(APIView):
+class InvoiceHistoryView(GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -136,7 +137,7 @@ class InvoiceHistoryView(APIView):
         return Response(serializer.data)
 
 
-class ClientPlanListCreateView(ListAPIView):
+class ClientPlanListView(ListAPIView):
     queryset = Plan.objects.all()
     serializer_class = PlanSerializer
     permission_classes = [IsAuthenticated]
@@ -151,6 +152,83 @@ class ClientPlanDetailView(RetrieveAPIView):
     def get_queryset(self):
         qs = Plan.objects.prefetch_related("features").all()
         return qs
+
+
+class RetryInvoicePaymentView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, invoice_id):
+        try:
+            invoice = Invoice.objects.select_related("subscription").get(
+                id=invoice_id,
+                subscription__user=request.user,
+                status=Status.FAILED,
+            )
+        except Invoice.DoesNotExist:
+            return Response({"error": "Invoice not found or not retryable"}, status=404)
+
+        try:
+            resp = client.initialize_transaction({
+                "email": request.user.email,
+                "amount": invoice.amount,
+                "invoice_limit": 1,            # one-time charge
+                "subscription": invoice.subscription.paystack_subscription_code,
+                # this ties the payment back to the subscription
+            })
+            return Response({"authorization_url": resp["data"]["authorization_url"]})
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
+
+class SubscriptionUpdateCardView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            sub = Subscription.objects.get(user=request.user, active=True)
+        except Subscription.DoesNotExist:
+            return Response({"error": "No active subscription"}, status=404)
+
+        try:
+            resp = client.get_subscription_update_link(sub.paystack_subscription_code)
+            return Response({"update_url": resp["data"]["link"]})
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
+
+# buisnesses, we might not even need all the fancy authentiction stuff
+class BusinessCreateSubscriptionView(BaseBuisAdminAPIView, CreateSubscriptionView):
+    # def get_user_info(self, request):
+    #     return {
+    #         "email": request.user.email,
+    #         # "first_name":request.user.first_name,
+    #         # last_name:request.user.last_name,
+    #     }
+    ...
+
+
+class BusinessCancelSubscriptionView(BaseBuisAdminAPIView, CancelSubscriptionView):
+    ...
+
+
+class BusinessCurrentSubscriptionView(BaseBuisAdminAPIView, CurrentSubscriptionView):
+    ...
+
+
+class BusinessInvoiceHistoryView(BaseBuisAdminAPIView, InvoiceHistoryView):
+    ...
+
+
+class BusinessPlanListView(BaseBuisAdminAPIView, ClientPlanListView):
+    ...
+
+
+class BusinessRetryInvoicePaymentView(BaseBuisAdminAPIView, RetryInvoicePaymentView):
+    ...
+
+
+class BusinessSubscriptionUpdateCardView(BaseBuisAdminAPIView, SubscriptionUpdateCardView):
+    ...
 
 
 # admin views
@@ -273,48 +351,6 @@ class FeatureBulkCreateView(BaseAppAdminAPIView, CreateAPIView):
         if isinstance(kwargs.get("data", {}), list):
             kwargs["many"] = True
         return super().get_serializer(*args, **kwargs)
-
-
-class RetryInvoicePaymentView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, invoice_id):
-        try:
-            invoice = Invoice.objects.select_related("subscription").get(
-                id=invoice_id,
-                subscription__user=request.user,
-                status=Status.FAILED,
-            )
-        except Invoice.DoesNotExist:
-            return Response({"error": "Invoice not found or not retryable"}, status=404)
-
-        try:
-            resp = client.initialize_transaction({
-                "email": request.user.email,
-                "amount": invoice.amount,
-                "invoice_limit": 1,            # one-time charge
-                "subscription": invoice.subscription.paystack_subscription_code,
-                # this ties the payment back to the subscription
-            })
-            return Response({"authorization_url": resp["data"]["authorization_url"]})
-        except Exception as e:
-            return Response({"error": str(e)}, status=500)
-
-
-class SubscriptionUpdateCardView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-        try:
-            sub = Subscription.objects.get(user=request.user, active=True)
-        except Subscription.DoesNotExist:
-            return Response({"error": "No active subscription"}, status=404)
-
-        try:
-            resp = client.get_subscription_update_link(sub.paystack_subscription_code)
-            return Response({"update_url": resp["data"]["link"]})
-        except Exception as e:
-            return Response({"error": str(e)}, status=500)
 
 
 # unneccessary
