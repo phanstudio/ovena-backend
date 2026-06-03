@@ -72,7 +72,7 @@ class AdminCouponWheelCreateView(BaseAppAdminAPIView, generics.CreateAPIView):
 # EligibleCouponsListView
 # ---------------------------------------------------------------------------
 
-class AdminCouponsListView(APIView):
+class AdminCouponsListView(BaseAppAdminAPIView):
     """
     GET /coupons/eligible/
 
@@ -87,8 +87,6 @@ class AdminCouponsListView(APIView):
         ?reward=true|false|all
     """
 
-    permission_classes = [IsAuthenticated]
-
     def get(self, request):
         qs = (
             Coupons.objects
@@ -98,8 +96,8 @@ class AdminCouponsListView(APIView):
         scope = request.query_params.get("scope")
         business_id = request.query_params.get("business_id")
         coupon_type = self.request.query_params.get("coupon_type")
-        only_eligable = self.request.query_params.get("eligable").lower()
-        is_reward = (self.request.query_params.get("reward", "false").lower())
+        only_eligable = self.request.query_params.get("eligable", "false").lower()
+        is_reward = (self.request.query_params.get("reward", "true").lower())
 
         if is_reward != "all":
             qs = qs.filter(is_reward=(is_reward=="true"))

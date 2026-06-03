@@ -16,4 +16,7 @@ urlpatterns = [
     path("", include("support_center.urls.customer")),
     path("", include("notifications.urls.customer")),
     path("", include("payments.subscriptions.urls.client")),
+    path("favorite/", views.FavoriteCreateView.as_view(), name="favorite"),
+    path("favorite/remove/", views.FavoriteRemoveView.as_view(), name="favorite-remove"),
+    path("favorite/list/", views.FavoriteListView.as_view(), name="favorite-list")
 ]

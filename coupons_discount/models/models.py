@@ -83,6 +83,7 @@ class Coupons(models.Model):
     valid_from = models.DateTimeField()
     valid_until = models.DateTimeField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     def __str__(self):
         kind = "reward" if self.is_reward else "marketing"

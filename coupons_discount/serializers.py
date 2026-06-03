@@ -113,6 +113,28 @@ class CouponWheelSetSerializer(CouponWheelBaseSerializer):
 
         return instance
 
+    def create(self, validated_data):
+        coupon_ids = validated_data.pop("coupon_ids", [])
+
+        wheel = CouponWheel.objects.create(**validated_data)
+
+        eligible = (
+            Coupons.objects
+            .filter(id__in=coupon_ids)
+            .filter(eligible_coupon_for_wheel_q())
+            .distinct()
+        )
+
+        eligible_ids = set(eligible.values_list("id", flat=True))
+        self._skipped_coupon_ids = [
+            cid for cid in coupon_ids
+            if cid not in eligible_ids
+        ]
+
+        wheel.coupons.set(eligible)
+
+        return wheel
+
 
 # ---------------------------------------------------------------------------
 # Coupon create / update (admin)

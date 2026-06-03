@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from menu.models import Order, OrderItem
+from .models import FavoriteMenuItem
 
 class OrderHistorySerializer(serializers.ModelSerializer):
     driver = serializers.CharField(
@@ -75,4 +76,10 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
             "items",
         ]
 
+class FavoriteCreateSerializer(serializers.Serializer):
+    menu_item_id = serializers.IntegerField()
 
+class FavoriteListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FavoriteMenuItem
+        fields = ["menu_item", "created_at"]
