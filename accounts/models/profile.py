@@ -1,11 +1,11 @@
 from addresses.models import Address
 from django.utils import timezone
 from django.contrib.auth.hashers import check_password, make_password
-from authflow.services import generate_referral_code
 from django.db import models, IntegrityError, transaction
 from .main import User, Branch, Business
 from ratings.models.mixin import RatingModelMixin
 from common.phone.utils import get_phone_number
+from authflow.services.generate import generate_referral_code
 
 
 # profile

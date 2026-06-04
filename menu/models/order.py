@@ -8,19 +8,7 @@ from accounts.models import (
 )
 from coupons_discount.models import Coupons
 from payments.models import Sale
-
-class OrderStatus(models.TextChoices):
-    PAYMENT_PENDING = "payment_pending", "Payment Pending"
-    PENDING = "pending", "Pending"
-    CONFIRMED = "confirmed", "Confirmed"
-    PREPARING = "preparing", "Preparing"
-    READY = "ready", "Ready for Pickup"
-    DRIVER_ASSIGNED = "driver_assigned", "Driver Assigned"
-    PICKED_UP = "picked_up", "Picked Up"
-    ON_THE_WAY = "on_the_way", "On the Way"
-    DELIVERED = "delivered", "Delivered"
-    CANCELLED = "cancelled", "Cancelled"
-
+from .enums import OrderStatus
 
 # ===== UPDATE EXISTING MODELS =====
 # do we add total that will hold the (subtotal - discount) or something like that
