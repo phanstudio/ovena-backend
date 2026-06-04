@@ -8,7 +8,7 @@ class OrderHistorySerializer(serializers.ModelSerializer):
         read_only=True
     )
 
-    location = serializers.CharField(
+    branch = serializers.CharField(
         source="branch.display_name",
         read_only=True
     )
@@ -24,7 +24,7 @@ class OrderHistorySerializer(serializers.ModelSerializer):
             "product_name",
             "product_image",
             "extra_items",
-            "location",
+            "branch",
             "driver",
             "grand_total",
             "order_number",

@@ -1,7 +1,4 @@
 from django.urls import path, include
-
-# from menu.views import BatchGenerateUploadURLView, RegisterMenusPhase3View
-
 from business_api import views
 from .routers import BaseBranchRouter
 from image.views import UpdateBusinessImagesView

@@ -20,6 +20,9 @@ from rest_framework import status
 # Display image
 # CAC certification image
 
+#:attention
+# we need a delete image endpoint and one for update a universal service
+
 # might be a little harder than i thought
 @extend_schema(
     responses=OpS.BatchGenerateUploadURLResponseSerializer

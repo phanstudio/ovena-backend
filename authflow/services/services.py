@@ -4,12 +4,11 @@ from accounts.services.roles import get_user_roles
 import time
 from django.utils import timezone
 import secrets
-import hashlib
 import string
 from .otp import OTPManager, OTPError, OTPRateLimitError, OTPDeliveryError, OTPInvalidError
 from rest_framework.response import Response
 from django.db import IntegrityError
-# from .generate import generate_passphrase
+from .delivery import hash_phrase
 
 def issue_jwt_for_user(user: User, *, active_profile: str | None = None):
     refresh = RefreshToken.for_user(user)
@@ -46,27 +45,6 @@ def mint_driver_pin(order):
 
     raise Exception("Failed to generate unique PIN")
 
-# # passphrases:
-# def generate_passphrase(): # i can increase the size of this add rate limiting for this later
-#     words = ["mango", "horse", "bright", "storm", "leaf", "river", "cloud", "stone"]
-#     return "-".join(secrets.choice(words) for _ in range(2)) + "-" + str(secrets.randbelow(99))
-
-# def hash_phrase(phrase: str) -> str:
-#     return hashlib.sha256(phrase.encode()).hexdigest()
-
-# When driver verifies:
-# def verify_delivery_phrase(order, entered_phrase):
-#     hashed = hash_phrase(entered_phrase)
-#     if hashed == order.delivery_secret_hash:
-#         order.status = OrderStatus.DELIVERED
-#         order.delivery_verified = True
-#         order.delivery_verified_at = timezone.now()
-#         order.save(update_fields=[
-#             "status", "delivery_verified", "delivery_verified_at", "last_modified_at"
-#         ])
-#         return True
-#     return False
-
 # When driver verifies:
 #:old broken
 def verify_resturant_otp(order, otp):
@@ -75,11 +53,6 @@ def verify_resturant_otp(order, otp):
     if hashed == driver_hash:
         return True
     return False
-
-# def generate_referral_code(length=8):
-#     alphabet = string.ascii_uppercase + string.digits
-#     return "".join(secrets.choice(alphabet) for _ in range(length))
-
 
 # ── Sending (views / tasks) ───────────────────────────────────────────────────
 def request_otp(channel: str, identifier):
