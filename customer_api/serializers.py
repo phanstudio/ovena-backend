@@ -95,6 +95,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
             "addons": [a.get("name") for a in snap.get("addons", [])],
         }
 
+
 class OrderRetrieveSerializer(serializers.ModelSerializer):
     driver_name = serializers.CharField(
         source="driver.full_name",
@@ -129,8 +130,10 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
             "items",
         ]
 
+
 class FavoriteCreateSerializer(serializers.Serializer):
     menu_item_id = serializers.IntegerField()
+
 
 class FavoriteListSerializer(serializers.ModelSerializer):
     class Meta:
