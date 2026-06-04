@@ -1,10 +1,8 @@
 from decimal import Decimal
-
-from django.db import transaction
-from django.db.models import Prefetch
+# from django.db import transaction
 from rest_framework import serializers
 
-from accounts.models import Branch, User, ProfileBase
+from accounts.models import Branch
 from addresses.utils import get_distance_km_from_2points
 from authflow.services import generate_passphrase, hash_phrase
 from coupons_discount.models import Coupons, UserCouponWallet
