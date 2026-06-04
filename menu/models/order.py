@@ -9,23 +9,23 @@ from accounts.models import (
 from coupons_discount.models import Coupons
 from payments.models import Sale
 
+class OrderStatus(models.TextChoices):
+    PAYMENT_PENDING = "payment_pending", "Payment Pending"
+    PENDING = "pending", "Pending"
+    CONFIRMED = "confirmed", "Confirmed"
+    PREPARING = "preparing", "Preparing"
+    READY = "ready", "Ready for Pickup"
+    DRIVER_ASSIGNED = "driver_assigned", "Driver Assigned"
+    PICKED_UP = "picked_up", "Picked Up"
+    ON_THE_WAY = "on_the_way", "On the Way"
+    DELIVERED = "delivered", "Delivered"
+    CANCELLED = "cancelled", "Cancelled"
+
 
 # ===== UPDATE EXISTING MODELS =====
 # do we add total that will hold the (subtotal - discount) or something like that
 class Order(models.Model): # do we add a coupon snap shot or not also a discount amount snapshot?
-    STATUS_CHOICES = [
-        ("pending", "Pending"),  # waiting for branch confirmation
-        ("confirmed", "Confirmed"),  # branch accepted, waiting payment
-        ("payment_pending", "Payment Pending"),  # payment URL generated
-        ("preparing", "Preparing"),  # payment confirmed, cooking
-        ("ready", "Ready for Pickup"),  # food ready, finding driver
-        ("driver_assigned", "Driver Assigned"),  # driver notified
-        ("picked_up", "Picked Up"),  # driver has food
-        ("on_the_way", "On the Way"),  # heading to customer
-        ("delivered", "Delivered"),  # completed
-        ("cancelled", "Cancelled"),
-    ]
-
+    
     orderer = models.ForeignKey(CustomerProfile, on_delete=models.CASCADE, related_name="orders")
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="orders")
     driver = models.ForeignKey(DriverProfile, on_delete=models.CASCADE, related_name="orders", blank=True, null=True)
@@ -60,7 +60,7 @@ class Order(models.Model): # do we add a coupon snap shot or not also a discount
     
     # Order tracking
     order_number = models.IntegerField(default=0)
-    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="pending")
+    status = models.CharField(max_length=30, choices=OrderStatus.choices, default=OrderStatus.PAYMENT_PENDING)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

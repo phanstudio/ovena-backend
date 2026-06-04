@@ -22,7 +22,7 @@ from driver_api.models import (
     DriverWallet,
     DriverWithdrawalRequest,
 )
-from menu.models import Order
+from menu.models import Order, OrderStatus
 from driver_api.unified_bridge import process_driver_withdrawal_with_payments
 from support_center.models import SupportTicket
 from notifications.services import create_notification
@@ -125,7 +125,7 @@ def sync_wallet_from_ledger(driver: DriverProfile) -> DriverWallet:
 
 
 def ledger_credit_for_delivered_order(order: Order) -> DriverLedgerEntry | None:
-    if not order.driver_id or order.status != "delivered":
+    if not order.driver_id or order.status != OrderStatus.DELIVERED:
         return None
     if order.sale_id:
         existing = DriverLedgerEntry.objects.filter(

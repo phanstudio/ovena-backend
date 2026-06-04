@@ -7,6 +7,10 @@ from rest_framework.generics import ListAPIView, RetrieveAPIView
 from .serializers import OrderHistorySerializer, OrderRetrieveSerializer, FavoriteCreateSerializer, FavoriteListSerializer
 from referrals.models import ProfileReferral
 from .models import FavoriteMenuItem
+from django.db import transaction
+from django.shortcuts import get_object_or_404
+from menu.serializers import OrderCreateSerializer
+from menu.views import log_created_order
 # Create your views here.
 
 
@@ -28,17 +32,6 @@ class OrderHistoryView(BaseCustomerAPIView, ListAPIView):
         return (Order.objects.filter(orderer=customer).select_related("branch__business", "branch", "driver")
                 .prefetch_related("items")
                 .order_by("-created_at"))
-    
-# Can you make the payload look more like this?
-# return data.map((item: any) => ({
-#     id: item.id,
-#     productName: item.product_name
-#     businessImage: item.business_image
-#     price: item.grand_total,
-#     location: item.branch,
-#     status: item.status,
-#     createdAt: item.created_at,
-#   }));
 
 class OrderRetrieveView(BaseCustomerAPIView, RetrieveAPIView):
     queryset = Order.objects.all()
@@ -48,6 +41,63 @@ class OrderRetrieveView(BaseCustomerAPIView, RetrieveAPIView):
         customer = self.get_customer_profile(self.request)
         return (Order.objects.filter(orderer=customer).select_related("branch__business", "branch", "driver")
                 .prefetch_related("items"))
+
+class ReorderView(BaseCustomerAPIView):
+
+    @transaction.atomic
+    def post(self, request, order_id):
+        customer = self.get_customer_profile(request)
+
+        old_order = get_object_or_404(
+            Order.objects.prefetch_related(
+                "items__variants",
+                "items__addons",
+            ),
+            id=order_id,
+            orderer=customer,
+        )
+
+        payload = {
+            "branch_id": old_order.branch_id,
+            "items": [],
+        }
+
+        for item in old_order.items.all():
+            payload["items"].append({
+                "menu_item_id": item.menu_item_id,
+                "quantity": item.quantity,
+                "variant_option_ids": list(
+                    item.variants.values_list("id", flat=True)
+                ),
+                "addon_ids": list(
+                    item.addons.values_list("id", flat=True)
+                ),
+            })
+
+        user_location = customer.default_address.location
+
+        serializer = OrderCreateSerializer(
+            data=payload,
+            context={
+                "request": request,
+                "user": request.user,
+                "customer": customer,
+                "user_location": user_location
+            },
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        order, phrase = serializer.save()
+
+        log_created_order(order, request.user)
+
+        return Response({
+            "message": "Order recreated successfully",
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "delivery_passphrase": phrase,
+        }, status=201)
 
 class FavoriteCreateView(BaseCustomerAPIView):
     serializer_class = FavoriteCreateSerializer

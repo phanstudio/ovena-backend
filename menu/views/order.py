@@ -1,19 +1,15 @@
-from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from rest_framework.generics import GenericAPIView
-from menu.models import Order, OrderEvent, OrderItem, DriverProfile
+from menu.models import Order, OrderEvent, OrderItem, DriverProfile, OrderStatus
 from menu.pagifications import StandardResultsSetPagination
 
 from accounts.models import User
 from authflow.authentication import (
-    CustomCustomerAuth,
-    CustomDriverAuth,
     CustomBStaffAuth,
 )
-from authflow.permissions import IsCustomer, IsBusinessStaff, IsDriver
-from authflow.services import verify_delivery_phrase, verify_resturant_otp, mint_driver_pin
+from authflow.permissions import IsBusinessStaff
+from authflow.services import verify_delivery_phrase, mint_driver_pin
 
 from django.shortcuts import get_object_or_404
 from django.conf import settings
@@ -29,7 +25,7 @@ from menu.websocket_utils import (
     notify_on_the_way,
 )
 from menu.tasks import (
-    check_branch_confirmation_timeout,
+    # check_branch_confirmation_timeout, #:old
     find_and_assign_driver,
     check_payment_timeout,
 )
@@ -41,19 +37,70 @@ from django.db.models import Prefetch
 from referrals.services import convert_referral_once
 from payments.services.sale_service import complete_service, assign_driver
 from driver_api.services import ledger_credit_for_delivered_order
+from common.customer.view import BaseCustomerAPIView
+from driver_api.views import BaseDriverAPIView
 
 logger = logging.getLogger(__name__)
-# add atomcity
+# add atomcity #:priority
 
-class OrderView(APIView):
-    authentication_classes = [CustomCustomerAuth]
-    permission_classes = [IsCustomer]
+def log_created_order(order, user, payment_url):
+    # log + websocket + timeout (same as you already do)
+    OrderEvent.objects.create(
+        order=order,
+        event_type="created",
+        actor_type="customer",
+        actor_id=user.customer_profile.id,
+        new_status=OrderStatus.PAYMENT_PENDING,
+        metadata={
+            "items_count": order.items.count(), 
+            "payment_url": payment_url,
+        },
+    )
 
+    notify_order_created(order)
+
+    #:old #:broken
+    # check_branch_confirmation_timeout.apply_async(
+    #     args=[order.id], countdown=settings.BRANCH_CONFIRMATION_TIMEOUT
+    # )
+
+
+def create_payment(order):
+    try:
+        sale_result = initialize_order_sale(order)
+    except Exception as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Save payment reference
+    order.payment_reference = sale_result["reference"]
+    order.payment_initialized_at = timezone.now()
+    order.status = OrderStatus.PAYMENT_PENDING
+    order.sale_id = sale_result["sale_id"]
+    order.save(
+        update_fields=[
+            "payment_reference",
+            "payment_initialized_at",
+            "status",
+            "sale",
+        ]
+    )
+
+    payment_url = sale_result["payment_url"]
+
+    # 🔥 Start payment timeout
+    check_payment_timeout.apply_async(
+        args=[order.id], countdown=settings.PAYMENT_TIMEOUT
+    )
+
+    logger.info("Order %s sale initialized via payments service", order.id)
+    return payment_url
+
+
+# update with new system
+class OrderView(BaseCustomerAPIView):
     def get_list_queryset(self, request):
-        user = request.user
-        if not hasattr(user, "customer_profile"):
-            return Order.objects.none()
-        return Order.objects.filter(orderer=user.customer_profile).select_related(
+        customer = self.get_customer_profile(request)
+        return Order.objects.filter(orderer=customer).select_related(
             "branch", "coupons"
         )
 
@@ -129,46 +176,36 @@ class OrderView(APIView):
         )
         return Response(list(orders))
 
-    # the order item part can be handeled with a serilizer and bulk create; also should an order be made with no
-    # items also there is a minimum of 5000 order amount i.e line total before discount per order.
-    # also the variats and addons should be there too.
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
         user = request.user
-        if not hasattr(user, "customer_profile"):
-            return Response(
-                {"error": "Invalid customer account"}, status=status.HTTP_403_FORBIDDEN
-            )
+        customer = self.get_customer_profile(request)
+        
+        user_location = customer.default_address.location
 
         serializer = OrderCreateSerializer(
             data=request.data,
-            context={"request": request, "user": user},
+            context={
+                "request": request,
+                "user": user,
+                "customer": customer,
+                "user_location": user_location
+            },
         )
         serializer.is_valid(raise_exception=True)
 
         with transaction.atomic():
             order, phrase = serializer.save()
+            # Initialize payment via Sale (unified payments)
+            payment_url = create_payment(order)
 
-        # log + websocket + timeout (same as you already do)
-        OrderEvent.objects.create(
-            order=order,
-            event_type="created",
-            actor_type="customer",
-            actor_id=user.customer_profile.id,
-            new_status="pending",
-            metadata={"items_count": order.items.count()},
-        )
-
-        notify_order_created(order)
-
-        check_branch_confirmation_timeout.apply_async(
-            args=[order.id], countdown=settings.BRANCH_CONFIRMATION_TIMEOUT
-        )
+        log_created_order(order, user, payment_url)
 
         return Response(
             {
                 "order_id": order.id,
                 "order_number": order.order_number,
                 "delivery_passphrase": phrase,
+                "payment_url": payment_url,
                 "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
                 "message": "Order created successfully. Waiting for restaurant confirmation.",
             },
@@ -176,12 +213,11 @@ class OrderView(APIView):
         )
 
 
-class OrderCancelView(APIView):
-    authentication_classes = [CustomCustomerAuth]
+class OrderCancelView(BaseCustomerAPIView):
 
     def patch(self, request, order_id=None, *args, **kwargs):
         """Customer cancels their own order"""
-        user = request.user.customer_profile
+        customer = self.get_customer_profile(request)
         if not order_id:
             return Response(
                 {"error": "order_id required"}, status=status.HTTP_400_BAD_REQUEST
@@ -193,20 +229,20 @@ class OrderCancelView(APIView):
                 {"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND
             )
 
-        if order.orderer_id != user.id:
+        if order.orderer_id != customer.id:
             return Response(
                 {"error": "Invalid customer account"}, status=status.HTTP_403_FORBIDDEN
             )
 
         # Can only cancel before driver picks up
-        if order.status not in ["pending", "confirmed", "payment_pending"]:
+        if order.status not in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PAYMENT_PENDING]:
             return Response(
                 {"error": "Cannot cancel order at this stage"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         old_status = order.status
-        order.status = "cancelled"
+        order.status = OrderStatus.CANCELLED
         order.save(update_fields=["status", "last_modified_at"])
 
         # Log event
@@ -214,9 +250,9 @@ class OrderCancelView(APIView):
             order=order,
             event_type="cancelled",
             actor_type="customer",
-            actor_id=user.id,
+            actor_id=customer.id,
             old_status=old_status,
-            new_status="cancelled",
+            new_status=order.status,
             metadata={"reason": "customer_cancelled"},
         )
 
@@ -232,18 +268,12 @@ class OrderCancelView(APIView):
         )
 
 
-class CurrentActiveOrderView(APIView):
-    permission_classes = [IsAuthenticated]
+class CurrentActiveOrderView(BaseCustomerAPIView):
 
     def get(self, request):
-        user = request.user
-        if not getattr(user, "customer_profile_id", None):
-            return Response(
-                {"error": "Invalid customer account"}, status=status.HTTP_403_FORBIDDEN
-            )
-
+        customer = self.get_customer_profile(request)
         orders = (
-            Order.objects.filter(orderer_id=user.customer_profile_id)
+            Order.objects.filter(orderer_id=customer.id)
             .exclude(status__in=["cancelled", "delivered"])
             .select_related("branch", "driver__user")
         )
@@ -323,37 +353,17 @@ class ResturantOrderView(GenericAPIView):
 
     def accept_order(self, order: Order):
         """Branch accepts order and initiates payment"""
-        if order.status != "pending":
+        if order.status != OrderStatus.PENDING:
             return Response(
                 {"error": "Order already processed"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        order.status = "confirmed"
+        
+        old_status=order.status
+        order.status = OrderStatus.PREPARING
         order.confirmed_at = timezone.now()
         order.save(update_fields=["status", "confirmed_at", "last_modified_at"])
 
-        # Initialize payment via Sale (unified payments)
-        try:
-            sale_result = initialize_order_sale(order)
-        except Exception as exc:
-            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Save payment reference
-        order.payment_reference = sale_result["reference"]
-        order.payment_initialized_at = timezone.now()
-        order.status = "payment_pending"
-        order.sale_id = sale_result["sale_id"]
-        order.save(
-            update_fields=[
-                "payment_reference",
-                "payment_initialized_at",
-                "status",
-                "sale",
-            ]
-        )
-
-        payment_url = sale_result["payment_url"]
 
         # Log event
         OrderEvent.objects.create(
@@ -361,29 +371,18 @@ class ResturantOrderView(GenericAPIView):
             event_type="confirmed",
             actor_type="branch",
             actor_id=order.branch_id,
-            old_status="pending",
-            new_status="confirmed",
-            metadata={
-                "payment_url": payment_url
-            }
+            old_status=old_status,
+            new_status=order.status,
         )
 
         # 🔥 Broadcast to customer with payment URL
-        notify_order_confirmed(order, payment_url)
+        notify_order_confirmed(order)
 
-        # 🔥 Start payment timeout
-        check_payment_timeout.apply_async(
-            args=[order.id], countdown=settings.PAYMENT_TIMEOUT
-        )
-
-        logger.info("Order %s sale initialized via payments service", order.id)
-
-        logger.info(f"Order {order.id} confirmed by branch, payment initiated")
+        logger.info(f"Order {order.id} confirmed by branch, preparation started")
 
         return Response(
             {
                 "message": "Order accepted successfully",
-                # "authorization_url": payment_url,
                 "payment_reference": order.payment_reference,
             },
             status=status.HTTP_202_ACCEPTED,
@@ -391,13 +390,14 @@ class ResturantOrderView(GenericAPIView):
 
     def order_made(self, order: Order):
         """Mark order as ready and find driver"""
-        if order.status != "preparing":
+        if order.status != OrderStatus.PREPARING:
             return Response(
                 {"error": "Order must be in preparing status"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        order.status = "ready"
+        old_status=order.status
+        order.status = OrderStatus.READY
         order.save(update_fields=["status", "last_modified_at"])
 
         # Log event
@@ -406,8 +406,8 @@ class ResturantOrderView(GenericAPIView):
             event_type="ready",
             actor_type="branch",
             actor_id=order.branch_id,
-            old_status="preparing",
-            new_status="ready",
+            old_status=old_status,
+            new_status=order.status,
         )
 
         # 🔥 Notify customer and start driver search
@@ -425,13 +425,14 @@ class ResturantOrderView(GenericAPIView):
 
     def pickup_order(self, order: Order):
         """Driver accepts order and heads to restaurant"""
-        if order.status != "picked_up":
+        if order.status != OrderStatus.PICKED_UP:
             return Response(
                 {"error": "Order not ready for Pick up"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        order.status = "on_the_way"
+        old_status=order.status,
+        order.status = OrderStatus.ON_THE_WAY
         order.picked_up_at = timezone.now()
         order.save(update_fields=["status", "picked_up_at", "last_modified_at"])
 
@@ -441,8 +442,8 @@ class ResturantOrderView(GenericAPIView):
             event_type="on_the_way",
             actor_type="branch",
             actor_id=order.branch_id,
-            old_status="picked_up",
-            new_status="on_the_way",
+            old_status=old_status,
+            new_status=order.status,
         )
 
         # 🔥 Notify customer and branch
@@ -457,14 +458,14 @@ class ResturantOrderView(GenericAPIView):
 
     def cancel_order(self, order: Order):
         """Branch cancels order"""
-        if order.status in ["delivered", "on_the_way", "picked_up"]:
+        if order.status in [OrderStatus.DELIVERED, OrderStatus.ON_THE_WAY, OrderStatus.PICKED_UP]:
             return Response(
                 {"error": "Cannot cancel at this stage"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         old_status = order.status
-        order.status = "cancelled"
+        order.status = OrderStatus.CANCELLED
         order.save(update_fields=["status", "last_modified_at"])
 
         # Log event
@@ -474,7 +475,7 @@ class ResturantOrderView(GenericAPIView):
             actor_type="branch",
             actor_id=order.branch_id,
             old_status=old_status,
-            new_status="cancelled",
+            new_status= order.status,
             metadata={"reason": "branch_cancelled"},
         )
 
@@ -491,13 +492,10 @@ class ResturantOrderView(GenericAPIView):
         )
 
 
-class DriverOrderView(GenericAPIView):
-    authentication_classes = [CustomDriverAuth]
-    permission_classes = [IsDriver]
-
+class DriverOrderView(BaseDriverAPIView):
     def get_queryset(self):
-        user = self.request.user
-        return Order.objects.filter(driver=user.driver_profile)
+        driver = self.get_driver(self.request)
+        return Order.objects.filter(driver=driver)
 
     def get(self, request, *args, **kwargs):
         qs = (
@@ -523,7 +521,7 @@ class DriverOrderView(GenericAPIView):
         action = request.data.get("action")
         order_id = request.data.get("order_id")
         order_code = request.data.get("order_code")
-        user = self.request.user
+        user = request.user
 
         if not action or action not in ["accept", "deliver", "reject"]:
             return Response(
@@ -545,13 +543,14 @@ class DriverOrderView(GenericAPIView):
 
     def accept_order(self, order: Order, user: User):
         """Driver accepts order and heads to restaurant"""
-        if order.status != "driver_assigned":
+        if order.status != OrderStatus.DRIVER_ASSIGNED:
             return Response(
                 {"error": "Order not available for acceptance"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        order.status = "picked_up"  # Or "on_the_way" to restaurant
+        old_status=order.status
+        order.status = OrderStatus.PICKED_UP  # Or "on_the_way" to restaurant
         order.picked_up_at = timezone.now()
         order.save(update_fields=["status", "picked_up_at", "last_modified_at"])
 
@@ -563,8 +562,8 @@ class DriverOrderView(GenericAPIView):
             event_type="picked_up",
             actor_type="driver",
             actor_id=order.driver_id,
-            old_status="driver_assigned",
-            new_status="picked_up",
+            old_status=old_status,
+            new_status=order.status,
             metadata=f"Your code is {code}"
         )
         assign_driver(order, user.id)
@@ -587,7 +586,8 @@ class DriverOrderView(GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if order.status not in ["on_the_way"]: #"picked_up", 
+        old_status = order.status
+        if order.status not in [OrderStatus.ON_THE_WAY]: #"picked_up", 
             return Response(
                 {"error": "Order not ready for delivery"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -600,20 +600,6 @@ class DriverOrderView(GenericAPIView):
                 {"error": "Invalid delivery code"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        order.status = "delivered"
-        order.delivered_at = timezone.now()
-        order.delivery_verified = True
-        order.delivery_verified_at = timezone.now()
-        order.save(
-            update_fields=[
-                "status",
-                "delivered_at",
-                "delivery_verified",
-                "delivery_verified_at",
-                "last_modified_at",
-            ]
-        )
 
         # Update driver availability
         driver = order.driver
@@ -635,8 +621,8 @@ class DriverOrderView(GenericAPIView):
             event_type="delivered",
             actor_type="driver",
             actor_id=order.driver_id,
-            old_status=order.status,
-            new_status="delivered",
+            old_status=old_status,
+            new_status=order.status,
         )
 
         # 🔥 Notify all parties of successful delivery
@@ -659,7 +645,7 @@ class DriverOrderView(GenericAPIView):
 
     def reject_order(self, order: Order):
         """Driver rejects order assignment"""
-        if order.status != "driver_assigned":
+        if order.status != OrderStatus.DRIVER_ASSIGNED:
             return Response(
                 {"error": "Cannot reject at this stage"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -669,7 +655,7 @@ class DriverOrderView(GenericAPIView):
 
         # Reset order status
         order.driver = None
-        order.status = "ready"
+        order.status = OrderStatus.READY
         order.save(update_fields=["driver", "status", "last_modified_at"])
 
         # Update driver
@@ -697,5 +683,7 @@ class DriverOrderView(GenericAPIView):
             status=status.HTTP_200_OK,
         )
 
-
+#:attenton #:priority
+# add space for images in the drivcer pickup stage
+#:attention
 # add order events view?

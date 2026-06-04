@@ -9,6 +9,9 @@ urlpatterns = [
         "order/<int:id>/", views.OrderRetrieveView.as_view(), name="customer-order"
     ),
     path(
+        "order/<int:order_id>/reorder", views.ReorderView.as_view(), name="customer-order-reorder"
+    ),
+    path(
         "generate/link/", views.GenerateLinkView.as_view(), name="customer-generate-link"
     ),
     path("ref/", include("referrals.external_ulrs.customer")),

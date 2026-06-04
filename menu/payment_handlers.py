@@ -2,7 +2,7 @@ import logging
 
 from django.utils import timezone
 
-from .models import Order, OrderEvent
+from .models import Order, OrderEvent, OrderStatus
 from .websocket_utils import notify_payment_completed, broadcast_to_order_group
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,8 @@ def order_update(data: dict) -> bool:
     logger.info("Payment webhook received: %s - %s", reference, status_msg)
 
     order = (
-        Order.objects.select_related("branch", "orderer")
+        Order.objects
+        # .select_related("branch", "orderer")
         .filter(payment_reference=reference)
         .first()
     )
@@ -27,13 +28,13 @@ def order_update(data: dict) -> bool:
         logger.error("Order not found for payment reference: %s", reference)
         return False
 
-    if order.status == "preparing":
+    if order.status in [OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.PENDING]:
         logger.info("Payment already processed for order %s", order.id)
         return True
 
-    if order.status in ["confirmed", "payment_pending"]:
+    if order.status == OrderStatus.PAYMENT_PENDING:
         old_status = order.status
-        order.status = "preparing"
+        order.status = OrderStatus.PENDING
         order.payment_completed_at = timezone.now()
         order.save(update_fields=["status", "payment_completed_at", "last_modified_at"])
 
@@ -42,7 +43,7 @@ def order_update(data: dict) -> bool:
             event_type="payment_completed",
             actor_type="system",
             old_status=old_status,
-            new_status="preparing",
+            new_status=OrderStatus.PENDING,
             metadata={
                 "reference": reference,
                 "amount": amount,

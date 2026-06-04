@@ -2,27 +2,6 @@ from rest_framework import serializers
 from menu.models import Order, OrderItem
 from .models import FavoriteMenuItem
 
-# class OrderHistorySerializer(serializers.ModelSerializer):
-#     driver = serializers.CharField(
-#         source="driver.full_name",
-#         read_only=True
-#     )
-#     branch = serializers.CharField(
-#         source="branch.display_name",
-#         read_only=True
-#     )
-#     class Meta:
-#         model = Order
-#         fields = [
-#             "id",
-#             "branch",
-#             "driver",
-#             "grand_total",
-#             "order_number",
-#             "status",
-#             "created_at",
-#         ]
-
 class OrderHistorySerializer(serializers.ModelSerializer):
     driver = serializers.CharField(
         source="driver.full_name",

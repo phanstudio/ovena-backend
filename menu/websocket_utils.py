@@ -167,24 +167,23 @@ def notify_order_ready(order):
 
 
 ## new
-def notify_order_confirmed(order, payment_url):
+def notify_order_confirmed(order):
     """Notify customer (with payment URL) and branch (to prepare)"""
-    from .events import ORDER_CONFIRMED, ORDER_PREPARING
+    from .events import ORDER_PREPARING
 
     # Customer gets payment URL
     customer_event = build_order_event(
-        ORDER_CONFIRMED,
+        ORDER_PREPARING,
         order,
-        payment_url=payment_url,
-        message="Your order has been confirmed! Please complete payment."
+        message="Your order has been confirmed! food being prepared."
     )
     broadcast_to_order_group(order.id, customer_event)
 
     # Branch gets told payment was initiated (they confirmed, so they should know)
     branch_event = build_order_event(
-        ORDER_CONFIRMED,
+        ORDER_PREPARING,
         order,
-        message="Order confirmed. Awaiting customer payment."
+        message="Order confirmed. Awaiting preparation."
     )
     broadcast_to_branch(order.branch_id, branch_event)
 

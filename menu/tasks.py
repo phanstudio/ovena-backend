@@ -2,7 +2,7 @@ from celery import shared_task
 from django.utils import timezone
 from django.conf import settings
 from django.db.models import Q
-from .models import Order, DriverProfile, OrderEvent
+from .models import Order, DriverProfile, OrderEvent, OrderStatus
 from addresses.models import DriverLocation
 from .websocket_utils import (
     broadcast_to_order_group, 
@@ -36,21 +36,22 @@ def check_branch_confirmation_timeout(order_id):
     """
     try:
         order = Order.objects.select_related('branch', 'orderer').get(id=order_id)
+        old_status = order.status
         
         # If still pending, cancel it
-        if order.status == 'pending':
+        if old_status == OrderStatus.PENDING:
             logger.info(f"Order {order.id} timed out - branch did not confirm")
             
-            order.status = 'cancelled'
+            order.status = OrderStatus.CANCELLED
             order.save(update_fields=['status', 'last_modified_at'])
             
             # Log event
             OrderEvent.objects.create(
                 order=order,
-                event_type='cancelled',
+                event_type=OrderStatus.CANCELLED,
                 actor_type='system',
-                old_status='pending',
-                new_status='cancelled',
+                old_status= old_status,
+                new_status=OrderStatus.CANCELLED,
                 metadata={'reason': 'branch_timeout'}
             )
             
@@ -78,9 +79,10 @@ def check_payment_timeout(order_id):
     """
     try:
         order = Order.objects.select_related('branch', 'orderer').get(id=order_id)
+        old_status = order.status
         
         # If still waiting for payment, cancel it
-        if order.status in ['confirmed', 'payment_pending']:
+        if old_status in [OrderStatus.PAYMENT_PENDING]:
             logger.info(f"Order {order.id} timed out - payment not completed")
             
             order.status = 'cancelled'
@@ -91,7 +93,7 @@ def check_payment_timeout(order_id):
                 order=order,
                 event_type='cancelled',
                 actor_type='system',
-                old_status=order.status,
+                old_status=old_status,
                 new_status='cancelled',
                 metadata={'reason': 'payment_timeout'}
             )
@@ -122,7 +124,7 @@ def check_driver_acceptance_timeout(order_id, driver_id):
         order = Order.objects.select_related('branch', 'driver').get(id=order_id)
         
         # If still waiting for this driver
-        if order.status == 'driver_assigned' and order.driver_id == driver_id:
+        if order.status == OrderStatus.DRIVER_ASSIGNED and order.driver_id == driver_id:
             logger.info(f"Driver {driver_id} timed out for order {order.id}")
             
             # Log event
@@ -138,7 +140,7 @@ def check_driver_acceptance_timeout(order_id, driver_id):
 
             # Reset order status
             order.driver = None
-            order.status = "ready"
+            order.status = OrderStatus.READY
             order.save(update_fields=["driver", "status", "last_modified_at"])
 
             # Update driver
@@ -167,7 +169,7 @@ def check_driver_pickup_timeout(order_id):
         order = Order.objects.select_related('branch', 'driver').get(id=order_id)
         
         # If still not picked up
-        if order.status in ['driver_assigned', 'ready']:
+        if order.status in [OrderStatus.DRIVER_ASSIGNED, OrderStatus.READY]:
             logger.warning(f"Driver taking too long to pickup order {order.id}")
             
             # Could reassign or notify support
@@ -205,7 +207,7 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None, retry_count=0):
         default_address:Address = order.orderer.default_address
         order_user:User = order.orderer.user
         
-        if order.status != 'ready':
+        if order.status != OrderStatus.READY:
             logger.info(f"Order {order.id} is not ready for driver assignment")
             return None
         
@@ -249,7 +251,7 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None, retry_count=0):
         driver, distance = available_drivers[0]
         
         order.driver = driver
-        order.status = 'driver_assigned'
+        order.status = OrderStatus.DRIVER_ASSIGNED
         order.assigned_at = timezone.now()
         order.save(update_fields=['driver', 'status', 'assigned_at', 'last_modified_at'])
         
@@ -396,7 +398,7 @@ def check_all_payment_timeouts():
     
     # Find orders stuck in payment_pending or confirmed
     stuck_orders = Order.objects.filter(
-        Q(status='payment_pending') | Q(status='confirmed'),
+        Q(status=OrderStatus.PAYMENT_PENDING),# | Q(status='confirmed'),
         payment_initialized_at__lt=timeout_threshold,
         payment_completed_at__isnull=True
     )
@@ -404,7 +406,8 @@ def check_all_payment_timeouts():
     cancelled_count = 0
     for order in stuck_orders:
         # Cancel the order
-        order.status = 'cancelled'
+        old_status = order.status
+        order.status = OrderStatus.CANCELLED
         order.save(update_fields=['status', 'last_modified_at'])
         
         # Log event
@@ -412,8 +415,8 @@ def check_all_payment_timeouts():
             order=order,
             event_type='cancelled',
             actor_type='system',
-            old_status=order.status,
-            new_status='cancelled',
+            old_status=old_status,
+            new_status=order.status,
             metadata={'reason': 'payment_timeout_batch'}
         )
         
@@ -431,9 +434,9 @@ def check_all_payment_timeouts():
 
 
 # ===== PAYMENT VERIFICATION TASKS =====
-
+# #:broken
 @shared_task(name='orders.verify_payment_status')
-def verify_payment_status(order_id):
+def verify_payment_status(order_id): # this is broken needs fixing
     """
     Verify payment status with Paystack (if webhook failed)
     """
@@ -450,8 +453,8 @@ def verify_payment_status(order_id):
         
         if result['status'] and result['data']['status'] == 'success':
             # Payment successful, update order
-            if order.status in ['payment_pending', 'confirmed']:
-                order.status = 'preparing'
+            if order.status in [OrderStatus.PAYMENT_PENDING]:
+                order.status = OrderStatus.PENDING
                 order.payment_completed_at = timezone.now()
                 order.save(update_fields=['status', 'payment_completed_at', 'last_modified_at'])
                 

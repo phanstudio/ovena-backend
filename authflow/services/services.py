@@ -11,6 +11,7 @@ from rest_framework.response import Response
 import secrets
 import string
 from django.db import IntegrityError
+from menu.models import OrderStatus
 
 def issue_jwt_for_user(user: User, *, active_profile: str | None = None):
     refresh = RefreshToken.for_user(user)
@@ -59,14 +60,17 @@ def hash_phrase(phrase: str) -> str:
 def verify_delivery_phrase(order, entered_phrase):
     hashed = hash_phrase(entered_phrase)
     if hashed == order.delivery_secret_hash:
-        order.status = "delivered"
+        order.status = OrderStatus.DELIVERED
         order.delivery_verified = True
         order.delivery_verified_at = timezone.now()
-        order.save(update_fields=["status", "delivery_verified", "delivery_verified_at"])
+        order.save(update_fields=[
+            "status", "delivery_verified", "delivery_verified_at", "last_modified_at"
+        ])
         return True
     return False
 
 # When driver verifies:
+#:old broken
 def verify_resturant_otp(order, otp):
     hashed = hash_phrase(str(otp))
     driver_hash = hash_phrase(str(order.driver_number))

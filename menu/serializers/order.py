@@ -17,6 +17,7 @@ PRICE_PER_KM = 1000
 MINIMUM_PRICE_KM = 100 #1000
 MIN_ORDER_SUBTOTAL = Decimal("5000.00")
 
+
 class OrderItemCreateSerializer(serializers.Serializer):
     menu_item_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
@@ -45,7 +46,9 @@ class OrderCreateSerializer(serializers.Serializer):
     # ------------------------------------------------------------------
 
     def validate(self, attrs):
-        request = self.context["request"]
+        # request = self.context["request"]
+        user = self.context["user"]
+        user_loaction = self.context["user_location"]
         branch_id = attrs["branch_id"]
         items = attrs.get("items") or []
 
@@ -64,20 +67,8 @@ class OrderCreateSerializer(serializers.Serializer):
         attrs["branch"] = branch
 
         # 3) Resolve the requesting user and delivery distance.
-        user = (
-            User.objects
-            .prefetch_related(
-                Prefetch(
-                    "profile_bases",
-                    queryset=ProfileBase.objects.select_related(
-                        "customer_profile__default_address"
-                    ),
-                )
-            )
-            .get(id=request.user.id)
-        )
         attrs["distance_km"] = get_distance_km_from_2points(
-            user.customer_profile.default_address.location, branch.location
+            user_loaction, branch.location
         )
         attrs["_user"] = user
 
@@ -113,7 +104,7 @@ class OrderCreateSerializer(serializers.Serializer):
                 .select_related("coupon")
                 .filter(
                     pk=wallet_entry_id,
-                    user=request.user,
+                    user=user,
                 )
                 .filter(available_wallet_entry_q())
                 .first()
@@ -275,7 +266,8 @@ class OrderCreateSerializer(serializers.Serializer):
     # ------------------------------------------------------------------
 
     def create(self, validated_data):
-        user = self.context["user"]
+        # user = self.context["user"]
+        customer = self.context["customer"]
         branch = validated_data["branch"]
         coupon: Coupons | None = validated_data.get("coupon")
         wallet_entry: UserCouponWallet | None = validated_data.get("wallet_entry")
@@ -285,12 +277,9 @@ class OrderCreateSerializer(serializers.Serializer):
         phrase = generate_passphrase()
 
         order = Order.objects.create(
-            orderer=user.customer_profile,
+            orderer=customer,
             branch=branch,
-            # coupon is stored on the order after application;
-            # we don't set it here to avoid a wasted update later.
             delivery_secret_hash=hash_phrase(phrase),
-            status="pending",
             delivery_price=max(distance_km * PRICE_PER_KM, MINIMUM_PRICE_KM),
         )
 
