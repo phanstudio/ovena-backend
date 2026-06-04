@@ -26,7 +26,19 @@ class OrderHistoryView(BaseCustomerAPIView, ListAPIView):
     def get_queryset(self):
         customer = self.get_customer_profile(self.request)
         return (Order.objects.filter(orderer=customer).select_related("branch__business", "branch", "driver")
+                .prefetch_related("items")
                 .order_by("-created_at"))
+    
+# Can you make the payload look more like this?
+# return data.map((item: any) => ({
+#     id: item.id,
+#     productName: item.product_name
+#     businessImage: item.business_image
+#     price: item.grand_total,
+#     location: item.branch,
+#     status: item.status,
+#     createdAt: item.created_at,
+#   }));
 
 class OrderRetrieveView(BaseCustomerAPIView, RetrieveAPIView):
     queryset = Order.objects.all()

@@ -2,26 +2,100 @@ from rest_framework import serializers
 from menu.models import Order, OrderItem
 from .models import FavoriteMenuItem
 
+# class OrderHistorySerializer(serializers.ModelSerializer):
+#     driver = serializers.CharField(
+#         source="driver.full_name",
+#         read_only=True
+#     )
+#     branch = serializers.CharField(
+#         source="branch.display_name",
+#         read_only=True
+#     )
+#     class Meta:
+#         model = Order
+#         fields = [
+#             "id",
+#             "branch",
+#             "driver",
+#             "grand_total",
+#             "order_number",
+#             "status",
+#             "created_at",
+#         ]
+
 class OrderHistorySerializer(serializers.ModelSerializer):
     driver = serializers.CharField(
         source="driver.full_name",
         read_only=True
     )
-    branch = serializers.CharField(
+
+    location = serializers.CharField(
         source="branch.display_name",
         read_only=True
     )
+
+    product_name = serializers.SerializerMethodField()
+    product_image = serializers.SerializerMethodField()
+    extra_items = serializers.SerializerMethodField()
+
     class Meta:
         model = Order
         fields = [
             "id",
-            "branch",
+            "product_name",
+            "product_image",
+            "extra_items",
+            "location",
             "driver",
             "grand_total",
             "order_number",
             "status",
             "created_at",
         ]
+    
+    def _first_item(self, obj):
+        if not hasattr(obj, "_first_item"):
+            obj._first_item = next(iter(obj.items.all()), None)
+        return obj._first_item
+
+    def _item_count(self, obj):
+        if not hasattr(obj, "_item_count"):
+            obj._item_count = len(obj.items.all())
+        return obj._item_count
+
+    def get_extra_items(self, obj):
+        return max(self._item_count(obj) - 1, 0)
+
+    # def get_extra_items(self, obj):
+    #     items = self._items(obj)
+    #     return max(len(items) - 1, 0)
+
+    # def _first_item(self, obj):
+    #     items = self._items(obj)
+
+    #     if not items:
+    #         return None
+
+    #     return items[0]
+
+    def get_product_name(self, obj):
+        item = self._first_item(obj)
+
+        if not item:
+            return None
+
+        snap = item.snapshot or {}
+        return snap.get("menu_item")
+
+    def get_product_image(self, obj):
+        item = self._first_item(obj)
+
+        if not item:
+            return None
+
+        snap = item.snapshot or {}
+        return snap.get("menu_item_image")
+
 
 class OrderItemSerializer(serializers.ModelSerializer):
     snapshot = serializers.SerializerMethodField()
