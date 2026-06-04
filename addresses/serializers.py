@@ -1,3 +1,5 @@
+from rest_framework import serializers
+
 class LocationMixin:
     def parse_point(self, point):
         if not point:
@@ -22,3 +24,7 @@ class LocationFieldMixin(LocationMixin):
 
     def get_location(self, obj):
         return self.parse_point(self.get_point(obj))
+
+class LocationGetSerializer(serializers.Serializer):
+    long = serializers.FloatField()
+    lat = serializers.FloatField()

@@ -39,6 +39,8 @@ from payments.services.sale_service import complete_service, assign_driver
 from driver_api.services import ledger_credit_for_delivered_order
 from common.customer.view import BaseCustomerAPIView
 from driver_api.views import BaseDriverAPIView
+from addresses.serializers import LocationGetSerializer
+from addresses.utils import make_point
 
 logger = logging.getLogger(__name__)
 # add atomcity #:priority
@@ -179,8 +181,13 @@ class OrderView(BaseCustomerAPIView):
     def post(self, request):
         user = request.user
         customer = self.get_customer_profile(request)
+
+        serializer = LocationGetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
         
-        user_location = customer.default_address.location
+        # user_location = customer.default_address.location
+        user_location = make_point(vd["long"], vd["lat"])
 
         serializer = OrderCreateSerializer(
             data=request.data,

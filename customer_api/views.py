@@ -4,14 +4,17 @@ from menu.models import Order
 from common.customer.paginations import StandardResultsSetPagination
 # from rest_framework.mixins import ListModelMixin
 from rest_framework.generics import ListAPIView, RetrieveAPIView
-from .serializers import OrderHistorySerializer, OrderRetrieveSerializer, FavoriteCreateSerializer, FavoriteListSerializer
-from referrals.models import ProfileReferral
+from .serializers import (
+    OrderHistorySerializer, OrderRetrieveSerializer, FavoriteCreateSerializer, FavoriteListSerializer
+)
+# from referrals.models import ProfileReferral
 from .models import FavoriteMenuItem
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from menu.serializers import OrderCreateSerializer
 from menu.views import log_created_order
-# Create your views here.
+from addresses.utils import make_point
+from addresses.serializers import LocationGetSerializer
 
 
 class GenerateLinkView(BaseCustomerAPIView):
@@ -42,11 +45,18 @@ class OrderRetrieveView(BaseCustomerAPIView, RetrieveAPIView):
         return (Order.objects.filter(orderer=customer).select_related("branch__business", "branch", "driver")
                 .prefetch_related("items"))
 
-class ReorderView(BaseCustomerAPIView):
-
+class ReorderView(BaseCustomerAPIView): # location to the body #:attention, 
+    serializer_class = LocationGetSerializer
     @transaction.atomic
     def post(self, request, order_id):
         customer = self.get_customer_profile(request)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        user_location = make_point(vd["long"], vd["lat"])
+        # user_location = customer.default_address.location
 
         old_order = get_object_or_404(
             Order.objects.prefetch_related(
@@ -73,9 +83,7 @@ class ReorderView(BaseCustomerAPIView):
                     item.addons.values_list("id", flat=True)
                 ),
             })
-
-        user_location = customer.default_address.location
-
+        
         serializer = OrderCreateSerializer(
             data=payload,
             context={
