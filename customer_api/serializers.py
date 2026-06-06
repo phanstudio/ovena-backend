@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from menu.models import Order, OrderItem
-from .models import FavoriteMenuItem
+from .models import FavoriteMenuItem, MenuItem
+from addresses.serializers import LocationGetSerializer
 
 class OrderHistorySerializer(serializers.ModelSerializer):
     driver = serializers.CharField(
@@ -135,7 +136,40 @@ class FavoriteCreateSerializer(serializers.Serializer):
     menu_item_id = serializers.IntegerField()
 
 
+class MenuItemSerializer(serializers.ModelSerializer):
+    # is_available = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MenuItem
+        fields = [
+            "id",
+            "custom_name", "description",
+            "price", "image",
+            # "is_available", 
+        ]
+
+    def get_is_available(self, obj):
+        branch = self.context.get("branch")
+
+        if not branch:
+            return True
+
+        availability = obj.base_item.item_availabilities.filter(
+            branch=branch
+        ).first()
+
+        if availability:
+            return availability.is_available
+
+        return True
+
+
 class FavoriteListSerializer(serializers.ModelSerializer):
+    menu_item = MenuItemSerializer(read_only=True)
     class Meta:
         model = FavoriteMenuItem
         fields = ["menu_item", "created_at"]
+
+class OrderCalculationGetSerializer(LocationGetSerializer):
+    branch_id = serializers.IntegerField()
+    coupon_code = serializers.CharField()

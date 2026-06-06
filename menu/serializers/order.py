@@ -3,7 +3,7 @@ from decimal import Decimal
 from rest_framework import serializers
 
 from accounts.models import Branch
-from addresses.utils import get_distance_km_from_2points
+from addresses.utils import get_cached_distance_km_from_2points
 from authflow.services import generate_passphrase, hash_phrase
 from coupons_discount.models import Coupons, UserCouponWallet
 from coupons_discount.services import CouponService, eligible_coupon_q, available_wallet_entry_q
@@ -14,7 +14,6 @@ from menu.models import (
 PRICE_PER_KM = 1000
 MINIMUM_PRICE_KM = 100 #1000
 MIN_ORDER_SUBTOTAL = Decimal("5000.00")
-
 
 class OrderItemCreateSerializer(serializers.Serializer):
     menu_item_id = serializers.IntegerField()
@@ -65,7 +64,7 @@ class OrderCreateSerializer(serializers.Serializer):
         attrs["branch"] = branch
 
         # 3) Resolve the requesting user and delivery distance.
-        attrs["distance_km"] = get_distance_km_from_2points(
+        attrs["distance_km"] = get_cached_distance_km_from_2points(
             user_loaction, branch.location
         )
         attrs["_user"] = user

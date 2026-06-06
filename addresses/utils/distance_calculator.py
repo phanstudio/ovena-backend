@@ -1,6 +1,9 @@
 from django.contrib.gis.geos import Point
 import math
 from routing.service import get_distance_km
+from django.core.cache import cache
+
+HOUR = 60 * 60
 
 def resolve_user_point(request):
     """
@@ -66,3 +69,21 @@ def get_distance_km_from_2points(user_point:Point, branch_point:Point):
         return get_distance_km((lon1, lat1), (lon2, lat2))
     except Exception as _:
         return haversine_distance_km(user_point, branch_point)
+
+
+def get_cached_distance_km_from_2points(user_point:Point, branch_point:Point):
+    """
+        user_point = user.customer_profile.default_address.location\n
+        branch_point = branch.location
+    """
+    key = (
+        f"distance:"
+        f"{round(user_point.x, 6)}:{round(user_point.y, 6)}:"
+        f"{round(branch_point.x, 6)}:{round(branch_point.y, 6)}"
+    )
+    cached_distance = cache.get(key)
+    if cached_distance is not None:
+        return cached_distance
+    distance = get_distance_km_from_2points(user_point, branch_point)
+    cache.set(key, distance, timeout= HOUR* 1)
+    return distance
