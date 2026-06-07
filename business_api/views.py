@@ -1,27 +1,31 @@
 from django.conf import settings
-from datetime import datetime, timedelta
 from django.db import transaction
 from django.db.models import Avg, Count, DecimalField, Sum, IntegerField, Value
 from django.db.models.functions import Coalesce, TruncDay, TruncWeek, TruncHour
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView
-from django.shortcuts import get_object_or_404
+
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.pagination import LimitOffsetPagination
+
 from accounts.models import (
-    Branch,
-    BranchOperatingHours,
-    BusinessAdmin,
-    PrimaryAgent,
-    BusinessPayoutAccount,
-    User,
+    Branch, BranchOperatingHours,
+    BusinessAdmin, PrimaryAgent,
+    BusinessPayoutAccount, User, 
+    Business,
 )
+from accounts.serializers import InS as acInS
 from business_api.serializers import InS, OpS
-from addresses.utils import checkset_location
+
+from authflow.services import OTPManager
 from authflow.authentication import CustomBAdminAuth, CustomBusinessAgentsAuth
 from authflow.permissions import IsBusinessAdmin, IsBusinessAgent
+
 from payments.idempotency import (
     IdempotencyConflictError,
     begin_idempotent_request,
@@ -29,10 +33,8 @@ from payments.idempotency import (
 )
 from payments.models import LedgerEntry, Withdrawal
 from payments.payouts.services import (
-    create_withdrawal_request,
-    get_balance_summary,
-    evaluate_eligibility,
-    MINIMUM_BY_ROLE,
+    create_withdrawal_request, get_balance_summary,
+    evaluate_eligibility, MINIMUM_BY_ROLE,
 )
 from payments.payouts.constants import (
     DAILY_WITHDRAWAL_LIMIT_AMOUNT,
@@ -40,16 +42,18 @@ from payments.payouts.constants import (
 from payments.services.base import ensure_valid_cred
 from payments.integrations.paystack.errors import PaystackAPIError
 from payments.payouts.tasks import process_withdrawal
-from rest_framework.pagination import LimitOffsetPagination
-from accounts.serializers import InS as acInS
-from drf_spectacular.utils import extend_schema  # type: ignore
+
 from menu.models import Order, OrderItem
 from ratings.models import BranchRating
+from common.phone.utils import get_phone_number
+from addresses.utils import checkset_location
+from image.views import ImageMixin
+
 from abc import ABC
-from authflow.services import OTPManager
 import msgpack
 import zlib
-from common.phone.utils import get_phone_number
+from datetime import datetime, timedelta
+from drf_spectacular.utils import extend_schema  # type: ignore
 
 
 def _decimal_sum(field_name: str):
@@ -379,6 +383,63 @@ class BuisnessAdminUpdateReceiverView(BaseBuisAdminAPIView):
         return Response({"detail": "User updated."})
 
 
+class BuisnessUpdateView(SendVerifyView, ImageMixin):
+    serializer_class = InS.BusinessUpdateSerializer
+
+    def patch(self, request):
+        user: User = request.user
+        business_admin = self.get_buisnessadmn(request)
+        business = business_admin.business
+        
+        serializer = self.get_serializer(
+            business,
+            data=request.data,
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        if not user.check_password(vd["password"]):
+            return Response(
+                {"detail": "Password is incorrect"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        business_image = request.FILES.get("business_image")
+        business_logo = request.FILES.get("business_logo")
+
+        save_kwargs = {}
+
+        try:
+            if business_image:
+                self.validate_image(business_image)
+                ave_kwargs["business_image"] = business_image
+
+            if business_logo:
+                self.validate_image(business_logo)
+                save_kwargs["business_logo"] = business_logo
+        except ValueError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            with transaction.atomic():
+                serializer.save(**save_kwargs)
+
+            return Response(
+                {"detail": "Business updated successfully."},
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception:
+            return Response(
+                {"detail": "Failed to upload images."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
 class BranchOperatingHoursView(AbstractBuStAdBranchView):
     @extend_schema(
         responses=acInS.BranchOperatingHoursSerializer,
@@ -410,7 +471,7 @@ class BranchOperatingHoursView(AbstractBuStAdBranchView):
         return Response({"detail": "Operating hours updated."})
 
 
-# i can add celery to close automatically;
+# i can add celery to close automatically; #:attention
 class BranchClosedView(AbstractBuStAdBranchView):
     # @extend_schema(
     #     responses=acInS.BranchOperatingHoursSerializer,
@@ -633,7 +694,6 @@ class BusinessWalletWithdrawalView(BaseBuisAdminAPIView):
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# add eligability
 class BuisnessWithdrawEligibilityView(BaseBuisAdminAPIView):
     def get(self, request):
         decision = evaluate_eligibility(

@@ -28,6 +28,24 @@ class AdminUpdateSerializer(serializers.Serializer):
             raise serializers.ValidationError("Phone number already in use.")
 
         return value
+    
+class BusinessUpdateSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True)
+
+    business_name = serializers.CharField(required=False)
+    business_type = serializers.CharField(required=False)
+    business_address = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
+    phone_number = serializers.CharField(required=False)
+
+    def update(self, instance, validated_data):
+        validated_data.pop("password", None)
+
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+
+        instance.save()
+        return instance
 
 class BusinessMetricsQuerySerializer(serializers.Serializer):
     RANGE_CHOICES = ("today", "7d", "30d", "custom")

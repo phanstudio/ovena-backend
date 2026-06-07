@@ -12,7 +12,7 @@ from ..models import (
     User,
     Address,
     BusinessAdmin,
-    PrimaryAgent,
+    PrimaryAgent, Branch
 )
 from referrals.services import apply_referral_code, ensure_profile_base
 from phonenumber_field.serializerfields import PhoneNumberField  # type: ignore
@@ -84,8 +84,15 @@ class BuisnessAdminProfileSerializer(serializers.ModelSerializer):
         ]
 
 
+class BranchSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Branch
+        fields = "__all__"
+
+
 class PrimaryAgentProfileSerializer(serializers.ModelSerializer):
     is_active = serializers.SerializerMethodField()
+    branch = BranchSerializer(read_only=True)
 
     class Meta:
         model = PrimaryAgent
@@ -95,6 +102,7 @@ class PrimaryAgentProfileSerializer(serializers.ModelSerializer):
             "is_active",
             "revoked",
             "created_at",
+            "branch"
         ]
         read_only_fields = fields
 

@@ -74,6 +74,11 @@ urlpatterns = [
         name="buis-admin-update",
     ),
     path(
+        "update/",
+        views.BuisnessUpdateView.as_view(),
+        name="business-update",
+    ),
+    path(
         "admin/update/verify/",
         views.BuisnessAdminUpdateReceiverView.as_view(),
         name="buis-admin-update-verify",
