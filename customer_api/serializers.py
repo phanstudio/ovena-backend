@@ -126,7 +126,7 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
 
         # for item in instance.items.all():
         #     snap = item.snapshot or {}
-        #     menu_item = snap.get("menu_item") or {}
+        #     menu_item = snap.get("item") or {}
         #     menu_id = menu_item.get("id")
         #     if menu_id:
         #         menu_ids.add(menu_id)
@@ -139,22 +139,22 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
         menu_map = MenuItem.objects.filter(id__in=menu_ids).in_bulk()
 
         # attach image into response
-        # for item in data["items"]:
-        #     menu_id = item["snapshot"]["menu_item"]["id"]
-        #     menu = menu_map.get(menu_id)
-
-        #     if menu:
-        #         item["snapshot"]["menu_item"]["image"] = menu.image
-        for item, obj in zip(data["items"], instance.items.all()):
-            menu = menu_map.get(obj.menu_item_id)
+        for item in data["items"]:
+            menu_id = item["snapshot"]["item"]["id"]
+            menu = menu_map.get(menu_id)
 
             if menu:
-                item["snapshot"]["menu_item"]["image"] = (
-                    menu.image
-                )
-                item["snapshot"]["menu_item"]["id"] = (
-                    obj.menu_item_id
-                )
+                item["snapshot"]["item"]["image"] = menu.image
+        # for item, obj in zip(data["items"], instance.items.all()):
+        #     menu = menu_map.get(obj.menu_item_id)
+
+        #     if menu:
+        #         item["snapshot"]["item"]["image"] = (
+        #             menu.image
+        #         )
+        #         item["snapshot"]["item"]["id"] = (
+        #             obj.menu_item_id
+        #         )
 
         return data
 
