@@ -46,18 +46,6 @@ class OrderHistorySerializer(serializers.ModelSerializer):
     def get_extra_items(self, obj):
         return max(self._item_count(obj) - 1, 0)
 
-    # def get_extra_items(self, obj):
-    #     items = self._items(obj)
-    #     return max(len(items) - 1, 0)
-
-    # def _first_item(self, obj):
-    #     items = self._items(obj)
-
-    #     if not items:
-    #         return None
-
-    #     return items[0]
-
     def get_product_name(self, obj):
         item = self._first_item(obj)
 
@@ -111,7 +99,7 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
         read_only=True
     )
     branch_address = serializers.CharField(
-        source="address",
+        source="branch.address",
         read_only=True
     )
     items = OrderItemSerializer(many=True, read_only=True)
@@ -130,6 +118,30 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
             "created_at",
             "items",
         ]
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        menu_ids = set()
+
+        for item in instance.items.all():
+            snap = item.snapshot or {}
+            menu_item = snap.get("menu_item") or {}
+            menu_id = menu_item.get("id")
+            if menu_id:
+                menu_ids.add(menu_id)
+
+        menu_map = MenuItem.objects.filter(id__in=menu_ids).in_bulk()
+
+        # attach image into response
+        for item in data["items"]:
+            menu_id = item["snapshot"]["menu_item"]["id"]
+            menu = menu_map.get(menu_id)
+
+            if menu:
+                item["snapshot"]["menu_item"]["image"] = menu.image
+
+        return data
 
 
 class FavoriteCreateSerializer(serializers.Serializer):
