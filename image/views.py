@@ -8,10 +8,7 @@ from ulid import ULID # type: ignore
 from drf_spectacular.utils import extend_schema # type: ignore
 from rest_framework.permissions import AllowAny
 from django.core.files.storage import storages
-from business_api.views import BaseBuisAdminAPIView
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.db import transaction
-from rest_framework import status
 # from PIL import Image
 
 
@@ -145,59 +142,3 @@ class ImageMixin():
 
         # # Reset file pointer after verify()
         # file.seek(0)
-
-
-class UpdateBusinessImagesView(BaseBuisAdminAPIView, ImageMixin):
-    
-    def patch(self, request):
-        business_admin = self.get_buisnessadmn(request)
-        restaurant = business_admin.business
-
-        business_image = request.FILES.get("business_image")
-        business_logo = request.FILES.get("business_logo")
-
-        if not business_image and not business_logo:
-            return Response(
-                {
-                    "detail":
-                    "At least one image must be uploaded."
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            with transaction.atomic():
-
-                # BUSINESS IMAGE
-                if business_image:
-                    self.validate_image(business_image)
-                    restaurant.business_image = business_image
-
-                # BUSINESS LOGO
-                if business_logo:
-                    self.validate_image(business_logo)
-                    restaurant.business_logo = business_logo
-
-                restaurant.save(
-                    update_fields=[
-                        "business_image",
-                        "business_logo",
-                    ]
-                )
-
-            return Response(
-                {"detail": "Images updated successfully."},
-                status=status.HTTP_200_OK,
-            )
-
-        except ValueError as e:
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        except Exception:
-            return Response(
-                {"detail": "Failed to upload images."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
