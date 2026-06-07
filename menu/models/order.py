@@ -42,6 +42,7 @@ class Order(models.Model): # do we add a coupon snap shot or not also a discount
     delivery_secret_hash = models.CharField(max_length=200)
     delivery_verified = models.BooleanField(default=False)
     delivery_verified_at = models.DateTimeField(blank=True, null=True)
+    picked_up_by_user = models.BooleanField(default=False)
 
     # driver number
     driver_number = models.CharField(max_length=8, null=True, blank=True)

@@ -53,6 +53,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
             "age",
             "referral_code",
             "name",
+            "pickup_food"
         ]
 
 

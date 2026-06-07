@@ -134,6 +134,7 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
 
 class FavoriteCreateSerializer(serializers.Serializer):
     menu_item_id = serializers.IntegerField()
+    branch_id = serializers.IntegerField()
 
 
 class MenuItemSerializer(serializers.ModelSerializer):
@@ -166,10 +167,19 @@ class MenuItemSerializer(serializers.ModelSerializer):
 
 class FavoriteListSerializer(serializers.ModelSerializer):
     menu_item = MenuItemSerializer(read_only=True)
+    buisness_id = serializers.SerializerMethodField()
+
     class Meta:
         model = FavoriteMenuItem
-        fields = ["menu_item", "created_at"]
+        fields = ["menu_item", "created_at", "buisness_id"]
+    
+    def get_buisness_id(self, obj):
+        try:
+            return obj.branch.business.id if obj.branch else None
+        except Exception:
+            return None
+        
 
 class OrderCalculationGetSerializer(LocationGetSerializer):
     branch_id = serializers.IntegerField()
-    coupon_code = serializers.CharField()
+    coupon_code = serializers.CharField(required=False, allow_blank=True)

@@ -5,7 +5,8 @@ from common.customer.paginations import StandardResultsSetPagination
 # from rest_framework.mixins import ListModelMixin
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from .serializers import (
-    OrderHistorySerializer, OrderRetrieveSerializer, FavoriteCreateSerializer, FavoriteListSerializer
+    OrderHistorySerializer, OrderRetrieveSerializer, FavoriteCreateSerializer, 
+    FavoriteListSerializer, OrderCalculationGetSerializer
 )
 # from referrals.models import ProfileReferral
 from .models import FavoriteMenuItem
@@ -13,9 +14,12 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from menu.serializers import OrderCreateSerializer
 from menu.views import log_created_order
-from addresses.utils import make_point
+from addresses.utils import make_point, get_cached_distance_km_from_2points
 from addresses.serializers import LocationGetSerializer
-
+from accounts.models import Branch
+from coupons_discount.models import Coupons
+from django.db.models import Q
+from menu.serializers.order import calculate_delivery_fee
 
 class GenerateLinkView(BaseCustomerAPIView):
     def get(self, request):
@@ -45,7 +49,7 @@ class OrderRetrieveView(BaseCustomerAPIView, RetrieveAPIView):
         return (Order.objects.filter(orderer=customer).select_related("branch__business", "branch", "driver")
                 .prefetch_related("items"))
 
-class ReorderView(BaseCustomerAPIView): # location to the body #:attention, 
+class ReorderView(BaseCustomerAPIView): # location to the body #:attention 
     serializer_class = LocationGetSerializer
     @transaction.atomic
     def post(self, request, order_id):
@@ -116,7 +120,8 @@ class FavoriteCreateView(BaseCustomerAPIView):
         customer = self.get_customer_profile(request)
         _, created = FavoriteMenuItem.objects.get_or_create(
             customer=customer,
-            menu_item_id=vd["menu_item_id"]
+            menu_item_id=vd["menu_item_id"],
+            branch_id=vd["branch_id"]
         )
         return Response({"message": "success"}, 200)
 
@@ -129,7 +134,8 @@ class FavoriteRemoveView(BaseCustomerAPIView):
         customer = self.get_customer_profile(request)
         FavoriteMenuItem.objects.filter(
             customer=customer,
-            menu_item_id=vd["menu_item_id"]
+            menu_item_id=vd["menu_item_id"],
+            branch_id=vd["branch_id"]
         ).delete()
 
         return Response({"message": "favorite removed"}, 200)
@@ -140,8 +146,57 @@ class FavoriteListView(BaseCustomerAPIView, ListAPIView):
     queryset = FavoriteMenuItem.objects.all()
     def get_queryset(self):
         customer = self.get_customer_profile(self.request)
-        return FavoriteMenuItem.objects.filter(customer=customer)
+        return FavoriteMenuItem.objects.filter(customer=customer).select_related("menu_item", "branch")
 
 # class UpdateAdressView
 # favorite view for menuitem and addons; but endpoint
 
+class OrderCalculationsView(BaseCustomerAPIView):
+    serializer_class = OrderCalculationGetSerializer
+    @transaction.atomic
+    def post(self, request):
+        customer = self.get_customer_profile(request)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        user_location = make_point(vd["long"], vd["lat"])
+        
+        vd["branch_id"]# or branch long and lat;
+        branch = Branch.objects.filter(id=vd["branch_id"], active=True)
+        if not branch:
+            return Response({"details": "branch id invalid or not active"}, status=401)
+        
+        delivery_fee = calculate_delivery_fee(
+            customer, get_cached_distance_km_from_2points(user_location, branch.location)
+        )
+        coupon_code = vd.get("coupon_code", None)
+        if coupon_code:
+            coupon = Coupons.objects.filter(
+                code=coupon_code,
+            ).filter(
+                Q(
+                    is_reward=False,
+                    is_active=True,
+                )
+                |
+                Q(
+                    is_reward=True,
+                    user_wallets__user=request.user,
+                    user_wallets__is_used=False,
+                )
+            ).first()
+            if coupon:
+                for field in ["is_reward", "created_at"]:
+                    coupon.pop(field, None)
+            else:
+                coupon = "The coupon code has expired"
+        else:
+            coupon = "No coupon given"
+
+        return Response({
+            "message": "Order recreated successfully",
+            "delivery_amount": delivery_fee,
+            "coupons": coupon
+        }, status=201)

@@ -108,6 +108,7 @@ class CustomerProfile(
         blank=True,
         related_name="default_for_customers",
     )  # set normally but change if requested
+    pickup_food = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if not self.pk:
@@ -115,7 +116,7 @@ class CustomerProfile(
         else:
             if self.profile_type != ProfileBase.PROFILE_CUSTOMER:
                 raise ValueError("Cannot change profile_type on CustomerProfile")
-        # print(self.profile_type)
+
         super().save(*args, **kwargs)
 
     @property

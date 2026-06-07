@@ -15,6 +15,13 @@ PRICE_PER_KM = 1000
 MINIMUM_PRICE_KM = 100 #1000
 MIN_ORDER_SUBTOTAL = Decimal("5000.00")
 
+def calculate_delivery_fee(customer, distance_km)-> float:
+    delivery_fee = max(distance_km * PRICE_PER_KM, MINIMUM_PRICE_KM)
+    if customer.pickup_food:
+        delivery_fee = 0
+    return delivery_fee
+
+
 class OrderItemCreateSerializer(serializers.Serializer):
     menu_item_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
@@ -62,7 +69,8 @@ class OrderCreateSerializer(serializers.Serializer):
                 {"branch_id": "This restaurant is not accepting orders right now."}
             )
         attrs["branch"] = branch
-
+        
+        
         # 3) Resolve the requesting user and delivery distance.
         attrs["distance_km"] = get_cached_distance_km_from_2points(
             user_loaction, branch.location
@@ -272,12 +280,15 @@ class OrderCreateSerializer(serializers.Serializer):
         distance_km = validated_data.get("distance_km", 0)
 
         phrase = generate_passphrase()
+        
+        delivery_fee = calculate_delivery_fee(customer, distance_km)
 
         order = Order.objects.create(
             orderer=customer,
             branch=branch,
             delivery_secret_hash=hash_phrase(phrase),
-            delivery_price=max(distance_km * PRICE_PER_KM, MINIMUM_PRICE_KM),
+            delivery_price=delivery_fee,
+            picked_up_by_user = customer.pickup_food,
         )
 
         # Bulk-create order items.

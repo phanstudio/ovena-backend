@@ -334,7 +334,7 @@ class ResturantOrderView(GenericAPIView):
         order_id = request.data.get("order_id")
         order_code = request.data.get("order_code")
 
-        if not action or action not in ["accept", "cancel", "made", "pickup"]:
+        if not action or action not in ["accept", "cancel", "made", "pickup", "complete"]:
             return Response(
                 {"error": "Action required"}, status=status.HTTP_400_BAD_REQUEST
             )
@@ -355,6 +355,8 @@ class ResturantOrderView(GenericAPIView):
             return self.order_made(order)
         elif action == "pickup":
             return self.pickup_order(order)
+        elif action == "complete":
+            return self.complete_order(order, order_code)
         else:
             return self.cancel_order(order)
 
@@ -420,8 +422,9 @@ class ResturantOrderView(GenericAPIView):
         # 🔥 Notify customer and start driver search
         notify_order_ready(order)
 
-        # 🔥 Find and assign driver (async task)
-        find_and_assign_driver.delay(order.id)
+        if not order.picked_up_by_user:
+            # 🔥 Find and assign driver (async task)
+            find_and_assign_driver.delay(order.id)
 
         logger.info(f"Order {order.id} marked as ready, finding driver")
 
@@ -461,6 +464,65 @@ class ResturantOrderView(GenericAPIView):
         return Response(
             {"message": "Order Picked Up."},
             status=status.HTTP_202_ACCEPTED,
+        )
+
+    def complete_order(self, order: Order, order_code: str):
+        """Driver delivers order with verification code"""
+        if not order_code:
+            return Response(
+                {"error": "Order code missing"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        if not order.picked_up_by_user:
+            return Response(
+                {"error": "Order code missing"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        old_status = order.status
+        if order.status not in [OrderStatus.READY]:
+            return Response(
+                {"error": "Order not ready for delivery"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Verify delivery code
+        verified = verify_delivery_phrase(order, order_code)
+        if not verified:
+            return Response(
+                {"error": "Invalid delivery code"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        convert_referral_once(referee_profile=order.orderer)
+
+        # Log event
+        OrderEvent.objects.create(
+            order=order,
+            event_type="pickup",
+            actor_type="branch",
+            actor_id=order.branch_id,
+            old_status=old_status,
+            new_status=order.status,
+        )
+
+        # 🔥 Notify all parties of successful delivery
+        notify_order_delivered(order)
+        # trigger first split and crediting
+        sale_result = complete_service(order.sale.id)
+        ledger_credit_for_delivered_order(order)
+        logger.info(f"sale info: {sale_result}")
+
+        # TODO: Process payments to branch and driver
+
+        logger.info(
+            f"Order {order.id} delivered successfully by driver {order.driver_id}"
+        )
+
+        return Response(
+            {"message": "Order delivered successfully!"},
+            status=status.HTTP_200_OK,
         )
 
     def cancel_order(self, order: Order):
