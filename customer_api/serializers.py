@@ -144,7 +144,10 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
             menu = menu_map.get(menu_id)
 
             if menu:
-                item["snapshot"]["item"]["image"] = menu.image
+                item["snapshot"]["item"]["image"] = (
+                    menu.image.url if menu.image else None
+                )
+                item["snapshot"]["item"]["id"] = menu_id
         # for item, obj in zip(data["items"], instance.items.all()):
         #     menu = menu_map.get(obj.menu_item_id)
 
