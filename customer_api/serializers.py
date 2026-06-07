@@ -122,24 +122,39 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
 
-        menu_ids = set()
+        # menu_ids = set()
 
-        for item in instance.items.all():
-            snap = item.snapshot or {}
-            menu_item = snap.get("menu_item") or {}
-            menu_id = menu_item.get("id")
-            if menu_id:
-                menu_ids.add(menu_id)
+        # for item in instance.items.all():
+        #     snap = item.snapshot or {}
+        #     menu_item = snap.get("menu_item") or {}
+        #     menu_id = menu_item.get("id")
+        #     if menu_id:
+        #         menu_ids.add(menu_id)
+        menu_ids = {
+            item.menu_item_id
+            for item in instance.items.all()
+            if item.menu_item_id
+        }
 
         menu_map = MenuItem.objects.filter(id__in=menu_ids).in_bulk()
 
         # attach image into response
-        for item in data["items"]:
-            menu_id = item["snapshot"]["menu_item"]["id"]
-            menu = menu_map.get(menu_id)
+        # for item in data["items"]:
+        #     menu_id = item["snapshot"]["menu_item"]["id"]
+        #     menu = menu_map.get(menu_id)
+
+        #     if menu:
+        #         item["snapshot"]["menu_item"]["image"] = menu.image
+        for item, obj in zip(data["items"], instance.items.all()):
+            menu = menu_map.get(obj.menu_item_id)
 
             if menu:
-                item["snapshot"]["menu_item"]["image"] = menu.image
+                item["snapshot"]["menu_item"]["image"] = (
+                    menu.image
+                )
+                item["snapshot"]["menu_item"]["id"] = (
+                    obj.menu_item_id
+                )
 
         return data
 
