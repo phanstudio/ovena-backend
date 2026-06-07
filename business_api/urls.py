@@ -1,7 +1,6 @@
 from django.urls import path, include
 from business_api import views
 from .routers import BaseBranchRouter
-from image.views import UpdateBusinessImagesView
 
 router = BaseBranchRouter()
 
@@ -95,7 +94,7 @@ urlpatterns = [
     ),
     path(
         "images/update/",
-        UpdateBusinessImagesView.as_view(),
+        views.UpdateBusinessImagesView.as_view(),
         name="update-business-images",
     ),
     path("", include("payments.subscriptions.urls.business")),
