@@ -53,7 +53,8 @@ class OrderHistorySerializer(serializers.ModelSerializer):
             return None
 
         snap = item.snapshot or {}
-        return snap.get("menu_item")
+        menu_item = snap.get("menu_item") or {}
+        return menu_item.get("name")
 
     def get_product_image(self, obj):
         item = self._first_item(obj)
@@ -119,48 +120,84 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
             "items",
         ]
     
+    # def to_representation(self, instance):
+    #     data = super().to_representation(instance)
+
+    #     # menu_ids = set()
+
+    #     # for item in instance.items.all():
+    #     #     snap = item.snapshot or {}
+    #     #     menu_item = snap.get("item") or {}
+    #     #     menu_id = menu_item.get("id")
+    #     #     if menu_id:
+    #     #         menu_ids.add(menu_id)
+    #     menu_ids = {
+    #         item.menu_item_id
+    #         for item in instance.items.all()
+    #         if item.menu_item_id
+    #     }
+
+    #     menu_map = MenuItem.objects.filter(id__in=menu_ids).in_bulk()
+
+    #     # attach image into response
+    #     for item in data["items"]:
+    #         menu_id = item["snapshot"]["item"]["id"]
+    #         menu = menu_map.get(menu_id)
+
+    #         if menu:
+    #             item["snapshot"]["item"]["image"] = (
+    #                 menu.image.url if menu.image else None
+    #             )
+    #             item["snapshot"]["item"]["id"] = menu_id
+    #     # for item, obj in zip(data["items"], instance.items.all()):
+    #     #     menu = menu_map.get(obj.menu_item_id)
+
+    #     #     if menu:
+    #     #         item["snapshot"]["item"]["image"] = (
+    #     #             menu.image
+    #     #         )
+    #     #         item["snapshot"]["item"]["id"] = (
+    #     #             obj.menu_item_id
+    #     #         )
+
+    #     return data
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
 
-        # menu_ids = set()
+        # Collect menu IDs from snapshot (primary) or FK (fallback)
+        items_objs = list(instance.items.all())
 
-        # for item in instance.items.all():
-        #     snap = item.snapshot or {}
-        #     menu_item = snap.get("item") or {}
-        #     menu_id = menu_item.get("id")
-        #     if menu_id:
-        #         menu_ids.add(menu_id)
-        menu_ids = {
-            item.menu_item_id
-            for item in instance.items.all()
-            if item.menu_item_id
-        }
+        menu_id_map = {}  # data_item_index -> menu_id
+        menu_ids = set()
+
+        for i, (item_data, item_obj) in enumerate(zip(data["items"], items_objs)):
+            snap_item = (item_data["snapshot"].get("item") or {})
+            menu_id = snap_item.get("id") or item_obj.menu_item_id
+            if menu_id:
+                menu_id_map[i] = menu_id
+                menu_ids.add(menu_id)
 
         menu_map = MenuItem.objects.filter(id__in=menu_ids).in_bulk()
 
-        # attach image into response
-        for item in data["items"]:
-            menu_id = item["snapshot"]["item"]["id"]
+        for i, item_data in enumerate(data["items"]):
+            menu_id = menu_id_map.get(i)
+            if not menu_id:
+                continue
+
+            snap_item = item_data["snapshot"].get("item") or {}
+
+            # Prefer snapshot image (already stored), fall back to DB
+            # image = snap_item.get("image")
+            # if not image:
             menu = menu_map.get(menu_id)
+            image = menu.effective_image if menu else None
 
-            if menu:
-                item["snapshot"]["item"]["image"] = (
-                    menu.image.url if menu.image else None
-                )
-                item["snapshot"]["item"]["id"] = menu_id
-        # for item, obj in zip(data["items"], instance.items.all()):
-        #     menu = menu_map.get(obj.menu_item_id)
-
-        #     if menu:
-        #         item["snapshot"]["item"]["image"] = (
-        #             menu.image
-        #         )
-        #         item["snapshot"]["item"]["id"] = (
-        #             obj.menu_item_id
-        #         )
+            snap_item["image"] = image
+            snap_item["id"] = menu_id
+            item_data["snapshot"]["item"] = snap_item
 
         return data
-
 
 class FavoriteCreateSerializer(serializers.Serializer):
     menu_item_id = serializers.IntegerField()
