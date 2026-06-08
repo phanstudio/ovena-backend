@@ -251,3 +251,4 @@ class FavoriteListSerializer(serializers.ModelSerializer):
 class OrderCalculationGetSerializer(LocationGetSerializer):
     branch_id = serializers.IntegerField()
     coupon_code = serializers.CharField(required=False, allow_blank=True)
+    is_delivery = serializers.BooleanField(default=True, required=False)

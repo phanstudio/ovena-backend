@@ -15,9 +15,9 @@ PRICE_PER_KM = 1000
 MINIMUM_PRICE_KM = 100 #1000
 MIN_ORDER_SUBTOTAL = Decimal("5000.00")
 
-def calculate_delivery_fee(customer, distance_km)-> float:
+def calculate_delivery_fee(is_delivery, distance_km)-> float:
     delivery_fee = max(distance_km * PRICE_PER_KM, MINIMUM_PRICE_KM)
-    if customer.pickup_food:
+    if not is_delivery:
         delivery_fee = 0
     return delivery_fee
 
@@ -44,6 +44,8 @@ class OrderCreateSerializer(serializers.Serializer):
     wallet_entry_id = serializers.IntegerField(required=False, allow_null=True, default=None)
 
     items = OrderItemCreateSerializer(many=True)
+
+    is_delivery = serializers.BooleanField(default=True, required=False)
 
     # ------------------------------------------------------------------
     # Validation
@@ -281,14 +283,14 @@ class OrderCreateSerializer(serializers.Serializer):
 
         phrase = generate_passphrase()
         
-        delivery_fee = calculate_delivery_fee(customer, distance_km)
+        delivery_fee = calculate_delivery_fee(validated_data["is_delivery"], distance_km)
 
         order = Order.objects.create(
             orderer=customer,
             branch=branch,
             delivery_secret_hash=hash_phrase(phrase),
             delivery_price=delivery_fee,
-            picked_up_by_user = customer.pickup_food,
+            picked_up_by_user = validated_data["is_delivery"],
         )
 
         # Bulk-create order items.

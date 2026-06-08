@@ -155,7 +155,7 @@ class OrderCalculationsView(BaseCustomerAPIView):
     serializer_class = OrderCalculationGetSerializer
     @transaction.atomic
     def post(self, request):
-        customer = self.get_customer_profile(request)
+        # customer = self.get_customer_profile(request)
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -169,7 +169,7 @@ class OrderCalculationsView(BaseCustomerAPIView):
             return Response({"details": "branch id invalid or not active"}, status=401)
         
         delivery_fee = calculate_delivery_fee(
-            customer, get_cached_distance_km_from_2points(user_location, branch.location)
+            vd["is_delivery"], get_cached_distance_km_from_2points(user_location, branch.location)
         )
         coupon_code = vd.get("coupon_code", None)
         if coupon_code:

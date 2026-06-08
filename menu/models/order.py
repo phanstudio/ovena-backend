@@ -109,6 +109,8 @@ class OrderItem(models.Model):
         BaseItemAvailability, on_delete=models.SET_NULL,
         related_name="order_items", null=True, blank=True
     )
+    # add_cutlery = models.BooleanField(default=True) #:attention #:priority
+    # addtional_note = models.TextField(default="")
 
     def calculate_addon_price(self): # breaks if no addons or valiants
         """Only used once on creation."""

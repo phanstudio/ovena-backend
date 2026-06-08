@@ -238,7 +238,7 @@ class HomePageView(LocationDependantMixin, BaseCustomerAPIView):
 # ============================================================================
 # BUSINESS LIST — Infinite Scroll (ultra-lightweight)
 # ============================================================================
-
+# add is closed #attention
 class BusinessListView(LocationDependantMixin, APIView):
     """
     GET /businesses/?lat=&lng=&page=
