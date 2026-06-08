@@ -199,6 +199,7 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
 
         return data
 
+
 class FavoriteCreateSerializer(serializers.Serializer):
     menu_item_id = serializers.IntegerField()
     branch_id = serializers.IntegerField()

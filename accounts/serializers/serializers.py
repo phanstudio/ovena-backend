@@ -151,8 +151,8 @@ class CreateCustomerSerializer(serializers.Serializer):
     profile_pic = serializers.CharField(
         required=False, allow_blank=True
     )
-    address = serializers.CharField(required=False, allow_blank=True)
-    is_picking_up_food = serializers.BooleanField(required=False, allow_blank=True, default= False)
+    address = serializers.CharField(required=False, allow_blank=True, default="unknown")
+    is_picking_up_food = serializers.BooleanField(required=False, default=False)
 
     def validate(self, data):
         user = self.context["user"]
@@ -196,14 +196,13 @@ class CreateCustomerSerializer(serializers.Serializer):
         if update_fields:
             user.save(update_fields=update_fields)
 
-        address = validated_data["address"]
         location = None
         if (
             validated_data.get("lat") is not None
             and validated_data.get("long") is not None
         ):
             location = Address.objects.create(
-                address= address if address else "unknown",
+                address= validated_data["address"],
                 location=Point(
                     validated_data["long"],
                     validated_data["lat"],
