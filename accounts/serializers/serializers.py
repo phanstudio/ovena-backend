@@ -150,7 +150,9 @@ class CreateCustomerSerializer(serializers.Serializer):
     referre_code = serializers.CharField(required=False, allow_blank=True)
     profile_pic = serializers.CharField(
         required=False, allow_blank=True
-    )  # add profle pics.
+    )
+    address = serializers.CharField(required=False, allow_blank=True)
+    is_picking_up_food = serializers.BooleanField(required=False, allow_blank=True, default= False)
 
     def validate(self, data):
         user = self.context["user"]
@@ -194,13 +196,14 @@ class CreateCustomerSerializer(serializers.Serializer):
         if update_fields:
             user.save(update_fields=update_fields)
 
+        address = validated_data["address"]
         location = None
         if (
             validated_data.get("lat") is not None
             and validated_data.get("long") is not None
         ):
             location = Address.objects.create(
-                address="unknown",
+                address= address if address else "unknown",
                 location=Point(
                     validated_data["long"],
                     validated_data["lat"],
@@ -212,7 +215,8 @@ class CreateCustomerSerializer(serializers.Serializer):
             user=user,
             birth_date=validated_data.get("birth_date"),
             default_address=location,
-            name=validated_data["name"]
+            name=validated_data["name"],
+            pickup_food=validated_data["is_picking_up_food"],
         )
         ensure_profile_base(profile)
 

@@ -261,11 +261,12 @@ class LinkApproveView(GenericAPIView):
 
 
 # add transfer of ownershp later
-class RegisterCustomer(APIView):
+class RegisterCustomer(GenericAPIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = CreateCustomerSerializer
 
     def post(self, request):
-        serializer = CreateCustomerSerializer(
+        serializer = self.get_serializer(
             data=request.data, context={"user": request.user}
         )
         serializer.is_valid(raise_exception=True)

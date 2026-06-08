@@ -109,6 +109,8 @@ class CustomerProfile(
         related_name="default_for_customers",
     )  # set normally but change if requested
     pickup_food = models.BooleanField(default=False)
+    # not validated; which allow us to use create normally?? aso stopping people from using a different profile to create a user.
+    #:attention
 
     def save(self, *args, **kwargs):
         if not self.pk:
