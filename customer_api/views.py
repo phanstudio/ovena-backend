@@ -186,7 +186,7 @@ class OrderCalculationsView(BaseCustomerAPIView):
                     user_wallets__user=request.user,
                     user_wallets__is_used=False,
                 )
-            ).first()
+            ).values().first()
             if coupon:
                 for field in ["is_reward", "created_at"]:
                     coupon.pop(field, None)
