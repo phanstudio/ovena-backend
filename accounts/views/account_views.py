@@ -455,7 +455,7 @@ class AdminLoginView(GenericAPIView):
         user = User.objects.filter(phone_number=vd["phone_number"]).first()
         if not user:
             return Response(
-                {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
+                {"error": "Invalid credentials (phone number)"}, status=status.HTTP_401_UNAUTHORIZED
             )
         buisness_admin_role = get_profile(user, PROFILE_BUSINESS_ADMIN)
         if not buisness_admin_role:
@@ -465,7 +465,7 @@ class AdminLoginView(GenericAPIView):
             )
         if not user or not user.check_password(vd["password"]):
             return Response(
-                {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
+                {"error": "Invalid password"}, status=status.HTTP_401_UNAUTHORIZED
             )
 
         token = issue_jwt_for_user(user)
