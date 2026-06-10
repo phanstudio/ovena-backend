@@ -164,7 +164,7 @@ class OrderCalculationsView(BaseCustomerAPIView):
         user_location = make_point(vd["long"], vd["lat"])
         
         vd["branch_id"]# or branch long and lat;
-        branch = Branch.objects.filter(id=vd["branch_id"], is_active=True)
+        branch = Branch.objects.filter(id=vd["branch_id"], is_active=True).first()
         if not branch:
             return Response({"details": "branch id invalid or not active"}, status=401)
         
