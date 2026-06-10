@@ -383,7 +383,7 @@ class BuisnessAdminUpdateReceiverView(BaseBuisAdminAPIView):
         return Response({"detail": "User updated."})
 
 
-class BuisnessUpdateView(SendVerifyView, ImageMixin):
+class BuisnessUpdateView(BaseBuisAdminAPIView, ImageMixin):
     serializer_class = InS.BusinessUpdateSerializer
 
     def patch(self, request):
@@ -438,6 +438,19 @@ class BuisnessUpdateView(SendVerifyView, ImageMixin):
                 {"detail": "Failed to upload images."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class BuisnessDetailView(BaseBuisAdminAPIView):
+    serializer_class = InS.BusinessDetailSerializer
+
+    def get(self, request):
+        business_admin = self.get_buisnessadmn(request)
+        business = business_admin.business
+        
+        serializer = self.get_serializer(
+            business,
+        )
+        return Response(serializer.data, status.HTTP_200_OK)
 
 
 class BranchOperatingHoursView(AbstractBuStAdBranchView):

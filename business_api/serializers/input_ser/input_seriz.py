@@ -1,6 +1,6 @@
 from phonenumber_field.serializerfields import PhoneNumberField  # type: ignore
 from rest_framework import serializers
-from accounts.models import User, BusinessAdmin
+from accounts.models import User, BusinessAdmin, Business
 
 class AdminUpdateSerializer(serializers.Serializer):
     phone_number = PhoneNumberField(required=False, allow_null=True)
@@ -46,6 +46,16 @@ class BusinessUpdateSerializer(serializers.Serializer):
 
         instance.save()
         return instance
+
+class BusinessDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Business
+        fields = (
+            "id", "business_name", "business_type", 
+            "business_address", "email", "phone_number"
+        )
+    
+
 
 class BusinessMetricsQuerySerializer(serializers.Serializer):
     RANGE_CHOICES = ("today", "7d", "30d", "custom")
