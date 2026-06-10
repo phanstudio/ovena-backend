@@ -490,7 +490,7 @@ class StaffLoginView(GenericAPIView):
 
         device_id = vd["device_id"]  # migth add branch_id
         buisness_staff = (
-            PrimaryAgent.objects.filter(device_name=device_id, revoked=False)
+            PrimaryAgent.objects.filter(device_name=device_id)
             .select_related("user")
             .first()
         )
