@@ -494,12 +494,13 @@ class StaffLoginView(GenericAPIView):
             .select_related("user")
             .first()
         )
-        user = buisness_staff.user
 
         if not buisness_staff:
             return Response(
                 {"error": "Account doesn't exist"}, status=status.HTTP_403_FORBIDDEN
             )
+        
+        user = buisness_staff.user
 
         if buisness_staff.revoked:
             return Response(
