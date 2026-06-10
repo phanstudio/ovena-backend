@@ -400,7 +400,7 @@ class DriverLoginView(GenericAPIView):
         user = User.objects.filter(phone_number=vd["phone_number"]).first()
         if not user:
             return Response(
-                {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
+                {"error": "Invalid credentials (phone number)"}, status=status.HTTP_401_UNAUTHORIZED
             )
 
         driver_profile = getattr(user, "driver_profile", None)
@@ -417,7 +417,7 @@ class DriverLoginView(GenericAPIView):
 
         if not user or not user.check_password(vd["password"]):
             return Response(
-                {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
+                {"error": "Invalid password"}, status=status.HTTP_401_UNAUTHORIZED
             )
 
         token = issue_jwt_for_user(user)
