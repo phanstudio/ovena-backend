@@ -52,10 +52,9 @@ class BusinessDetailSerializer(serializers.ModelSerializer):
         model = Business
         fields = (
             "id", "business_name", "business_type", 
-            "business_address", "email", "phone_number"
+            "business_address", "email", "phone_number",
+            "business_image", "business_logo",
         )
-    
-
 
 class BusinessMetricsQuerySerializer(serializers.Serializer):
     RANGE_CHOICES = ("today", "7d", "30d", "custom")
