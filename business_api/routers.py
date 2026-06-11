@@ -22,32 +22,3 @@ class BaseBranchRouter:
         ]
 
         return urls
-    
-# class BaseBranchRouter:
-#     """
-#     Abstract router for branch based endpoints.
-#     """
-
-#     def __init__(self, prefix="", staff_mode=False):
-#         self.prefix = prefix
-#         self.staff_mode = staff_mode
-
-#     def register(self, route, view):
-#         urls = []
-
-#         base = f"{self.prefix}{route}/"
-
-#         # Admin routes (can specify branch)
-#         if not self.staff_mode:
-#             urls += [
-#                 path(base, view.as_view()),
-#                 path(f"{self.prefix}<int:branch_id>/{route}/", view.as_view()),
-#             ]
-
-#         # Staff routes (branch auto detected)
-#         else:
-#             urls += [
-#                 path(base, view.as_view()),
-#             ]
-
-#         return urls

@@ -192,7 +192,3 @@ def paystack_webhook_view(request):
 def _process_webhook(body):
     """Compatibility proxy for tests/legacy callers."""
     process_event(body)
-
-
-
-

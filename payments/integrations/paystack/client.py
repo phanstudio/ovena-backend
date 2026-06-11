@@ -154,6 +154,7 @@ class PaystackClient:
         )
 
     def verify_transaction(self, reference:str):
+        # self._client.p
         return self._call(
             self._client.transaction.verify,
             {"reference": reference}

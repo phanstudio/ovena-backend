@@ -1,6 +1,6 @@
 from django.urls import path
 from payments import views
-from callback import paystack
+from .callback import paystack
 
 urlpatterns = [
     # Sales

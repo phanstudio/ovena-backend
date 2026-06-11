@@ -1,9 +1,9 @@
 from django.shortcuts import redirect
-from django.http import JsonResponse
 from payments.integrations.client import client
-from django.utils import timezone
-from payments.models import Sale
-from menu.payment_handlers import order_update
+# from django.http import JsonResponse
+# from django.utils import timezone
+# from payments.models import Sale
+# from menu.payment_handlers import order_update
 
 
 # def paystack_callback(request):
