@@ -62,7 +62,7 @@ class OrderHistorySerializer(serializers.ModelSerializer):
         if not item:
             return None
 
-        menu = item.menu_item.image
+        menu = item.menu_item
         # snap = item.menu_item or {}
         return menu.effective_image if menu else None
 
