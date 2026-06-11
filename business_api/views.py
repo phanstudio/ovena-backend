@@ -188,7 +188,8 @@ class BaseBuisAdminAPIView(GenericAPIView):
             return request.user.business_admin
         except BusinessAdmin.DoesNotExist:
             return get_object_or_404(BusinessAdmin, user=request.user)
-    
+
+
 class BaseBusiStaffAPIView(GenericAPIView):
     authentication_classes = [CustomBStaffAuth]
     permission_classes = [IsBusinessStaff]

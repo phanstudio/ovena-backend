@@ -3,6 +3,7 @@ from menu.models import Order, OrderItem
 from .models import FavoriteMenuItem, MenuItem
 from addresses.serializers import LocationGetSerializer
 
+
 class OrderHistorySerializer(serializers.ModelSerializer):
     driver = serializers.CharField(
         source="driver.full_name",
