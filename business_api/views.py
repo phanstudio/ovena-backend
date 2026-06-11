@@ -23,8 +23,8 @@ from accounts.serializers import InS as acInS
 from business_api.serializers import InS, OpS
 
 from authflow.services import OTPManager
-from authflow.authentication import CustomBAdminAuth, CustomBusinessAgentsAuth
-from authflow.permissions import IsBusinessAdmin, IsBusinessAgent
+from authflow.authentication import CustomBAdminAuth, CustomBusinessAgentsAuth, CustomBStaffAuth
+from authflow.permissions import IsBusinessAdmin, IsBusinessAgent, IsBusinessStaff
 
 from payments.idempotency import (
     IdempotencyConflictError,
@@ -188,6 +188,16 @@ class BaseBuisAdminAPIView(GenericAPIView):
             return request.user.business_admin
         except BusinessAdmin.DoesNotExist:
             return get_object_or_404(BusinessAdmin, user=request.user)
+    
+class BaseBusiStaffAPIView(GenericAPIView):
+    authentication_classes = [CustomBStaffAuth]
+    permission_classes = [IsBusinessStaff]
+
+    def get_business_staff(self, request) -> PrimaryAgent:
+        try:
+            return request.user.primary_agent
+        except BusinessAdmin.DoesNotExist:
+            return get_object_or_404(PrimaryAgent, user=request.user)
 
 
 class SendVerifyView(BaseBuisAdminAPIView):

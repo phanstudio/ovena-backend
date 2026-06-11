@@ -1,13 +1,14 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.generics import GenericAPIView
+from rest_framework.generics import GenericAPIView, RetrieveAPIView
 from ..serializers import OpS, InS
 from ..models import (
     Menu,
     MenuItem,
     Branch,
     BaseItemAvailability,
+    Order
 )
 from menu.pagifications import StandardResultsSetPagination
 
@@ -15,7 +16,8 @@ from accounts.models import User
 from authflow.permissions import IsBusinessAdmin, IsBusinessStaff
 from authflow.authentication import CustomBAdminAuth, CustomBStaffAuth
 from django.db import transaction
-from business_api.views import AbstractBuStAdBranchView
+from business_api.views import AbstractBuStAdBranchView, BaseBusiStaffAPIView
+from customer_api.serializers import OrderRetrieveSerializer
 
 import logging
 from django.db.models import Q
@@ -202,3 +204,12 @@ class AvaliabilityView(AbstractBuStAdBranchView):
                 "updated_count": len(updated_objects),
             }
         )
+
+class OrderRetrieveView(BaseBusiStaffAPIView, RetrieveAPIView):
+    queryset = Order.objects.all()
+    lookup_field = "id"
+    serializer_class = OrderRetrieveSerializer
+    def get_queryset(self):
+        business_staff = self.get_business_staff(self.request)
+        return (Order.objects.filter(branch=business_staff.branch).select_related("branch__business", "branch", "driver")
+                .prefetch_related("items"))
