@@ -205,6 +205,7 @@ class AvaliabilityView(AbstractBuStAdBranchView):
             }
         )
 
+
 class OrderRetrieveView(BaseBusiStaffAPIView, RetrieveAPIView):
     queryset = Order.objects.all()
     lookup_field = "id"
