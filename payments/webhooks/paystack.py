@@ -19,6 +19,7 @@ from payments.models.subscription import (
     Subscription, User, Plan, Invoice, Status
 )
 from django.db import transaction
+from notifications.services import create_notification
 
 logger = logging.getLogger(__name__)
 
@@ -163,11 +164,43 @@ def on_invoice_payment_failed(data):
     )
 
 
+@transaction.atomic
+def _handle_invoice_retry_payment(data: dict, metadata: dict) -> None:
+    try:
+        invoice = Invoice.objects.select_related("subscription").get(
+            id=metadata["invoice_id"],
+        )
+    except Invoice.DoesNotExist:
+        logger.warning("Retry payment: invoice %s not found", metadata["invoice_id"])
+        return
+
+    if invoice.status == Status.PAID:
+        return  # already processed, safe to ignore replay
+
+    invoice.status = Status.PAID
+    invoice.paid_at = parse_datetime(data.get("paid_at")) or timezone.now()
+    invoice.save(update_fields=["status", "paid_at", "updated_at"])
+
+    sub = invoice.subscription
+    sub.active = True
+    sub.save(update_fields=["active", "updated_at"])
+
+
 def process_event(body: dict[str, Any]) -> None:
     event = body.get("event")
     data = body.get("data", {})
 
     if event == "charge.success":
+
+        metadata = data.get("metadata", {})
+    
+        if metadata.get("retry") and metadata.get("invoice_id"):
+            _handle_invoice_retry_payment(data, metadata)
+            return
+        
+        if data.get("plan"):               # came from a subscription charge, ignore
+            return
+
         order_update(data)
         ref = data.get("reference")
         Sale.objects.filter(paystack_reference=ref).update(
@@ -208,7 +241,6 @@ def process_event(body: dict[str, Any]) -> None:
             )
         return
 
-
     if event == "subscription.create":
         on_subscription_created(data)
         return
@@ -223,6 +255,23 @@ def process_event(body: dict[str, Any]) -> None:
 
     if event == "invoice.payment_failed":
         on_invoice_payment_failed(data)
+        return
+    
+    # webhook handler
+    if event == "subscription.not_renew":
+        Subscription.objects.filter(
+            paystack_subscription_code=data["subscription_code"]
+        ).update(cancels_at=parse_datetime(data.get("next_payment_date")))
+        return
+    
+    if event == "subscription.expiring_cards":
+        for item in data:  # data is a list here, unlike all other events
+            sub_code = item["subscription"]["subscription_code"]
+            user = User.objects.filter(subscriptions__paystack_subscription_code=sub_code).first()
+            if user:
+            # fire notification task
+                create_notification(user=user, title="expiring_cards", body="The users card is expiring")
+            # else fire error
         return
 
     if event == "subscription.disable":

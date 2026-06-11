@@ -72,6 +72,8 @@ class Subscription(BaseSubscription):
     start_date = models.DateTimeField(null=True)
     next_payment_date = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    # cancels_at = models.DateTimeField(null=True, blank=True)
+    # lapsed_at = models.DateTimeField(null=True, blank=True)  # when subscription.disable fired
 
     class Meta:
         indexes = [

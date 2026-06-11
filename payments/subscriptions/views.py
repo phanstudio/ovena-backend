@@ -18,7 +18,10 @@ from rest_framework.generics import (
     RetrieveUpdateDestroyAPIView, CreateAPIView, 
     RetrieveAPIView, ListAPIView, GenericAPIView
 )
+from django.conf import settings
+import logging
 
+logger = logging.getLogger(__name__)
 
 class CreateSubscriptionView(GenericAPIView):
     permission_classes = [IsAuthenticated]
@@ -99,10 +102,11 @@ class CancelSubscriptionView(GenericAPIView):
 
         # Cancel at Paystack (optional but recommended)
         try:
-            client.disable_subscription(sub.paystack_subscription_code)
+            client.disable_subscription({"code": sub.paystack_subscription_code})
         except Exception as e:
             # Log error but still deactivate locally
-            pass
+            logger.error("Failed to disable Paystack subscription %s: %s", 
+                 sub.paystack_subscription_code, e)
 
         sub.active = False
         sub.cancelled_at = timezone.now()
@@ -154,12 +158,55 @@ class ClientPlanDetailView(RetrieveAPIView):
         return qs
 
 
+# class RetryInvoicePaymentView(GenericAPIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request, invoice_id):
+#         try:
+#             invoice = Invoice.objects.select_related("subscription").get(
+#                 id=invoice_id,
+#                 subscription__user=request.user,
+#                 status=Status.FAILED,
+#             )
+#         except Invoice.DoesNotExist:
+#             return Response({"error": "Invoice not found or not retryable"}, status=404)
+
+#         try:
+#             # resp = client.initialize_transaction({
+#             #     "email": request.user.email,
+#             #     "amount": invoice.amount,
+#             #     "invoice_limit": 1,            # one-time charge
+#             #     "subscription": invoice.subscription.paystack_subscription_code,
+#             #     # this ties the payment back to the subscription
+#             # })
+#             resp = client.initialize_transaction({
+#                 "email": request.user.email,
+#                 "amount": invoice.amount,
+#                 "metadata": {
+#                     "invoice_id": str(invoice.id),
+#                     "subscription_code": invoice.subscription.paystack_subscription_code,
+#                     "retry": True,
+#                 },
+#                 "callback_url": settings.PAYSTACK_CALLBACK_URL,
+#             })
+#             resp = client.initialize_transaction({
+#                 "email": request.user.email,
+#                 "amount": plan.amount,
+#                 "plan": plan.paystack_plan_code,  # this is the key
+#                 "callback_url": settings.PAYSTACK_CALLBACK_URL,
+#                 "metadata": {"user_id": request.user.id, "plan_id": plan.id}
+#             })
+#             return Response({"authorization_url": resp["data"]["authorization_url"]})
+#         except Exception as e:
+#             return Response({"error": str(e)}, status=500)
+
+
 class RetryInvoicePaymentView(GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, invoice_id):
         try:
-            invoice = Invoice.objects.select_related("subscription").get(
+            invoice = Invoice.objects.select_related("subscription__plan").get(
                 id=invoice_id,
                 subscription__user=request.user,
                 status=Status.FAILED,
@@ -167,15 +214,44 @@ class RetryInvoicePaymentView(GenericAPIView):
         except Invoice.DoesNotExist:
             return Response({"error": "Invoice not found or not retryable"}, status=404)
 
+        subscription = invoice.subscription
+
         try:
-            resp = client.initialize_transaction({
-                "email": request.user.email,
-                "amount": invoice.amount,
-                "invoice_limit": 1,            # one-time charge
-                "subscription": invoice.subscription.paystack_subscription_code,
-                # this ties the payment back to the subscription
-            })
+            # Fetch current subscription status from Paystack
+            paystack_sub = client.fetch_subscription(subscription.paystack_subscription_code)
+            paystack_status = paystack_sub["data"]["status"]
+        except Exception as e:
+            return Response({"error": f"Could not fetch subscription status: {e}"}, status=502)
+
+        try:
+            if paystack_status in ("active", "attention"):
+                # Subscription still alive at Paystack — just pay the outstanding invoice
+                resp = client.initialize_transaction({
+                    "email": request.user.email,
+                    "amount": invoice.amount,
+                    "callback_url": settings.PAYSTACK_CALLBACK_URL,
+                    "metadata": {
+                        "invoice_id": str(invoice.id),
+                        "subscription_code": subscription.paystack_subscription_code,
+                        "retry": True,
+                    },
+                })
+            else:
+                # Subscription is cancelled/completed — full re-enroll
+                plan = subscription.plan
+                resp = client.initialize_transaction({
+                    "email": request.user.email,
+                    "amount": plan.amount,
+                    "plan": plan.paystack_plan_code,
+                    "callback_url": settings.PAYSTACK_CALLBACK_URL,
+                    "metadata": {
+                        "user_id": request.user.id,
+                        "plan_id": plan.id,
+                    },
+                })
+
             return Response({"authorization_url": resp["data"]["authorization_url"]})
+
         except Exception as e:
             return Response({"error": str(e)}, status=500)
 
