@@ -104,7 +104,7 @@ class PaystackClient:
 
     def fetch_subscription(self, subscription_code: str) -> dict[str, Any]:
         """Fetch subscription details from Paystack."""
-        return self._call(self._client.subscription.fetch, {"code": subscription_code})
+        return self._call(self._client.subscription.fetch, {"subscription_code": subscription_code})
 
     def create_plan(self, payload: dict[str, Any]) -> dict[str, Any]:
         """
@@ -138,20 +138,28 @@ class PaystackClient:
         # If not, you may need a raw request. Assuming the SDK has:
         return self._call(lambda: self._client.plan.update(plan_code, **payload))
 
-    def get_subscription_update_link(self, subscription_code: str) -> dict[str, Any]:
+    def get_subscription_update_link(self, subscription_code: str) -> dict[str, Any]: #:bad #:depeciated
         """Generate a hosted link for the customer to update their card."""
         return self._call(
-            self._client.subscription.manage_link,
-            {"code": subscription_code}
+            self._client.subscription.generate_update_subscription_link,
+            {"subscription_code": subscription_code}
         )
 
-    def send_subscription_update_email(self, subscription_code: str) -> dict[str, Any]:
+    def send_subscription_update_email(self, subscription_code: str) -> dict[str, Any]: #:bad #:depeciated
         """Trigger Paystack to email the customer a card-update link."""
         return self._call(
-            self._client.subscription.manage_email,
-            {"code": subscription_code}
+            self._client.subscription.send_update_subscription_link,
+            # self._client.subscription.manage_email,
+            {"subscription_code": subscription_code}
         )
+
+    def verify_transaction(self, reference:str):
+        return self._call(
+            self._client.transaction.verify,
+            {"reference": reference}
+        )
+        
 
     # def newone(self):
     #     # self._call
-    #     self._client.su
+    #     self._client.transaction.verify()

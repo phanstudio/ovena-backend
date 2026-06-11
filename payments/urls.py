@@ -1,5 +1,6 @@
 from django.urls import path
 from payments import views
+from callback import paystack
 
 urlpatterns = [
     # Sales
@@ -14,4 +15,7 @@ urlpatterns = [
 
     # Webhooks
     path("webhooks/paystack/",         views.paystack_webhook_view,     name="paystack-webhook"),
+
+    # Callbacks
+    path("payments/paystack/callback/",paystack.paystack_callback,     name="paystack-callback"),
 ]

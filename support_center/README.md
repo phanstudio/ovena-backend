@@ -2,21 +2,19 @@
 
 - we need an assigning service to either alert the support people or something?
 
-
-
 Centralized support ticket and FAQ system for Drivers, Business Admins, and Customers. Designed for modularity, scalability, and real-time operations.
 
 ## Features
 
-* **Multi-role Support Tickets**: Separate workflows for Drivers, Business Admins, and Customers.
-* **Ticket Messages**: Support for threaded conversations per ticket.
-* **FAQs**: Centralized, active-only FAQ listing.
-* **Priorities & Statuses**: Tickets can be open, in-progress, resolved, or closed; priority levels: low, medium, high.
-* **Pagination**: Supports limit-offset pagination for tickets and messages.
-* **DRF ViewSets**: Reusable base classes for drivers and business admins.
-* **Extensible Serializers**: Centralized serializer pattern for list, detail, create, and messages.
-* **OpenAPI Documentation**: Fully documented via `drf-spectacular`, including messages endpoints.
-* **Custom Auth & Permissions**: Supports `CustomDriverAuth` and `CustomBAdminAuth`, with role-based permissions.
+- **Multi-role Support Tickets**: Separate workflows for Drivers, Business Admins, and Customers.
+- **Ticket Messages**: Support for threaded conversations per ticket.
+- **FAQs**: Centralized, active-only FAQ listing.
+- **Priorities & Statuses**: Tickets can be open, in-progress, resolved, or closed; priority levels: low, medium, high.
+- **Pagination**: Supports limit-offset pagination for tickets and messages.
+- **DRF ViewSets**: Reusable base classes for drivers and business admins.
+- **Extensible Serializers**: Centralized serializer pattern for list, detail, create, and messages.
+- **OpenAPI Documentation**: Fully documented via `drf-spectacular`, including messages endpoints.
+- **Custom Auth & Permissions**: Supports `CustomDriverAuth` and `CustomBAdminAuth`, with role-based permissions.
 
 ---
 
@@ -55,9 +53,9 @@ Centralized support ticket and FAQ system for Drivers, Business Admins, and Cust
 
 ### Base Classes
 
-* `BaseSupportTicketViewSet` – Generic ViewSet supporting list, retrieve, create, and messages.
-* `BaseDriverSupportAPIView` – Handles driver-specific authentication and profile retrieval.
-* `BaseBusinessSupportAPIView` – Handles business admin authentication and retrieval.
+- `BaseSupportTicketViewSet` - Generic ViewSet supporting list, retrieve, create, and messages.
+- `BaseDriverSupportAPIView` - Handles driver-specific authentication and profile retrieval.
+- `BaseBusinessSupportAPIView` - Handles business admin authentication and retrieval.
 
 ### Driver Endpoints
 
@@ -82,12 +80,12 @@ Centralized support ticket and FAQ system for Drivers, Business Admins, and Cust
 
 Centralized serializer pattern:
 
-* `TicketListSerializer` / `BusinessTicketListSerializer`
-* `TicketDetailSerializer` / `BusinessTicketDetailSerializer`
-* `TicketCreateSerializer` / `BusinessTicketCreateSerializer`
-* `TicketMessageSerializer` / `BusinessTicketMessageSerializer`
-* `TicketMessageCreateSerializer` / `BusinessTicketMessageCreateSerializer`
-* `FAQItemSerializer`
+- `TicketListSerializer` / `BusinessTicketListSerializer`
+- `TicketDetailSerializer` / `BusinessTicketDetailSerializer`
+- `TicketCreateSerializer` / `BusinessTicketCreateSerializer`
+- `TicketMessageSerializer` / `BusinessTicketMessageSerializer`
+- `TicketMessageCreateSerializer` / `BusinessTicketMessageCreateSerializer`
+- `FAQItemSerializer`
 
 > Each role-specific ViewSet overrides these serializer attributes, allowing **single base class logic**.
 
@@ -95,27 +93,27 @@ Centralized serializer pattern:
 
 ## Pagination
 
-* Implemented via `SupportPagination` using DRF `LimitOffsetPagination`.
-* Default limit: 20, max: 100.
+- Implemented via `SupportPagination` using DRF `LimitOffsetPagination`.
+- Default limit: 20, max: 100.
 
 ---
 
 ## OpenAPI / Docs
 
-* Uses `drf-spectacular` `@extend_schema` for:
+- Uses `drf-spectacular` `@extend_schema` for:
+  - Ticket creation
+  - Ticket detail retrieval
+  - Messages GET/POST endpoints
 
-  * Ticket creation
-  * Ticket detail retrieval
-  * Messages GET/POST endpoints
-* Works with dynamic serializers per subclass via **class-level serializer attributes**.
+- Works with dynamic serializers per subclass via **class-level serializer attributes**.
 
 ---
 
 ## Permissions & Authentication
 
-* Driver endpoints: `CustomDriverAuth`, `IsDriver`
-* Business endpoints: `CustomBAdminAuth`, `IsBusinessAdmin`
-* Tickets are filtered by **owner and role** automatically in base queryset.
+- Driver endpoints: `CustomDriverAuth`, `IsDriver`
+- Business endpoints: `CustomBAdminAuth`, `IsBusinessAdmin`
+- Tickets are filtered by **owner and role** automatically in base queryset.
 
 ---
 
@@ -123,10 +121,10 @@ Centralized serializer pattern:
 
 Utility functions centralizing logic:
 
-* `create_support_ticket(user, role, subject, message, category, priority)` – Creates a ticket and first message.
-* `create_support_ticket_message(role, ticket, user, message, attachments_json)` – Adds message to a ticket.
-* `get_active_faq_queryset()` – Returns only active FAQs.
-* `Role` enum – Standardizes owner/sender roles across drivers and business admins.
+- `create_support_ticket(user, role, subject, message, category, priority)` - Creates a ticket and first message.
+- `create_support_ticket_message(role, ticket, user, message, attachments_json)` - Adds message to a ticket.
+- `get_active_faq_queryset()` - Returns only active FAQs.
+- `Role` enum - Standardizes owner/sender roles across drivers and business admins.
 
 ---
 
