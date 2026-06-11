@@ -19,7 +19,7 @@ from addresses.serializers import LocationGetSerializer
 from accounts.models import Branch
 from coupons_discount.models import Coupons
 from django.db.models import Q
-from menu.serializers.order import calculate_delivery_fee
+from menu.serializers.order import calculate_delivery_fee, PLATFORM_FEES_PERCENT
 
 class GenerateLinkView(BaseCustomerAPIView):
     def get(self, request):
@@ -198,5 +198,6 @@ class OrderCalculationsView(BaseCustomerAPIView):
         return Response({
             "message": "Order recreated successfully",
             "delivery_amount": delivery_fee,
-            "coupons": coupon
+            "coupons": coupon,
+            "service_fee_percent": PLATFORM_FEES_PERCENT,
         }, status=201)

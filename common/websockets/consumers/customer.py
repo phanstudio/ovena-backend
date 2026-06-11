@@ -117,7 +117,7 @@ class OrderConsumer(BaseConsumer):
             last_event = self.last_order_event_subquery()
 
             order = Order.objects.select_related(
-                'orderer__user','branch','driver__user'
+                'orderer__user','branch','driver__user', 'branch__business'
             ).filter(id=self.order_id).annotate(
                 last_event_type=Subquery(last_event.values('event_type')[:1]),
                 last_event_time=Subquery(last_event.values('timestamp')[:1]),
@@ -155,6 +155,7 @@ class OrderConsumer(BaseConsumer):
                 'branch': {
                     'id': order.branch.id,
                     'name': order.branch.name,
+                    'business_image': order.branch.business.business_image
                 },
 
                 'driver': {

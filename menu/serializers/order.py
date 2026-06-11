@@ -14,6 +14,7 @@ from menu.models import (
 PRICE_PER_KM = 1000
 MINIMUM_PRICE_KM = 100 #1000
 MIN_ORDER_SUBTOTAL = Decimal("5000.00")
+PLATFORM_FEES_PERCENT = 4#10
 
 def calculate_delivery_fee(is_delivery, distance_km)-> float:
     delivery_fee = max(distance_km * PRICE_PER_KM, MINIMUM_PRICE_KM)
@@ -290,7 +291,8 @@ class OrderCreateSerializer(serializers.Serializer):
             branch=branch,
             delivery_secret_hash=hash_phrase(phrase),
             delivery_price=delivery_fee,
-            picked_up_by_user = validated_data["is_delivery"],
+            picked_up_by_user=validated_data["is_delivery"],
+            ovena_commission=PLATFORM_FEES_PERCENT,
         )
 
         # Bulk-create order items.

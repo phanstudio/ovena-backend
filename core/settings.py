@@ -180,7 +180,11 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [REDIS_URL],  # <-- Use full URL
+            # "hosts": [REDIS_URL],
+            "hosts": [{
+                "address": REDIS_URL,
+                "health_check_interval": MINUTE/2,
+            }],
             "capacity": 1500,
             "expiry": MINUTE,
             "prefix": "ws",

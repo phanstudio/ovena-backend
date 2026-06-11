@@ -102,7 +102,8 @@ class PrimaryAgentProfileSerializer(serializers.ModelSerializer):
             "is_active",
             "revoked",
             "created_at",
-            "branch"
+            "branch",
+            "name",
         ]
         read_only_fields = fields
 
