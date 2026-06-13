@@ -32,7 +32,7 @@ def paystack_callback(request):
     reference = request.GET.get("reference")
 
     if not reference:
-        return redirect("/order/success/")#"/payment-error/")
+        return redirect("/screens/OrderSuccess")#"/payment-error/")
 
     try:
         data = client.verify_transaction(reference)
