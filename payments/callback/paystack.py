@@ -28,10 +28,11 @@ from payments.integrations.client import client
 #     return redirect("/payment-success/")
 
 def paystack_callback(request):
+    print(request.GET)
     reference = request.GET.get("reference")
 
     if not reference:
-        return redirect("/payment-error/")
+        return redirect("/order/success/")#"/payment-error/")
 
     try:
         data = client.verify_transaction(reference)
