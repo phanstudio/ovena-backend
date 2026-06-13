@@ -43,6 +43,7 @@ def initialize_sale(payer_id, driver_id, business_owner_id, amount_kobo, metadat
             "split_breakdown": split,
             **(metadata or {}),
         },
+        "callback_url": "https://ovena-backend-production.up.railway.app/api/payments/paystack/callback/",
     }
     data = paystack_client.initialize_transaction(payload).get("data", {})
 
