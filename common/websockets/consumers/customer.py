@@ -10,6 +10,7 @@ from django.db.models import Subquery
 from .base import (
     BaseConsumer, CLOSE_FORBIDDEN, CLOSE_UNAUTHENTICATED
 )
+from image.utils import get_image
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,8 @@ class OrderConsumer(BaseConsumer):
                 except:
                     pass
 
+            business_image = order.branch.business.business_image
+
             return {
                 'order_id': order.id,
                 'order_number': order.order_number,
@@ -159,7 +162,7 @@ class OrderConsumer(BaseConsumer):
                 'branch': {
                     'id': order.branch.id,
                     'name': order.branch.name,
-                    'business_image': order.branch.business.business_image
+                    'business_image': get_image(business_image)
                 },
 
                 'driver': {
