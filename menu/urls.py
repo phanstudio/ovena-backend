@@ -20,8 +20,13 @@ business_urls = [
         name="staff-menu-list",
     ),
     path(
-        "staff/order-detail/",
+        "staff/order/<int:id>/",
         bmenuview.OrderRetrieveView.as_view(),
+        name="staff-order-detail",
+    ),
+    path(
+        "staff/orders/",
+        bmenuview.OrderHistoryView.as_view(),
         name="staff-order-detail",
     ),
     path("business/bulk-delete/", deleteview.BulkDeleteMenuView.as_view(), name="bulk-delete-menu"),
