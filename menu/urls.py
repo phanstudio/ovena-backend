@@ -25,7 +25,7 @@ business_urls = [
         name="staff-order-detail",
     ),
     path(
-        "staff/order/history",
+        "staff/order/history/",
         bmenuview.OrderHistoryView.as_view(),
         name="staff-order-history",
     ),
