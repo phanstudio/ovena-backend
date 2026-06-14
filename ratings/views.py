@@ -28,6 +28,7 @@ class SubmitOrderRatingsView(BaseCustomerAPIView):
             id=s.validated_data["order_id"],
         )
         # rater = request.user.customerprofile
+        #:attention add rating check for cancled and payed; or type of cancel
         rater = self.get_customer_profile(request)
 
         if order.orderer != rater:

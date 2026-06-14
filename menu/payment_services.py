@@ -29,10 +29,6 @@ def initialize_order_sale(order):
         raise ValueError("Order has no branch")
 
     business_owner_id = None
-    # primary_agent = getattr(branch, "primary_agent", None)
-    # if primary_agent and primary_agent.user_id:
-    #     business_owner_id = str(primary_agent.user_id)
-    # else:
     business = getattr(branch, "business", None)
     admin = getattr(business, "admin", None) if business else None
     if admin and admin.user_id:
