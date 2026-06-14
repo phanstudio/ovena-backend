@@ -83,26 +83,22 @@ class OrderConsumer(BaseConsumer):
             'data': event['data']
         }))
     
-    @database_sync_to_async
-    def check_authorization(self):
+    # @database_sync_to_async
+    async def check_authorization(self):
         """Check if user is authorized to view this order"""
         try:
-            order = Order.objects.select_related(
-                'orderer__user', 
-                'branch', 
-                'driver__user'
-            ).get(id=self.order_id)
+            order = await self.get_order()
             
             if isinstance(self.user, User):
-                customer = self.get_customer_profile(self.user)
+                customer = await self.get_customer_profile(self.user)
                 if customer:
                     return order.orderer_id == customer.id
 
-                driver = self.get_driver_profile(self.user)
+                driver = await self.get_driver_profile(self.user)
                 if driver:
                     return order.driver_id == driver.id
 
-                branch_staff = self.get_branch_staff(self.user)
+                branch_staff = await self.get_branch_staff(self.user)
                 if branch_staff:
                     return order.branch_id == branch_staff.branch_id
             
@@ -110,6 +106,14 @@ class OrderConsumer(BaseConsumer):
             
         except Order.DoesNotExist:
             return False
+    
+    @database_sync_to_async
+    def get_order(self):
+        return Order.objects.select_related(
+            'orderer__user', 
+            'branch', 
+            'driver__user'
+        ).get(id=self.order_id)
     
     @database_sync_to_async
     def get_order_data(self):
