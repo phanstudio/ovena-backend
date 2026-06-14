@@ -89,8 +89,8 @@ class BaseConsumer(AsyncWebsocketConsumer):
         ok = await self.connect_func()
         if ok:
             self._ping_seq        = 0
-            # self._last_pong_time = time.time()
-            # self._heartbeat_task  = asyncio.create_task(self._heartbeat_loop())
+            self._last_pong_time  = time.time()
+            self._heartbeat_task  = asyncio.create_task(self._heartbeat_loop())
 
     async def connect_func(self):
         ...
