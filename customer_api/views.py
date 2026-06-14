@@ -123,7 +123,8 @@ class FavoriteCreateView(BaseCustomerAPIView):
             menu_item_id=vd["menu_item_id"],
             branch_id=vd["branch_id"]
         )
-        return Response({"message": "success"}, 200)
+        message = "created" if created else "already created"
+        return Response({"message": f"success, {message}"}, 200)
 
 class FavoriteRemoveView(BaseCustomerAPIView):
     serializer_class = FavoriteCreateSerializer
