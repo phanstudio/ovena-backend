@@ -1,13 +1,15 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.generics import GenericAPIView, RetrieveAPIView
-from ..serializers import OpS, InS
-from ..models import (
-    Menu,
-    MenuItem,
-    Branch,
-    BaseItemAvailability,
+from rest_framework.generics import GenericAPIView, RetrieveAPIView, ListAPIView
+from django.db import transaction
+from django.db.models import Q
+import logging
+
+from menu.serializers import OpS, InS
+from menu.models import (
+    Menu, MenuItem,
+    Branch, BaseItemAvailability,
     Order
 )
 from menu.pagifications import StandardResultsSetPagination
@@ -15,12 +17,8 @@ from menu.pagifications import StandardResultsSetPagination
 from accounts.models import User
 from authflow.permissions import IsBusinessAdmin, IsBusinessStaff
 from authflow.authentication import CustomBAdminAuth, CustomBStaffAuth
-from django.db import transaction
 from business_api.views import AbstractBuStAdBranchView, BaseBusiStaffAPIView
-from customer_api.serializers import OrderRetrieveSerializer
-
-import logging
-from django.db.models import Q
+from customer_api.serializers import OrderRetrieveSerializer, OrderHistorySerializer
 
 logger = logging.getLogger(__name__)
 
@@ -214,3 +212,14 @@ class OrderRetrieveView(BaseBusiStaffAPIView, RetrieveAPIView):
         business_staff = self.get_business_staff(self.request)
         return (Order.objects.filter(branch=business_staff.branch).select_related("branch__business", "branch", "driver")
                 .prefetch_related("items"))
+
+
+class OrderHistoryView(BaseBusiStaffAPIView, ListAPIView):
+    queryset = Order.objects.all()
+    pagination_class = StandardResultsSetPagination
+    serializer_class = OrderHistorySerializer
+    def get_queryset(self):
+        business_staff = self.get_business_staff(self.request)
+        return (Order.objects.filter(branch=business_staff.branch).select_related("branch__business", "branch", "driver")
+                .prefetch_related("items")
+                .order_by("-created_at"))
