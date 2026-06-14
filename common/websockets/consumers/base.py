@@ -1,16 +1,14 @@
 import json
 import logging
+import time
+import asyncio
 
 from django.utils import timezone
+from django.db.models import OuterRef
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from menu.websocket_utils import (
-    get_branch_group_name,
-    get_driver_pool_group_name,
-    get_order_group_name,
-    get_chat_group_name,
-)
-from menu.models import Order, ChatMessage, OrderEvent, OrderStatus
+
+from menu.models import OrderEvent
 from accounts.models import User
 from accounts.services.profiles import (
     PROFILE_CUSTOMER,
@@ -18,9 +16,6 @@ from accounts.services.profiles import (
     PROFILE_BUSINESS_STAFF,
     get_profile,
 )
-import asyncio
-from django.db.models import OuterRef, Subquery
-from accounts.models import DriverProfile
 
 logger = logging.getLogger(__name__)
 
@@ -87,14 +82,14 @@ class BaseConsumer(AsyncWebsocketConsumer):
     
     async def connect(self):
         # Fast channel-layer health check before doing any DB work
-        if not await self._layer_ok():
-            await self.close(code=CLOSE_SERVER_ERROR)
-            return
+        # if not await self._layer_ok():
+        #     await self.close(code=CLOSE_SERVER_ERROR)
+        #     return
 
         ok = await self.connect_func()
         if ok:
             self._ping_seq        = 0
-            self._pong_received   = True   # bootstrap: assume alive
+            self._last_pong_time = time.time()
             self._heartbeat_task  = asyncio.create_task(self._heartbeat_loop())
 
     async def connect_func(self):
@@ -121,13 +116,10 @@ class BaseConsumer(AsyncWebsocketConsumer):
 
         # ── heartbeat ──────────────────────────────────────────────────────
         if message_type == "pong":
-            seq = data.get("seq")
-            if seq == self._ping_seq:
-                self._pong_received = True
+            self._last_pong_time = time.time()
             return
 
         if message_type == "ping":
-            # client-initiated ping (some clients do this)
             await self._send_json({"type": "pong", "seq": data.get("seq", 0)})
             return
 
@@ -144,38 +136,66 @@ class BaseConsumer(AsyncWebsocketConsumer):
 
     # ── heartbeat loop ────────────────────────────────────────────────────────
 
+    # async def _heartbeat_loop(self):
+    #     """
+    #     Sends a server ping every PING_INTERVAL seconds.
+    #     If the client doesn't pong within PONG_TIMEOUT seconds, the
+    #     connection is considered dead and is closed.
+    #     """
+    #     try:
+    #         while True:
+    #             await asyncio.sleep(PING_INTERVAL)
+
+    #             if not self._pong_received:
+    #                 # Previous ping was not answered — zombie connection
+    #                 logger.warning(
+    #                     "No pong from %s (seq=%s) — closing zombie",
+    #                     self.channel_name, self._ping_seq,
+    #                 )
+    #                 await self.close(code=CLOSE_GOING_AWAY)
+    #                 return
+
+    #             self._ping_seq      += 1
+    #             self._pong_received  = False
+
+    #             await self._send_json({"type": "ping", "seq": self._ping_seq})
+
+    #             # Give the client PONG_TIMEOUT seconds to reply
+    #             await asyncio.sleep(PONG_TIMEOUT)
+
+    #     except asyncio.CancelledError:
+    #         pass
+    #     except Exception:
+    #         # Connection already gone
+    #         pass
+
     async def _heartbeat_loop(self):
-        """
-        Sends a server ping every PING_INTERVAL seconds.
-        If the client doesn't pong within PONG_TIMEOUT seconds, the
-        connection is considered dead and is closed.
-        """
         try:
             while True:
                 await asyncio.sleep(PING_INTERVAL)
 
-                if not self._pong_received:
-                    # Previous ping was not answered — zombie connection
+                now = time.time()
+
+                # if client hasn't responded in time → close
+                if now - self._last_pong_time > (PING_INTERVAL + PONG_TIMEOUT):
                     logger.warning(
-                        "No pong from %s (seq=%s) — closing zombie",
-                        self.channel_name, self._ping_seq,
+                        "No pong from %s — closing connection",
+                        self.channel_name,
                     )
                     await self.close(code=CLOSE_GOING_AWAY)
                     return
 
-                self._ping_seq      += 1
-                self._pong_received  = False
+                self._ping_seq += 1
 
-                await self._send_json({"type": "ping", "seq": self._ping_seq})
-
-                # Give the client PONG_TIMEOUT seconds to reply
-                await asyncio.sleep(PONG_TIMEOUT)
+                await self._send_json({
+                    "type": "ping",
+                    "seq": self._ping_seq
+                })
 
         except asyncio.CancelledError:
             pass
-        except Exception:
-            # Connection already gone
-            pass
+        except Exception as e:
+            logger.warning("Heart beat error (%s): %s", self.channel_name, e)
 
     # ── missed-event replay ───────────────────────────────────────────────────
 
@@ -185,23 +205,23 @@ class BaseConsumer(AsyncWebsocketConsumer):
 
     # ── channel-layer health ──────────────────────────────────────────────────
 
-    async def _layer_ok(self) -> bool:
-        try:
-            await asyncio.wait_for(
-                self.channel_layer.group_add("__health__", "__health__"),
-                timeout=2.0,
-            )
-            await self.channel_layer.group_discard("__health__", "__health__")
-            return True
-        except Exception:
-            logger.error("Channel layer health check failed")
-            return False
+    # async def _layer_ok(self) -> bool:
+    #     try:
+    #         await asyncio.wait_for(
+    #             self.channel_layer.group_add("__health__", "__health__"),
+    #             timeout=2.0,
+    #         )
+    #         await self.channel_layer.group_discard("__health__", "__health__")
+    #         return True
+    #     except Exception:
+    #         logger.error("Channel layer health check failed")
+    #         return False
 
     async def _send_json(self, payload: dict):
         try:
             await self.send(text_data=json.dumps(payload, default=str))
-        except Exception:
-            pass  # connection gone; heartbeat will clean up
+        except Exception as e:
+            logger.warning("WebSocket send failed (%s): %s", self.channel_name, e)
 
     def last_order_event_subquery(self):
         return OrderEvent.objects.filter(
