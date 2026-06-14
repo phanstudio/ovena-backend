@@ -175,6 +175,11 @@ OAUTH_PROVIDERS = {
     # }
 }
 
+# "socket_connect_timeout": 10,
+#                 "socket_timeout": 20,
+#                 "retry_on_timeout": True,
+#                 "health_check_interval": 30,
+
 # Channels configuration
 CHANNEL_LAYERS = {
     "default": {
@@ -184,6 +189,10 @@ CHANNEL_LAYERS = {
             "hosts": [{
                 "address": REDIS_URL,
                 "health_check_interval": MINUTE/2,
+                "socket_connect_timeout": 10,
+                "socket_timeout": 20,
+                "retry_on_timeout": True,
+                # "health_check_interval": 30,
             }],
             "capacity": 1500,
             "expiry": MINUTE,
