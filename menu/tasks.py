@@ -22,7 +22,7 @@ from addresses.models import Address
 
 logger = logging.getLogger(__name__)
 
-def mark_order_failed(order):
+def mark_order_failed(order_id):
     # create a notification that tells the admins about the fail;
     ...
 
