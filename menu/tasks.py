@@ -225,8 +225,6 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None, retry_count=0):
             branch_location,
             max_drivers=settings.MAX_DRIVERS_TO_NOTIFY
         )
-        print(available_drivers)
-        logger.info(available_drivers)
         
         # Filter out excluded drivers
         if excluded_driver_ids:

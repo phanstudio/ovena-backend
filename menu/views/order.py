@@ -566,6 +566,7 @@ class ResturantOrderView(GenericAPIView):
 
 
 class DriverOrderView(BaseDriverAPIView):
+    
     def get_queryset(self):
         driver = self.get_driver(self.request)
         return Order.objects.filter(driver=driver)

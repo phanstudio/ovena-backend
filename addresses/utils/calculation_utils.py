@@ -63,13 +63,10 @@ def find_nearest_available_drivers(branch_location, max_drivers=3):
         ).order_by('distance')[:max_drivers]
         
         if drivers.exists():
-            print(drivers)
             return [
                 (d.driver, d.distance.km) 
                 for d in drivers
             ]
-    
-    print(drivers)
     
     # If no drivers found in radiuses, get nearest overall
     drivers = DriverLocation.objects.filter(
@@ -82,7 +79,6 @@ def find_nearest_available_drivers(branch_location, max_drivers=3):
     ).order_by('distance')[:max_drivers]
 
     drivers = list(drivers)
-    print(drivers)
     if drivers:
     # if drivers.exists():
         return [
