@@ -196,9 +196,11 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None, retry_count=0):
     Find nearest available driver and assign to order
     """
     if retry_count >= settings.MAX_RETRIES:
+        logger.info("order failed")
         mark_order_failed(order)
         return "No drivers found after max retries"
     try:
+        logger.info("finding driver")
         order = Order.objects.select_related(
             'branch__business',
             'branch__primary_agent__user',
@@ -223,6 +225,8 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None, retry_count=0):
             branch_location,
             max_drivers=settings.MAX_DRIVERS_TO_NOTIFY
         )
+        print(available_drivers)
+        logger.info(available_drivers)
         
         # Filter out excluded drivers
         if excluded_driver_ids:
