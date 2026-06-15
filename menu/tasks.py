@@ -197,7 +197,7 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None, retry_count=0):
     """
     if retry_count >= settings.MAX_RETRIES:
         logger.info("order failed")
-        mark_order_failed(order)
+        mark_order_failed(order_id)
         return "No drivers found after max retries"
     try:
         logger.info("finding driver")
