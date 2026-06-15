@@ -166,6 +166,19 @@ def notify_order_ready(order):
     broadcast_to_order_group(order.id, search_data)
 
 
+def notify_order_pickup_ready(order):
+    """Notify when food is ready and searching for driver"""
+    from .events import ORDER_READY, ORDER_DRIVER_SEARCHING
+    
+    # Notify customer
+    event_data = build_order_event(
+        ORDER_READY,
+        order,
+        message="Your order is ready! Go and pick up your food..."
+    )
+    broadcast_to_order_group(order.id, event_data)
+
+
 ## new
 def notify_order_confirmed(order):
     """Notify customer (with payment URL) and branch (to prepare)"""

@@ -281,17 +281,18 @@ class OrderCreateSerializer(serializers.Serializer):
         wallet_entry: UserCouponWallet | None = validated_data.get("wallet_entry")
         items = validated_data["items"]
         distance_km = validated_data.get("distance_km", 0)
+        is_delivery = validated_data["is_delivery"]
 
         phrase = generate_passphrase()
         
-        delivery_fee = calculate_delivery_fee(validated_data["is_delivery"], distance_km)
+        delivery_fee = calculate_delivery_fee(is_delivery, distance_km)
 
         order = Order.objects.create(
             orderer=customer,
             branch=branch,
             delivery_secret_hash=hash_phrase(phrase),
             delivery_price=delivery_fee,
-            picked_up_by_user=validated_data["is_delivery"],
+            picked_up_by_user= (not is_delivery),
             ovena_commission=PLATFORM_FEES_PERCENT,
         )
 

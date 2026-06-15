@@ -23,6 +23,7 @@ from menu.websocket_utils import (
     notify_order_delivered,
     notify_order_picked_up,
     notify_on_the_way,
+    notify_order_pickup_ready,
 )
 from menu.tasks import (
     # check_branch_confirmation_timeout, #:old
@@ -420,11 +421,14 @@ class ResturantOrderView(GenericAPIView):
         )
 
         # 🔥 Notify customer and start driver search
-        notify_order_ready(order)
+        
 
         if not order.picked_up_by_user:
+            notify_order_ready(order)
             # 🔥 Find and assign driver (async task)
             find_and_assign_driver.delay(order.id)
+        else:
+            notify_order_pickup_ready(order)
 
         logger.info(f"Order {order.id} marked as ready, finding driver")
 
