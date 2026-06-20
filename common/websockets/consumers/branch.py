@@ -101,7 +101,7 @@ class BranchConsumer(BaseConsumer):
         ).values(
             'id','order_number','status','created_at',
             'orderer__name','last_event_type','last_event_time', 
-            'last_event_metadata'
+            'last_event_metadata', 'subtotal'
         )
 
         return [
@@ -109,6 +109,7 @@ class BranchConsumer(BaseConsumer):
                 **order,
                 'created_at': order['created_at'].isoformat() if order['created_at'] else None,
                 'last_event_time': order['last_event_time'].isoformat() if order['last_event_time'] else None,
+                'amount': order['subtotal']
             }
             for order in orders
         ]
@@ -124,7 +125,7 @@ class BranchConsumer(BaseConsumer):
             )
     
     @database_sync_to_async
-    def get_active_order_ids(self):
+    def get_active_order_ids(self): # doing the samething
         """Get active order IDs for this branch"""
         return list(Order.objects.filter(
             branch_id=self.branch_id,

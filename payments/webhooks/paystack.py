@@ -18,6 +18,8 @@ from menu.payment_handlers import order_fail, order_update
 from payments.models.subscription import (
     Subscription, User, Plan, Invoice, Status
 )
+from accounts.models import BusinessPayoutAccount
+from payments.models.card import CardAuthorization
 from django.db import transaction
 from notifications.services import create_notification
 
@@ -186,6 +188,53 @@ def _handle_invoice_retry_payment(data: dict, metadata: dict) -> None:
     sub.save(update_fields=["active", "updated_at"])
 
 
+def save_card_details(data, metadata):
+    authorization = data.get("authorization")
+    if not authorization:
+        return None
+
+    user_id = metadata["user_id"]
+    auth_code = authorization["authorization_code"]
+
+    # 🔥 SINGLE QUERY: get ALL user's cards (only auth codes + id)
+    cards = list(
+        CardAuthorization.objects.filter(user_id=user_id)
+        .values("authorization_code", "id")
+    )
+
+    # derive everything in memory
+    has_cards = len(cards) > 0
+    already_exists = any(
+        c["authorization_code"] == auth_code for c in cards
+    )
+
+    if already_exists:
+        return None  # or return existing card if you want
+
+    card = CardAuthorization.objects.create(
+        user_id=user_id,
+        authorization_code=auth_code,
+        exp_month=authorization["exp_month"],
+        exp_year=authorization["exp_year"],
+        brand=authorization["brand"],
+        last4=authorization["last4"],
+        primary_card=not has_cards
+    )
+
+    business_id = metadata.get("business_id")
+    if business_id:
+        BusinessPayoutAccount.objects.filter(
+            business_id=business_id
+        ).update(
+            paystack_customer_code=data["customer"]["customer_code"]
+        )
+    else:
+        # use user account from payments
+        ...
+
+    return card
+
+
 def process_event(body: dict[str, Any]) -> None:
     event = body.get("event")
     data = body.get("data", {})
@@ -193,6 +242,10 @@ def process_event(body: dict[str, Any]) -> None:
     if event == "charge.success":
 
         metadata = data.get("metadata", {})
+
+        if metadata.get("card_saving"):
+            save_card_details(data, metadata)
+            return
     
         if metadata.get("retry") and metadata.get("invoice_id"):
             _handle_invoice_retry_payment(data, metadata)

@@ -1,11 +1,12 @@
 # views.py
-from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from django.utils import timezone
 from django.db import transaction
 from payments.models.subscription import Plan, Subscription, Invoice, PlanAudience, Feature, Status
+from payments.services.card_service import get_default_card
+from accounts.models import BusinessPayoutAccount
 from .serializers import (
     SubscriptionSerializer, InvoiceSerializer, PlanSerializer, PlanCreateSerializer,
     PlanWithFeaturesSerializer, FeatureSerializer, SubscriptionCreateSerializer
@@ -33,6 +34,12 @@ class CreateSubscriptionView(GenericAPIView):
             # "first_name":request.user.first_name,
             # last_name:request.user.last_name,
         }
+    
+    def get_customer_code(self, request):
+        ...
+    
+    def save_customer_code(self, request, paystack_customer_code):
+        ...
 
     @transaction.atomic
     def post(self, request):
@@ -50,10 +57,16 @@ class CreateSubscriptionView(GenericAPIView):
 
         # 1. Create customer in Paystack (idempotent)
         try:
-            customer_resp = client.create_customer( # use get customer profile for the names
-                self.get_user_info(request)
-            )
-            customer_code = customer_resp["data"]["customer_code"]
+            customer_code = self.get_customer_code(request)
+            if not customer_code:
+                customer_resp = client.create_customer( # use get customer profile for the names
+                    self.get_user_info(request)
+                )
+                customer_code = customer_resp["data"]["customer_code"]
+                if customer_code:
+                    self.save_customer_code(request, customer_code)
+            card = get_default_card(request.user)
+
         except Exception as e:
             return Response({"error": f"Paystack customer error: {e}"}, status=500)
 
@@ -67,7 +80,8 @@ class CreateSubscriptionView(GenericAPIView):
                 {
                     "customer":customer_code,
                     "plan":plan.paystack_plan_code,
-                    "metadata":metadata
+                    "metadata":metadata,
+                    "authorization_code": card.authorization_code
                 },
             )
             sub_data = sub_resp["data"]
@@ -82,9 +96,8 @@ class CreateSubscriptionView(GenericAPIView):
         if sub_data["status"] == "active":
             data["status"] = sub_data["status"]
         else:
-            data["authorization_url"] = sub_data["authorization_url"],
-
-        # 3. Don't create local subscription yet – wait for webhook.
+            data["authorization_url"] = sub_data["authorization_url"]
+        
         return Response(data)
 
 
@@ -280,6 +293,19 @@ class BusinessCreateSubscriptionView(BaseBuisAdminAPIView, CreateSubscriptionVie
     #         # "first_name":request.user.first_name,
     #         # last_name:request.user.last_name,
     #     }
+
+    def get_customer_code(self, request):
+        business_admin = self.get_buisnessadmn(request)
+        payout_account = BusinessPayoutAccount.objects.filter(business_id= business_admin.business.id).first()
+        if not payout_account:
+            return
+        return payout_account.paystack_customer_code
+    
+    def save_customer_code(self, request, paystack_customer_code):
+        business_admin = self.get_buisnessadmn(request)
+        BusinessPayoutAccount.objects.filter(
+            business_id= business_admin.business.id
+        ).update(paystack_customer_code= paystack_customer_code)
     ...
 
 

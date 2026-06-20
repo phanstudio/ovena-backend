@@ -341,8 +341,16 @@ class ResturantOrderView(GenericAPIView):
             )
 
         if action == "pickup":
+            if not order_code:
+                return Response(
+                {"error": "Order code missing"}, status=status.HTTP_400_BAD_REQUEST
+            )
             order = self.get_queryset().filter(driver_number=order_code).first()
         else:
+            if not order_id:
+                return Response(
+                {"error": "Order id missing"}, status=status.HTTP_400_BAD_REQUEST
+            )
             order = self.get_queryset().filter(id=order_id).first()
         
         if not order:
@@ -466,7 +474,7 @@ class ResturantOrderView(GenericAPIView):
         logger.info(f"Order {order.id} accepted by driver {order.driver_id}")
 
         return Response(
-            {"message": "Order Picked Up."},
+            {"message": "Order Picked Up.", "order_id": order.id},
             status=status.HTTP_202_ACCEPTED,
         )
 
@@ -566,7 +574,7 @@ class ResturantOrderView(GenericAPIView):
 
 
 class DriverOrderView(BaseDriverAPIView):
-    
+
     def get_queryset(self):
         driver = self.get_driver(self.request)
         return Order.objects.filter(driver=driver)

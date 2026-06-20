@@ -168,7 +168,7 @@ def notify_order_ready(order):
 
 def notify_order_pickup_ready(order):
     """Notify when food is ready and searching for driver"""
-    from .events import ORDER_READY, ORDER_DRIVER_SEARCHING
+    from .events import ORDER_READY
     
     # Notify customer
     event_data = build_order_event(

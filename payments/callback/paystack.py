@@ -2,7 +2,6 @@ from django.shortcuts import redirect
 from payments.integrations.client import client
 
 def paystack_callback(request):
-    print(request.GET)
     reference = request.GET.get("reference")
 
     if not reference:

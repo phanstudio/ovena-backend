@@ -103,4 +103,5 @@ urlpatterns = [
         name="update-business-images",
     ),
     path("", include("payments.subscriptions.urls.business")),
+    path("", include("payments.cards.urls.business")),
 ]

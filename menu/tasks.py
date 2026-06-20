@@ -282,6 +282,7 @@ def find_and_assign_driver(order_id, excluded_driver_ids=None, retry_count=0):
                 },
                 "customer_note": "I need it fast",
                 "delivery_address": default_address.address,
+                "time_to_accept": settings.DRIVER_ACCEPTANCE_TIMEOUT,
             }
         )
         

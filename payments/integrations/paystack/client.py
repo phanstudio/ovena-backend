@@ -159,7 +159,18 @@ class PaystackClient:
             {"reference": reference}
         )
         
+    def list_banks(self, payload: dict[str, any]):
+        """
+            country (str): The country from which to obtain the list of supported banks. e.g country=ghana or country=nigeria
+            
+            gateway (str): The gateway type of the bank. It can be one of these: [emandate, digitalbankmandate]
+            
+            currency (str): Any of NGN, USD, GHS or ZAR
+        """
+        return self._call(self._client.misc.list_banks, payload)
 
     # def newone(self):
     #     # self._call
+    #     self._client.customer.get()
+    #     # self._call(self._client.misc.list_banks)
     #     self._client.transaction.verify()
