@@ -25,3 +25,7 @@ class AppAdmin(models.Model):
 # class AppSettings(models.Model):
 #     name = models.CharField()
 #     ...
+
+# class OrderPaymentSettings():
+#     delivery_fee = models.IntegerField(default=0)
+#     service_fee_percent = models.FloatField(default=4)

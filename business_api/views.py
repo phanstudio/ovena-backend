@@ -17,14 +17,15 @@ from accounts.models import (
     Branch, BranchOperatingHours,
     BusinessAdmin, PrimaryAgent,
     BusinessPayoutAccount, User, 
-    Business,
+    BusinessSubscription
 )
 from accounts.serializers import InS as acInS
 from business_api.serializers import InS, OpS
 
 from authflow.services import OTPManager
 from authflow.authentication import CustomBAdminAuth, CustomBusinessAgentsAuth, CustomBStaffAuth
-from authflow.permissions import IsBusinessAdmin, IsBusinessAgent, IsBusinessStaff
+from authflow.permissions import IsBusinessAdmin, IsBusinessAgent, IsBusinessStaff, HasFeature
+from authflow.features import ON_BANNER, ON_CAROUSEL
 
 from payments.idempotency import (
     IdempotencyConflictError,
@@ -48,6 +49,7 @@ from ratings.models import BranchRating
 from common.phone.utils import get_phone_number
 from addresses.utils import checkset_location
 from image.views import ImageMixin
+from image.mixin import S3ImageManagedMixin, BuilkS3ImageManagedMixin
 
 from abc import ABC
 import msgpack
@@ -394,7 +396,7 @@ class BuisnessAdminUpdateReceiverView(BaseBuisAdminAPIView):
         return Response({"detail": "User updated."})
 
 
-class BuisnessUpdateView(BaseBuisAdminAPIView, ImageMixin):
+class BuisnessUpdateView(BaseBuisAdminAPIView, ImageMixin, BuilkS3ImageManagedMixin):
     serializer_class = InS.BusinessUpdateSerializer
 
     def patch(self, request):
@@ -424,7 +426,7 @@ class BuisnessUpdateView(BaseBuisAdminAPIView, ImageMixin):
         try:
             if business_image:
                 self.validate_image(business_image)
-                ave_kwargs["business_image"] = business_image
+                save_kwargs["business_image"] = business_image
 
             if business_logo:
                 self.validate_image(business_logo)
@@ -436,6 +438,7 @@ class BuisnessUpdateView(BaseBuisAdminAPIView, ImageMixin):
             )
 
         try:
+            self.update_image_field(business, save_kwargs, False)
             with transaction.atomic():
                 serializer.save(**save_kwargs)
 
@@ -1063,25 +1066,31 @@ class UpdateBusinessImagesView(BaseBuisAdminAPIView, ImageMixin):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        save_kwargs = {}
+
         try:
             with transaction.atomic():
 
                 # BUSINESS IMAGE
                 if business_image:
                     self.validate_image(business_image)
-                    restaurant.business_image = business_image
+                    save_kwargs["business_image"] = business_image
+                    # restaurant.business_image = business_image
 
                 # BUSINESS LOGO
                 if business_logo:
                     self.validate_image(business_logo)
-                    restaurant.business_logo = business_logo
+                    save_kwargs["business_logo"] = business_logo
+                    # restaurant.business_logo = business_logo
+                
+                self.update_image_field(restaurant, save_kwargs)
 
-                restaurant.save(
-                    update_fields=[
-                        "business_image",
-                        "business_logo",
-                    ]
-                )
+                # restaurant.save(
+                #     update_fields=[
+                #         "business_image",
+                #         "business_logo",
+                #     ]
+                # )
 
             return Response(
                 {"detail": "Images updated successfully."},
@@ -1101,15 +1110,222 @@ class UpdateBusinessImagesView(BaseBuisAdminAPIView, ImageMixin):
             )
 
 
-# def get(self, request, branch_id=None):
-#     branch = getattr(request, "branch", None)
+class BuisnessBannerManageView(BaseBuisAdminAPIView):
+    permission_classes = [HasFeature]
+    required_feature = ON_BANNER
 
-#     if branch:
-#         queryset = BranchOperatingHours.objects.filter(branch=branch)
-#     else:
-#         queryset = BranchOperatingHours.objects.filter(
-#             branch__business=request.user.business_admin.business
-#         )
+    def post(self, request):
+        business_admin = self.get_buisnessadmn(request)
+        business = business_admin.business
+        
+        serializer = self.get_serializer(
+            business,
+            data=request.data,
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
 
-#     serializer = InS.BranchOperatingHoursSerializer(queryset, many=True)
-#     return Response(serializer.data)
+        business_banner = vd.get("business_banner")
+        
+        try:
+            subscription, created = BusinessSubscription.objects.update_or_create(
+                business=business,
+                defaults={
+                    "banner_info": business_banner,
+                }
+            )
+            return Response(
+                {"detail": "Business banner created successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception:
+            return Response(
+                {"detail": "Failed to create banner."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def delete(self, request):
+        business_admin = self.get_buisnessadmn(request)
+        business = business_admin.business
+        
+        try:
+            sub = BusinessSubscription.objects.filter(business=business).first()
+            if sub:
+                if not sub.carousel_image:
+                    sub.delete()
+                else:
+                    sub.banner_info = None
+                    sub.save(update_fields=["banner_info"])
+            return Response(
+                {"detail": "Business banner deleted successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception:
+            return Response(
+                {"detail": "Failed to delete banner."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def patch(self, request):
+        business_admin = self.get_buisnessadmn(request)
+        business = business_admin.business
+        serializer = self.get_serializer(
+            business,
+            data=request.data,
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        business_banner = vd.get("business_banner")
+        
+        try:
+            BusinessSubscription.objects.filter(business=business).update(
+                banner_info = business_banner
+            )
+            return Response(
+                {"detail": "Business banner updated successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception:
+            return Response(
+                {"detail": "Failed to upload banner."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def get(self, request):
+        business_admin = self.get_buisnessadmn(request)
+        business = business_admin.business
+
+        try:
+            banner = BusinessSubscription.objects.filter(business=business).values(
+                "banner_info"
+            ).first()
+            return Response(
+                {"banner": banner},
+                status=status.HTTP_200_OK,
+            )
+        except Exception:
+            return Response(
+                {"detail": "Failed to upload banner."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class BuisnessCarouselManageView(BaseBuisAdminAPIView, ImageMixin, S3ImageManagedMixin):
+    serializer_class = InS.BusinessUpdateSerializer
+    permission_classes = [HasFeature]
+    required_feature = ON_CAROUSEL
+
+    def get_image(self, request, image_name):
+        image = request.FILES.get(image_name)
+
+        if not image:
+            return None, Response({
+                    "detail": "At least one image must be uploaded."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        try:
+            self.validate_image(image)
+        except ValueError as e:
+            return None, Response(
+                {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        return image, None
+
+    def post(self, request):
+        business_admin = self.get_buisnessadmn(request)
+        business = business_admin.business
+
+        business_carousel, error = self.get_image(request, "business_carousel")
+
+        if error:
+            return error
+        
+        try:
+            subscription, created = BusinessSubscription.objects.update_or_create(
+                business=business,
+                defaults={
+                    "carousel_image": business_carousel,
+                }
+            )
+            return Response(
+                {"detail": "Business carousel created successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception:
+            return Response(
+                {"detail": "Failed to create carousel."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def delete(self, request):
+        business_admin = self.get_buisnessadmn(request)
+        business = business_admin.business
+        
+        try:
+            sub = BusinessSubscription.objects.filter(business=business).first()
+            if sub:
+                if not sub.banner_info:
+                    self.delete_image_field(sub, "carousel_image", False)
+                    sub.delete()
+                else:
+                    self.delete_image_field(sub, "carousel_image")
+            
+            return Response(
+                {"detail": "Asset attached to 'carousel_image' successfully removed."}, 
+                status=status.HTTP_204_NO_CONTENT
+            )
+
+        except Exception:
+            return Response(
+                {"detail": "Failed to delete banner."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def patch(self, request):
+        business_admin = self.get_buisnessadmn(request)
+        business = business_admin.business
+
+        business_carousel, error = self.get_image(request, "business_carousel")
+        if error:
+            return error
+        
+        try:
+            sub = BusinessSubscription.objects.filter(business=business).first()
+            # .update(
+            #     carousel_image = business_carousel
+            # )
+            self.update_image_field(sub, "carousel_image", business_carousel)
+            return Response(
+                {"detail": "Business carousel updated successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception:
+            return Response(
+                {"detail": "Failed to upload carousel."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def get(self, request):
+        business_admin = self.get_buisnessadmn(request)
+        business = business_admin.business
+
+        try:
+            carousel = BusinessSubscription.objects.filter(business=business).values(
+                "carousel_image"
+            ).first()
+            return Response(
+                {"carousel": carousel},
+                status=status.HTTP_200_OK,
+            )
+        except Exception:
+            return Response(
+                {"detail": "Failed to upload banner."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

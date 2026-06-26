@@ -136,3 +136,6 @@ class RecieverSerializer(serializers.Serializer):
 
 class DeleteBranchSerializer(serializers.Serializer):
     branch_id = serializers.CharField()
+
+class BusinessBannerSearializer(serializers.Serializer):
+    banner_info = serializers.CharField()

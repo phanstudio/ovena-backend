@@ -8,14 +8,23 @@ class SendType(Enum):
     EMAIL = "email"
 
 
-class AdminLoginSerializer(serializers.Serializer):
+class LoginResponseSerializer(serializers.Serializer):
+    message = serializers.CharField()
+    refresh = serializers.CharField()
+    access = serializers.CharField()
+
+
+class LoginSerializer(serializers.Serializer):
     phone_number = PhoneNumberField()
     password = serializers.CharField()
 
 
-class DriverLoginSerializer(serializers.Serializer):
-    phone_number = PhoneNumberField()
-    password = serializers.CharField()
+class AdminLoginSerializer(LoginSerializer):
+    ...
+
+
+class DriverLoginSerializer(LoginSerializer):
+    ...
 
 
 class PasswordResetSerializer(serializers.Serializer):

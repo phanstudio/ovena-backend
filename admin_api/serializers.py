@@ -5,6 +5,7 @@ from admin_api.models import AppAdmin
 from django.db import transaction
 from accounts.models import DriverProfile, Business
 from payments.models import Withdrawal
+from accounts.serializers import InS
 
 # class UserInfoSerializer(serializers.Serializer):
 #     id = serializers.IntegerField()
@@ -26,9 +27,8 @@ class LoginResponseSerializer(serializers.Serializer):
     access = serializers.CharField()
 
 
-class AppAdminLoginSerializer(serializers.Serializer):
-    phone_number = PhoneNumberField()
-    password = serializers.CharField()
+class AppAdminLoginSerializer(InS.LoginSerializer):
+    ...
 
 class DriverDashboardSerializer(serializers.Serializer):
     profile = serializers.DictField()

@@ -170,7 +170,6 @@ def _profile_cache(user) -> dict:
 
 
 def get_profile(user, profile_type: str):
-    from accounts.models import ProfileBase
 
     pt = normalize_profile_type(profile_type)
     if not user or not getattr(user, "is_authenticated", False) or not pt:
@@ -183,6 +182,56 @@ def get_profile(user, profile_type: str):
     if cached is not _SENTINEL:
         return cached  # returns None if explicitly cached as missing
 
+    # result = None
+
+    # if pt == PROFILE_CUSTOMER:
+    #     base = (
+    #         ProfileBase.objects.filter(user=user, profile_type=PROFILE_CUSTOMER)
+    #         .select_related("customer_profile")
+    #         .first()
+    #     )
+    #     result = getattr(base, "customer_profile", None) if base else None
+
+    # elif pt == PROFILE_DRIVER:
+    #     base = (
+    #         ProfileBase.objects.filter(user=user, profile_type=PROFILE_DRIVER)
+    #         .select_related("driver_profile")
+    #         .first()
+    #     )
+    #     result = getattr(base, "driver_profile", None) if base else None
+
+    # elif pt == PROFILE_BUSINESS_ADMIN:
+    #     try:
+    #         result = user.business_admin
+    #     except ObjectDoesNotExist:
+    #         result = None
+
+    # elif pt == PROFILE_BUSINESS_STAFF:
+    #     try:
+    #         result = user.primary_agent
+    #     except ObjectDoesNotExist:
+    #         result = None
+
+    # elif pt == PROFILE_APP_ADMIN:
+    #     print(9)
+    #     print(user.app_admin)
+    #     try:
+    #         # print(user.app_admin)
+    #         result = user.app_admin
+    #     except ObjectDoesNotExist as e:
+    #         print(e)
+    #         result = None
+
+    result = retieve_profile(user, profile_type)
+
+    cache[pt] = result  # cache None too — explicit miss
+    return result
+
+
+def retieve_profile(user, profile_type: str):
+    from accounts.models import ProfileBase
+
+    pt = normalize_profile_type(profile_type)
     result = None
 
     if pt == PROFILE_CUSTOMER:
@@ -219,5 +268,4 @@ def get_profile(user, profile_type: str):
         except ObjectDoesNotExist:
             result = None
 
-    cache[pt] = result  # cache None too — explicit miss
     return result

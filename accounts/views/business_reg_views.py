@@ -11,7 +11,7 @@ from payments.services.base import ensure_valid_cred
 from payments.integrations.paystack.errors import PaystackAPIError
 from django.db import transaction, IntegrityError
 from authflow.services import (
-    issue_jwt_for_user, verify_phonenumber, OTPInvalidError
+    verify_phonenumber, OTPInvalidError
 )
 from authflow.authentication import CustomBAdminAuth
 from authflow.permissions import IsBusinessAdmin
@@ -23,6 +23,10 @@ from menu.views import BatchGenerateUploadURLView, RegisterMenusPhase3View  # no
 from business_api.views import BaseBuisAdminAPIView
 from common.phone.utils import get_phone_number
 from image.views import ImageMixin
+from authflow.services.jwt import issue_jwt_for_user_with_plan
+from accounts.services.profiles import (
+    PROFILE_BUSINESS_ADMIN,
+)
 
 # edge case of going back
 @extend_schema(
@@ -87,7 +91,7 @@ class RegisterBAdmin(GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        token = issue_jwt_for_user(user)
+        token = issue_jwt_for_user_with_plan(user, active_profile=PROFILE_BUSINESS_ADMIN)
 
         response_data = OpS.RegisterBAdminResponseSerializer({
             "message": "User registered successfully",

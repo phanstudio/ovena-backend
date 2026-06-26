@@ -19,16 +19,24 @@ from accounts.models import (
 )
 from admin_api.models import AppAdmin
 from django.db import transaction, IntegrityError
-from authflow.services import issue_jwt_for_user, verify, OTPInvalidError, OTPManager, verify_phonenumber
+from authflow.services import verify, OTPInvalidError, OTPManager, verify_phonenumber
+from authflow.services.jwt import issue_jwt_for_user_with_plan
 from authflow.authentication import CustomCustomerAuth, CustomBAdminAuth
 from authflow.permissions import IsBusinessAdmin
 from accounts.services.roles import get_user_roles
-from accounts.services.profiles import PROFILE_BUSINESS_ADMIN, get_profile
 from drf_spectacular.utils import extend_schema, inline_serializer  # type: ignore
 from rest_framework import serializers as s
 from accounts.serializers import InS, OpS
 from common.phone.utils import get_phone_number
 from django.db.models import Exists, OuterRef
+from accounts.services.profiles import (
+    PROFILE_BUSINESS_ADMIN,
+    PROFILE_BUSINESS_STAFF,
+    PROFILE_CUSTOMER,
+    PROFILE_DRIVER,
+    PROFILE_APP_ADMIN,
+    retieve_profile,
+)
 
 
 class UserProfileView(APIView):
@@ -246,7 +254,7 @@ class LinkApproveView(GenericAPIView):
                 )
 
         # 🔑 Step 5: Issue token
-        token = issue_jwt_for_user(user)
+        token = issue_jwt_for_user_with_plan(user, active_profile=PROFILE_BUSINESS_STAFF)
 
         response = OpS.RegisterBAdminResponseSerializer(
             {
@@ -260,7 +268,7 @@ class LinkApproveView(GenericAPIView):
         return Response(response.data, status=status.HTTP_201_CREATED)
 
 
-# add transfer of ownershp later
+# add transfer of ownership later
 class RegisterCustomer(GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = CreateCustomerSerializer
@@ -271,9 +279,14 @@ class RegisterCustomer(GenericAPIView):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        token = issue_jwt_for_user_with_plan(user, active_profile=PROFILE_CUSTOMER)
 
         return Response(
-            {"detail": "Customer registered successfully"},
+            {
+                "detail": "Customer registered successfully",
+                "refresh": token["refresh"],
+                "access": token["access"],
+            },
             status=status.HTTP_201_CREATED,
         )
 
@@ -359,7 +372,7 @@ class AppAdminApproveView(GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        token = issue_jwt_for_user(user)
+        token = issue_jwt_for_user_with_plan(user, active_profile=PROFILE_APP_ADMIN)
         response = OpS.RegisterBAdminResponseSerializer(
             {
                 "message": "Account registered successfully",
@@ -373,120 +386,125 @@ class AppAdminApproveView(GenericAPIView):
             status=status.HTTP_201_CREATED,
         )
 
-
 # Login views
 @extend_schema(
     responses={
-        200: inline_serializer(
-            "DriverLoginResponse",
-            fields={
-                "message": s.CharField(),
-                "access": s.CharField(),
-                "refresh": s.CharField(),
-            },
-        )
+        200: InS.LoginResponseSerializer
     },
     auth=[],
 )
-class DriverLoginView(GenericAPIView):
+class LoginView(GenericAPIView):
     permission_classes = [AllowAny]
-    serializer_class = InS.DriverLoginSerializer
+    serializer_class = InS.LoginSerializer
 
-    def post(self, request):
+    def get_profile_type(self):
+        return PROFILE_CUSTOMER
+
+    def get_user_profile(self, user):
+        profile = retieve_profile(user, self.get_profile_type())
+        if not profile:
+            return None, Response(
+                {"error": f"Not a {self.get_profile_type().capitalize()} account"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return profile, None
+    
+    def return_jwt(self, user):
+        token = issue_jwt_for_user_with_plan(user, active_profile=self.get_profile_type())
+        return Response(
+            {
+                "message": "Logged in successfully",
+                "access": token["access"],
+                "refresh": token["refresh"],
+            }
+        )
+
+    def get_serialized_data(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
+        return vd
 
+    def get_user_from_phone(self, vd):
         user = User.objects.filter(phone_number=vd["phone_number"]).first()
         if not user:
-            return Response(
+            return None, Response(
                 {"error": "Invalid credentials (phone number)"}, status=status.HTTP_401_UNAUTHORIZED
             )
-
-        driver_profile = getattr(user, "driver_profile", None)
-        if not driver_profile:
+        return user, None
+    
+    def check_password(self, password, user):
+        if not user or not user.check_password(password):
             return Response(
-                {"error": "Driver profile missing"}, status=status.HTTP_403_FORBIDDEN
+                {"error": "Invalid password"}, status=status.HTTP_401_UNAUTHORIZED
             )
+        return None
 
+    def authenticate_user(self, request):
+        """
+        returns result(["user"], ["profile"])
+        """
+        vd = self.get_serialized_data(request)
+
+        user, error = self.get_user_from_phone(vd)
+        if error:
+            return None, error
+        
+        error = self.check_password(vd["password"], user)
+        if error:
+            return None, error
+        
+        profile, error = self.get_user_profile(user)
+        if error:
+            return None, error
+        
+        return {"user": user, "profile": profile}, None
+
+    def post(self, request):
+        result, error = self.authenticate_user(request)
+        if error:
+            return error
+
+        return self.return_jwt(result["user"])
+
+
+class DriverLoginView(LoginView):
+    serializer_class = InS.DriverLoginSerializer
+
+    def get_profile_type(self):
+        return PROFILE_DRIVER
+
+    def post(self, request):
+        result, error = self.authenticate_user(request)
+        if error:
+            return error
+        
+        driver_profile = result["profile"]
+        
         # if not driver_profile.is_approved:
         #     return Response(
         #         {"error": "Account pending approval"},
         #         status=status.HTTP_403_FORBIDDEN
         #     )
 
-        if not user or not user.check_password(vd["password"]):
-            return Response(
-                {"error": "Invalid password"}, status=status.HTTP_401_UNAUTHORIZED
-            )
-
-        token = issue_jwt_for_user(user)
-        return Response(
-            {
-                "message": "Logged in successfully",
-                "access": token["access"],
-                "refresh": token["refresh"],
-            }
-        )
+        return self.return_jwt(user)
 
 
-@extend_schema(
-    responses={
-        200: inline_serializer(
-            "AdminLoginResponse",
-            fields={
-                "message": s.CharField(),
-                "access": s.CharField(),
-                "refresh": s.CharField(),
-            },
-        )
-    },
-    auth=[],
-)
-class AdminLoginView(GenericAPIView):
-    permission_classes = [AllowAny]
+class AdminLoginView(LoginView):
     serializer_class = InS.AdminLoginSerializer
 
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        vd = serializer.validated_data
-
-        user = User.objects.filter(phone_number=vd["phone_number"]).first()
-        if not user:
-            return Response(
-                {"error": "Invalid credentials (phone number)"}, status=status.HTTP_401_UNAUTHORIZED
-            )
-        buisness_admin_role = get_profile(user, PROFILE_BUSINESS_ADMIN)
-        if not buisness_admin_role:
-            return Response(
-                {"error": "Not a business admin account"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        if not user or not user.check_password(vd["password"]):
-            return Response(
-                {"error": "Invalid password"}, status=status.HTTP_401_UNAUTHORIZED
-            )
-
-        token = issue_jwt_for_user(user)
-        return Response(
-            {
-                "message": "Logged in successfully",
-                "access": token["access"],
-                "refresh": token["refresh"],
-            }
-        )
+    def get_profile_type(self):
+        return PROFILE_BUSINESS_ADMIN
 
 
-@extend_schema(auth=[])
-class StaffLoginView(GenericAPIView):
-    permission_classes = [AllowAny]
+class StaffLoginView(LoginView):
     serializer_class = InS.LinkStaffLoginSerializer
 
+    def get_profile_type(self):
+        return PROFILE_BUSINESS_STAFF
+
     def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        vd = serializer.validated_data
+        vd = self.get_serialized_data(request)
 
         device_id = vd["device_id"]  # migth add branch_id
         buisness_staff = (
@@ -513,53 +531,7 @@ class StaffLoginView(GenericAPIView):
         #         status=status.HTTP_401_UNAUTHORIZED
         #     )
 
-        token = issue_jwt_for_user(user)
-        return Response(
-            {
-                "message": "Logged in successfully",
-                "access": token["access"],
-                "refresh": token["refresh"],
-            }
-        )
-
-
-# @extend_schema(auth=[])
-# class AppAdminLoginView(GenericAPIView):
-#     permission_classes = [AllowAny]
-#     serializer_class = InS.LinkStaffLoginSerializer
-
-#     def post(self, request):
-#         serializer = self.get_serializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         vd = serializer.validated_data
-
-#         device_id = vd["device_id"]  # change to username later 
-#         app_admin = (
-#             AppAdmin.objects.filter(name=device_id) # change to username later
-#             .select_related("user")
-#             .first()
-#         )
-#         user = app_admin.user
-
-#         if not app_admin:
-#             return Response(
-#                 {"error": "Account doesn't exist"}, status=status.HTTP_403_FORBIDDEN
-#             )
-
-#         if not user or not user.check_password(vd["password"]):
-#             return Response(
-#                 {"error": "Invalid credentials"},
-#                 status=status.HTTP_401_UNAUTHORIZED
-#             )
-
-#         token = issue_jwt_for_user(user)
-#         return Response(
-#             {
-#                 "message": "Logged in successfully",
-#                 "access": token["access"],
-#                 "refresh": token["refresh"],
-#             }
-#         )
+        return self.return_jwt(user)
 
 
 @extend_schema(

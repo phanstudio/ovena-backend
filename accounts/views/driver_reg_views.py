@@ -7,8 +7,6 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView
-from authflow.services import issue_jwt_for_user
-from ulid import ULID # type: ignore
 
 from accounts.models import (
     DriverProfile, DriverCred, DriverAvailability, User,
@@ -24,11 +22,14 @@ from accounts.serializers import (
 from accounts.utils.driver_verification import (
     verify_nin_mono, verify_bvn_mono, verify_bank_account_paystack,
 )
-from authflow.services import issue_jwt_for_user
 from ulid import ULID # type: ignore
 from referrals.services import apply_referral_code, ensure_profile_base
 from drf_spectacular.utils import extend_schema # type: ignore
 from authflow.services.phone_number import get_phone_number
+from authflow.services.jwt import issue_jwt_for_user_with_plan
+from accounts.services.profiles import (
+    PROFILE_DRIVER,
+)
 
 # transaction atomics.
 
@@ -157,7 +158,7 @@ class OnboardingPhase1View(GenericAPIView):
         user.email = data["email"]
         user.set_password(data["password"])
         user.save(update_fields=["phone_number", "email", "password"])
-        token = issue_jwt_for_user(user)
+        token = issue_jwt_for_user_with_plan(user, active_profile=PROFILE_DRIVER)
 
         # ── Persist next-of-kin to DriverCred ──
         cred, _ = DriverCred.objects.get_or_create(user=profile)

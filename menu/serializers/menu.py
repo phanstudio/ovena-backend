@@ -6,6 +6,7 @@ from ..models import (
     VariantGroup, VariantOption,
     MenuItemAddonGroup, MenuItemAddon
 )
+from accounts.models import BusinessSubscription
 from menu.utils.helper import is_branch_open
 
 
@@ -216,20 +217,6 @@ class BaseWithAddressMixin():
 
 class BaseWithNearestSerializer(serializers.ModelSerializer, BaseWithAddressMixin):
     nearest_branch = serializers.SerializerMethodField()
-
-    # def get_nearest_branch(self, obj):
-    #     branches_by_id = self.context.get("branches_by_id", {})
-    #     branch:Branch = branches_by_id.get(obj.nearest_branch_id)
-    #     if not branch:
-    #         return None
-    #     return {
-    #         "id": branch.id,
-    #         "name": branch.name,
-    #         "distance_km": round(obj.nearest_branch_distance.km, 2),
-    #         "lat": self.get_lat(branch),
-    #         "long": self.get_long(branch),
-    #         "address": branch.address,
-    #     }
     
     def get_nearest_branch(self, obj):
         branches_by_id = self.context.get("branches_by_id", {})
@@ -264,6 +251,20 @@ class BusinessListSerializer(BaseWithNearestSerializer):
             "id", "business_name", "business_type",
             "business_logo", "avg_rating", "rating_count",
             "nearest_branch", "business_image"
+        ]
+
+
+class BusinessBannerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BusinessSubscription
+        fields = ["id", "banner_info"]
+
+
+class BusinessCarouselSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BusinessSubscription
+        fields = [
+            "id", "carousel_image"
         ]
 
 

@@ -2,7 +2,7 @@ from rest_framework.response import Response
 from rest_framework import status, permissions
 from accounts.serializers import OAuthCodeSerializer
 from ..utils.oath import verify_apple_token
-from authflow.services import issue_jwt_for_user
+from authflow.services.jwt import issue_jwt_for_user
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework.exceptions import ValidationError

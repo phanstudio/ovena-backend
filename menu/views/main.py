@@ -28,7 +28,6 @@ from ..models import (
 )
 from ..serializers.menu import (
     BusinessListSerializer,
-    BusinessFeaturedSerializer,
     BusinessWithMenuNamesSerializer,
     BusinessDetailSerializer,
 )
@@ -37,10 +36,17 @@ from common.customer.view import BaseCustomerAPIView
 from abc import ABC, abstractmethod
 from menu.utils.helper import (
     annotate_with_nearest_branch, 
-    bulk_load_branches, annotate_business_metrics, apply_top_picks_ranking,
+    bulk_load_branches, annotate_business_metrics,
 )
 from accounts.models import BranchOperatingHours
 from django.utils import timezone
+
+from customer_api.home.cache import IDListCache
+from customer_api.home.regions import resolve_region
+from customer_api.home.sections.registry import HOME_SECTIONS
+from payments.models.subscription import Subscription
+from django.db.models import Q, Exists, OuterRef, Case, When, F, Value, FloatField
+from authflow.features import PRIORITY_SEARCH, ADD_VISIBILITY, ADD_VISIBILITY_KM_BOOST
 
 
 class BusinessPagination(PageNumberPagination):
@@ -96,57 +102,40 @@ class HomePageView(LocationDependantMixin, BaseCustomerAPIView):
 
     def get(self, request):
         user_point = self.get_user_point(request)
-
         if not user_point:
             return self.point_error()
 
-        base_qs = annotate_business_metrics(
-            Business.objects.all(),
-            user_point
-        )
+        region = resolve_region(request, user_point)
+        ctx = {"request": request, "user_point": user_point}
 
-        # ---------------- TOP PICKS (SMART RANKING) ----------------
-        top_picks = list(
-            apply_top_picks_ranking(base_qs)
-            .filter(nearest_branch_id__isnull=False)
-            .order_by("-top_pick_score")[:10]
-        )
+        response = {}
+        all_businesses_by_id = {}
 
-        # ---------------- FEATURED (NEARBY) ----------------
-        featured_businesses = list(
-            base_qs
-            .filter(nearest_branch_id__isnull=False)
-            .order_by("nearest_branch_distance")[:10]
-        )
+        base_qs = annotate_business_metrics(Business.objects.all(), user_point)
 
-        # ---------------- RECENT ----------------
-        recently_viewed_ids = request.session.get("recently_viewed", [])[:10]
+        for section in HOME_SECTIONS:
+            ids = section.get_ids(region, ctx, IDListCache)
+            if section.base_qs != None:
+                businesses_related = list(section.base_qs.filter(business_id__in=ids))
+                response[section.key_name] = (businesses_related, section.serializer_class)
+                continue
+            businesses = list(base_qs.filter(id__in=ids))
+            
+            # preserve cache/query order — filter() doesn't guarantee it
+            order = {bid: i for i, bid in enumerate(ids)}
+            businesses.sort(key=lambda b: order.get(b.id, 0))
 
-        recently_viewed = (
-            list(base_qs.filter(id__in=recently_viewed_ids))
-            if recently_viewed_ids else []
-        )
+            for b in businesses:
+                all_businesses_by_id[b.id] = b
+            response[section.key_name] = (businesses, section.serializer_class)
 
-        # ---------------- BRANCHES ----------------
-        all_businesses = top_picks + featured_businesses + recently_viewed
-        branches_by_id = bulk_load_branches(all_businesses)
-
-        context = {"branches_by_id": branches_by_id}
+        branches_by_id = bulk_load_branches(list(all_businesses_by_id.values()))
+        serializer_ctx = {"branches_by_id": branches_by_id}
 
         return Response({
-            "top_picks": BusinessListSerializer(
-                top_picks, many=True, context=context
-            ).data,
-
-            "featured": BusinessFeaturedSerializer(
-                featured_businesses, many=True, context=context
-            ).data,
-
-            "recently_viewed": BusinessListSerializer(
-                recently_viewed, many=True, context=context
-            ).data,
+            name: serializer_class(items, many=True, context=serializer_ctx).data
+            for name, (items, serializer_class) in response.items()
         })
-
 
 # ============================================================================
 # BUSINESS LIST — Infinite Scroll (ultra-lightweight)
@@ -215,6 +204,66 @@ class BusinessListWithMenuNamesView(LocationDependantMixin, APIView):
 # SEARCH & FILTER
 # ============================================================================
 
+# class BusinessSearchView(LocationDependantMixin, GenericAPIView):
+#     """
+#     GET /businesses/search/?lat=&lng=&q=&type=&min_rating=&max_distance=&page=
+
+#     Search across:
+#       - business_name
+#       - menu item names  
+#       - menu category names
+
+#     Filter by:
+#       - business_type
+#       - min_rating
+#       - max_distance (km)
+#     """
+#     pagination_class = BusinessPagination
+
+#     def get(self, request):
+#         user_point = self.get_user_point(request)
+#         if not user_point:
+#             return self.point_error()
+
+#         query = request.query_params.get('q', '').strip()
+#         business_type = request.query_params.get('type', '').strip()
+#         min_rating = request.query_params.get('min_rating')
+#         max_distance = float(request.query_params.get('max_distance', 15))
+
+#         businesses = annotate_with_nearest_branch(
+#             Business.objects.all(), user_point, max_km=max_distance
+#         )
+
+#         # SEARCH
+#         if query:
+#             businesses = businesses.filter(
+#                 Q(business_name__icontains=query) |
+#                 Q(menus__categories__items__custom_name__icontains=query) |
+#                 Q(menus__categories__name__icontains=query)
+#             ).distinct()
+
+#         # FILTERS
+#         if business_type:
+#             businesses = businesses.filter(business_type=business_type)
+
+#         if min_rating:
+#             businesses = businesses.filter(avg_rating__gte=float(min_rating))
+
+#         businesses = businesses.order_by("nearest_branch_distance")
+
+#         # paginator = BusinessPagination()
+#         page = self.paginate_queryset(businesses)
+#         # page = paginator.paginate_queryset(businesses, request)
+
+#         branches_by_id = bulk_load_branches(page)
+
+#         serializer = BusinessListSerializer(
+#             page, many=True, context={"branches_by_id": branches_by_id}
+#         )
+#         # return paginator.get_paginated_response(serializer.data)
+#         return self.get_paginated_response(serializer.data)
+
+
 class BusinessSearchView(LocationDependantMixin, GenericAPIView):
     """
     GET /businesses/search/?lat=&lng=&q=&type=&min_rating=&max_distance=&page=
@@ -241,37 +290,88 @@ class BusinessSearchView(LocationDependantMixin, GenericAPIView):
         min_rating = request.query_params.get('min_rating')
         max_distance = float(request.query_params.get('max_distance', 15))
 
-        businesses = annotate_with_nearest_branch(
+        # 1. Base geospatial dataset (drops anything past max_distance)
+        base_qs = annotate_with_nearest_branch(
             Business.objects.all(), user_point, max_km=max_distance
         )
+        base_qs = base_qs.filter(nearest_branch_id__isnull=False)
 
-        # SEARCH
+        # SEARCH FILTERS
         if query:
-            businesses = businesses.filter(
+            base_qs = base_qs.filter(
                 Q(business_name__icontains=query) |
                 Q(menus__categories__items__custom_name__icontains=query) |
                 Q(menus__categories__name__icontains=query)
             ).distinct()
 
-        # FILTERS
+        # OTHER FILTERS
         if business_type:
-            businesses = businesses.filter(business_type=business_type)
-
+            base_qs = base_qs.filter(business_type=business_type)
         if min_rating:
-            businesses = businesses.filter(avg_rating__gte=float(min_rating))
+            base_qs = base_qs.filter(avg_rating__gte=float(min_rating))
 
-        businesses = businesses.order_by("nearest_branch_distance")
+        # -----------------------------------------------------------------
+        # SUBSCRIPTION SUBQUERIES
+        # -----------------------------------------------------------------
+        priority_sub = Subscription.objects.filter(
+            user_id=OuterRef("admin__user_id"),
+            active=True,
+            plan__features__code=PRIORITY_SEARCH
+        )
+        
+        visibility_sub = Subscription.objects.filter(
+            user_id=OuterRef("admin__user_id"),
+            active=True,
+            plan__features__code=ADD_VISIBILITY
+        )
 
-        # paginator = BusinessPagination()
-        page = self.paginate_queryset(businesses)
-        # page = paginator.paginate_queryset(businesses, request)
+        base_qs = base_qs.annotate(
+            has_priority=Exists(priority_sub),
+            has_visibility=Exists(visibility_sub)
+        )
 
+        # -----------------------------------------------------------------
+        # QUERY 1: THE PRIORITY BRACKET (Max 3)
+        # -----------------------------------------------------------------
+        # Get the closest 3 priority businesses that match the search criteria
+        priority_matches = list(
+            base_qs.filter(has_priority=True)
+            .order_by("nearest_branch_distance")[:3]
+        )
+        
+        # Keep track of their IDs so we don't duplicate them in the next query
+        priority_ids = [b.id for b in priority_matches]
+
+        # -----------------------------------------------------------------
+        # QUERY 2: THE NORMAL BRACKET (Includes Visibility Boost)
+        # -----------------------------------------------------------------
+        # Exclude the 3 priority spots we already pulled
+        normal_pool = base_qs.exclude(id__in=priority_ids)
+
+        # Apply visibility scoring: Visibility users get a 3km "distance discount"
+        # dynamic_sort_distance = actual_distance - 3.0 (if visible)
+        normal_pool = normal_pool.annotate(
+            boosted_distance=Case(
+                When(has_visibility=True, then=F("nearest_branch_distance") - Value(ADD_VISIBILITY_KM_BOOST)),
+                default=F("nearest_branch_distance"),
+                output_field=FloatField(),
+            )
+        ).order_by("boosted_distance")
+
+        # -----------------------------------------------------------------
+        # COMBINE AND PAGINATE
+        # -----------------------------------------------------------------
+        # Convert the rest of the pool to a list to merge them sequentially
+        normal_matches = list(normal_pool)
+        combined_results = priority_matches + normal_matches
+
+        # Paginate the static Python list
+        page = self.paginate_queryset(combined_results)
         branches_by_id = bulk_load_branches(page)
 
         serializer = BusinessListSerializer(
             page, many=True, context={"branches_by_id": branches_by_id}
         )
-        # return paginator.get_paginated_response(serializer.data)
         return self.get_paginated_response(serializer.data)
 
 

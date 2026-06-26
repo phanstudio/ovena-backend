@@ -1,13 +1,15 @@
 from rest_framework.response import Response
 from rest_framework import status
-from authflow.services import issue_jwt_for_user, request_email_otp, request_phone_otp, verify, OTPInvalidError, verify_phonenumber
+from authflow.services import request_email_otp, request_phone_otp, verify, OTPInvalidError, verify_phonenumber
 from django.contrib.auth import get_user_model
 from accounts.serializers import InS
 from accounts.serializers.input_ser.input_seriz import SendType
 from rest_framework.generics import GenericAPIView
 from common.phone.utils import get_phone_number
 from django.utils import timezone
+from authflow.services.jwt import issue_jwt_for_user
 # do we have dedcted endpoints for sending otp for the admin registration since it still send the otp forward.
+# we need a dedicted page for sending otp but it has to be a user that is vwerfed so we ca track the account
 
 User = get_user_model()
 class SendPhoneOTPView(GenericAPIView):

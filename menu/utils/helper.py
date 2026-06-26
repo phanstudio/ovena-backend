@@ -2,11 +2,15 @@ from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.measure import D
 from django.db.models import (
     OuterRef, Subquery, Prefetch, Q, Count,
-    F, FloatField, ExpressionWrapper
+    F, FloatField, ExpressionWrapper, Case, When, Value, Exists
 )
 from accounts.models import BranchOperatingHours, Branch
+from payments.models.subscription import Subscription
 from django.utils import timezone
 from datetime import timedelta
+from authflow.features import TOP3_FEATURE_CODE, HIGH_RANK_FEATURE_CODE, HIGH_RANK_BOOST
+import hashlib
+from datetime import date
 
 # ============================================================================
 # SHARED HELPERS
@@ -100,11 +104,15 @@ def annotate_business_metrics(qs, user_point):
 def apply_top_picks_ranking(qs):
     return qs.annotate(
         top_pick_score=ExpressionWrapper(
-            (F("avg_rating") * 0.4) +
-            (F("order_count_30d") * 0.4) +
-            #(F("total_orders") * 0.1) -
-            - (F("nearest_branch_distance") * 0.1),
-            output_field=FloatField()
+            (F("avg_rating") * 0.4)
+            + (F("order_count_30d") * 0.4)
+            - (F("nearest_branch_distance") * 0.1)
+            + Case(
+                When(has_high_rank=True, then=Value(HIGH_RANK_BOOST)),
+                default=Value(0),
+                output_field=FloatField(),
+            ),
+            output_field=FloatField(),
         )
     )
 
@@ -128,3 +136,51 @@ def is_branch_open(branch) -> bool:
         return False
 
     return hours.open_time <= now.time() <= hours.close_time
+
+
+def _active_subscription_feature_subquery(feature_code):
+    """
+    Exists subquery: does the business's owning user have an active
+    subscription on a plan carrying `feature_code`?
+    """
+    return Exists(
+        Subscription.objects.filter(
+            user_id=OuterRef("admin__user_id"),  # <-- adjust to your real owner field
+            active=True,
+            plan__features__code=feature_code,
+        )
+    )
+
+
+def annotate_subscription_tiers(qs):
+    return qs.annotate(
+        has_top3=_active_subscription_feature_subquery(TOP3_FEATURE_CODE),
+        has_high_rank=_active_subscription_feature_subquery(HIGH_RANK_FEATURE_CODE),
+    )
+
+
+class DailyRotationMixin:
+    """Mixin to provide deterministic daily random ordering."""
+    
+    def get_daily_seed(self) -> float:
+        """
+        Generates a stable float between 0.0 and 1.0 based on today's date.
+        This provides a consistent seed for databases that require it.
+        """
+        today_str = str(date.today())
+        # Hash the date string to get a deterministic integer, then convert to a float 0.0-1.0
+        hash_val = int(hashlib.md5(today_str.encode("utf-8")).hexdigest(), 16)
+        return (hash_val % 10000) / 10000.0
+
+    def apply_daily_rotation(self, queryset):
+        """
+        Applies a repeatable daily shuffle across different databases.
+        For PostgreSQL/MySQL, we set a seed session variable before ordering by random().
+        """
+        # If using PostgreSQL:
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute(f"SELECT setseed({self.get_daily_seed()});")
+            
+        # Order by random() - because setseed() was called, this order is fixed for the day
+        return queryset.order_by("?")

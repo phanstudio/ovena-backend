@@ -15,6 +15,7 @@ from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers as s
 import menu.serializers.input_ser.delete as delete_selerizers
 from django.db.models import Count
+from image.services import BulkS3StorageService
 
 
 def get_user_business(buisness_admin: BusinessAdmin):
@@ -31,19 +32,42 @@ def _cleanup_orphaned_base_items(business, base_item_ids: list):
 
     Returns a list of base_item IDs that were fully deleted.
     """
-    deleted_base_ids = []
+    if not base_item_ids:
+        return []
 
-    for bid in base_item_ids:
-        still_referenced = (
-            MenuItem.objects.filter(base_item_id=bid, category__menu__business=business).exists()
-            or
-            MenuItemAddon.objects.filter(base_item_id=bid,
-                                         groups__item__category__menu__business=business).exists()
-        )
-        if not still_referenced:
-            BaseItemAvailability.objects.filter(base_item_id=bid).delete()
-            BaseItem.objects.filter(id=bid, business=business).delete()
-            deleted_base_ids.append(bid)
+    # 1. Find all base_item_ids in the input list that ARE still being used
+    referenced_in_menu = set(
+        MenuItem.objects.filter(
+            base_item_id__in=base_item_ids, 
+            category__menu__business=business
+        ).values_list("base_item_id", flat=True)
+    )
+
+    referenced_in_addons = set(
+        MenuItemAddon.objects.filter(
+            base_item_id__in=base_item_ids,
+            groups__item__category__menu__business=business
+        ).values_list("base_item_id", flat=True)
+    )
+
+    # Combine them to get a master set of active IDs
+    still_referenced_ids = referenced_in_menu.union(referenced_in_addons)
+
+    # 2. Determine which ones are truly orphaned
+    deleted_base_ids = [bid for bid in base_item_ids if bid not in still_referenced_ids]
+
+    # 3. Perform bulk cleanup if there are any orphans
+    if deleted_base_ids:
+        # Fetch target BaseItems belonging to this business to clean up S3
+        qs = BaseItem.objects.filter(id__in=deleted_base_ids, business=business)
+        
+        # Extract images and trigger batch S3 deletion
+        image_urls = list(qs.exclude(image="").values_list("image", flat=True))
+        if image_urls:
+            BulkS3StorageService.batch_delete_urls(image_urls)
+        
+        # Delete from DB (ON DELETE CASCADE handles BaseItemAvailability automatically)
+        qs.delete()
 
     return deleted_base_ids
 
@@ -262,7 +286,7 @@ class DeleteMenuView(BaseBuisAdminAPIView):
 # Body: { "menus": [...ids], "categories": [...ids], "items": [...ids], "addons": [...ids] }
 # ─────────────────────────────────────────────────────────────────────────────
 
-class BulkDeleteMenuView(BaseBuisAdminAPIView):
+class BulkDeleteMenuView(BaseBuisAdminAPIView, ):
     """
     Bulk-delete any combination of Menus, MenuCategories, MenuItems, and MenuItemAddons
     in a single atomic transaction. After all deletions, orphaned BaseItems are
@@ -363,6 +387,7 @@ class BulkDeleteMenuView(BaseBuisAdminAPIView):
             if item_ids:
                 qs = MenuItem.objects.filter(id__in=item_ids, category__menu__business=business)
                 counts["items"] = qs.count()
+                BulkS3StorageService.batch_delete_urls(list(qs.values_list("image")))
                 qs.delete()
 
             if addon_ids:

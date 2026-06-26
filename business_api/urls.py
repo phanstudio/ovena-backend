@@ -102,6 +102,16 @@ urlpatterns = [
         views.UpdateBusinessImagesView.as_view(),
         name="update-business-images",
     ),
+    path(
+        "banners/",
+        views.BuisnessBannerManageView.as_view(),
+        name="edit-business-banners",
+    ),
+    path(
+        "carousels/",
+        views.BuisnessCarouselManageView.as_view(),
+        name="edit-business-carousels",
+    ),
     path("", include("payments.subscriptions.urls.business")),
     path("", include("payments.cards.urls.business")),
 ]

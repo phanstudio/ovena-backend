@@ -80,3 +80,19 @@ class BusinessPayoutAccount(AbstractPayoutAccount):
  
     def __str__(self) -> str:
         return f"{self.bank_account_name} — {self.business}"
+
+
+class BusinessSubscription(models.Model):
+    business = models.OneToOneField(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="subscription"
+    )
+
+    banner_enabled = models.BooleanField(default=False)
+    carousel_enabled = models.BooleanField(default=False)
+
+    banner_info = models.JSONField(default=dict, blank=True, null=True,)
+    carousel_image = models.ImageField(upload_to="business/carousel/", null=True, blank=True)
+
+    expires_at = models.DateTimeField(null=True, blank=True)

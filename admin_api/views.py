@@ -17,7 +17,6 @@ from admin_api.serializers import (
 from rest_framework.response import Response
 from rest_framework import status
 from drf_spectacular.utils import extend_schema  # type: ignore
-from authflow.services import issue_jwt_for_user
 from rest_framework.permissions import AllowAny
 from rest_framework.generics import GenericAPIView, RetrieveAPIView, ListAPIView
 from authflow.permissions import IsAppAdmin
@@ -30,6 +29,7 @@ from django.db.models import Sum, Count, Q, OuterRef, Subquery
 from django.utils import timezone
 
 from accounts.models.driver import DriverOnboardingSubmission, DriverDocument
+from accounts.views.account_views import LoginView
 from notifications.models import Notification
 from notifications.serializers import NotificationSerializer
 from notifications.services import create_notification, create_bulk_notifications
@@ -45,6 +45,9 @@ from payments.payouts.tasks import (
 from referrals.services import REFERRALS_PER_UNIT
 from decimal import Decimal
 from rest_framework.pagination import LimitOffsetPagination
+from accounts.services.profiles import (
+    PROFILE_APP_ADMIN,
+)
 
 
 class AdminPagination(LimitOffsetPagination):
@@ -93,39 +96,12 @@ class BaseAppAdminAPIView(GenericAPIView):
 
 
 @extend_schema(responses={200: LoginResponseSerializer}, auth=[])
-class AdminLoginView(GenericAPIView):
+class AdminLoginView(LoginView):
     permission_classes = [AllowAny]
     serializer_class = AppAdminLoginSerializer
 
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        vd = serializer.validated_data
-
-        user = User.objects.filter(phone_number=vd["phone_number"]).first()
-        if not user:
-            return Response(
-                {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
-            )
-
-        app_admin: AppAdmin = getattr(user, "app_admin", None)
-        if not app_admin:
-            return Response(
-                {"error": "Not an app admin account"}, status=status.HTTP_403_FORBIDDEN
-            )
-        if not user or not user.check_password(vd["password"]):
-            return Response(
-                {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
-            )
-
-        token = issue_jwt_for_user(user)
-        return Response(
-            {
-                "message": "Logged in successfully",
-                "access": token["access"],
-                "refresh": token["refresh"],
-            }
-        )
+    def get_profile_type(self):
+        return PROFILE_APP_ADMIN
 
 
 class UserProfileView(BaseAppAdminAPIView):

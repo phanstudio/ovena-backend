@@ -127,6 +127,12 @@ CACHES = {
     "default": env.cache("CACHE_URL", default="locmemcache://")
 }
 REDIS_URL = env("REDIS_URL")
+FEATURE_CACHE_BACKEND = "redis" # auto# redis# cache
+FEATURE_REDIS_URL = env(
+    "FEATURE_REDIS_URL",
+    default=None,
+)
+FEATURE_EXPIRATION = 3*HOUR
 
 # opt (sms)
 TERMII_API_KEY = env("TERMII_API_KEY")
