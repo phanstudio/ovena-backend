@@ -177,6 +177,12 @@ class LinkApproveView(GenericAPIView):
 
         phone_number, branch_id = identifier.split(";")
 
+        # if phone_number == vd["phone_number"]:
+        #     return Response(
+        #         {"detail": "Invalid phone number: the number has been used for the business admin."},
+        #         status=status.HTTP_400_BAD_REQUEST,
+        #     )
+
         # 🔒 Step 2: Atomic block with row locking
         with transaction.atomic():
             branch = (
@@ -223,7 +229,9 @@ class LinkApproveView(GenericAPIView):
                     )
 
                 # ♻️ reuse
-                user = existing_agent.user
+                user = existing_agent.user 
+                # i think we need get or create here because we don't want 
+                # to change the phone number of the person involved;
                 user.phone_number = vd["phone_number"]
                 user.save()
 
@@ -279,7 +287,7 @@ class RegisterCustomer(GenericAPIView):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        token = issue_jwt_for_user_with_plan(user, active_profile=PROFILE_CUSTOMER)
+        token = issue_jwt_for_user_with_plan(request.user, active_profile=PROFILE_CUSTOMER)
 
         return Response(
             {
