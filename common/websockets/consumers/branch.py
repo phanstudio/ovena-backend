@@ -100,7 +100,7 @@ class BranchConsumer(BaseConsumer):
         ).values(
             'id','order_number','status','created_at',
             'orderer__name','last_event_type','last_event_time', 
-            'last_event_metadata', 'subtotal'
+            'last_event_metadata', 'subtotal', 'picked_up_by_user'
         )
 
         return [
