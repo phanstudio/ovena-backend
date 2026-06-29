@@ -10,7 +10,6 @@ from django.db.models import Subquery
 from .base import (
     BaseConsumer, CLOSE_FORBIDDEN, CLOSE_UNAUTHENTICATED
 )
-from django.core.serializers.json import DjangoJSONEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +97,6 @@ class BranchConsumer(BaseConsumer):
             last_event_type=Subquery(last_event.values('event_type')[:1]),
             last_event_time=Subquery(last_event.values('timestamp')[:1]),
             last_event_metadata=Subquery(last_event.values('metadata')[:1]),
-            
         ).values(
             'id','order_number','status','created_at',
             'orderer__name','last_event_type','last_event_time', 
@@ -110,7 +108,8 @@ class BranchConsumer(BaseConsumer):
                 **order,
                 'created_at': order['created_at'].isoformat() if order['created_at'] else None,
                 'last_event_time': order['last_event_time'].isoformat() if order['last_event_time'] else None,
-                'amount': order["subtotal"]
+                'amount': str(order["subtotal"]),
+                'subtotal': str(order["subtotal"])
             }
             for order in orders
         ]
