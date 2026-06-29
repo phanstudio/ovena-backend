@@ -5,7 +5,7 @@ import asyncio
 
 from django.utils import timezone
 from django.db.models import OuterRef
-from channels.generic.websocket import AsyncWebsocketConsumer
+from channels.generic.websocket import AsyncWebsocketConsumer, AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 
 from menu.models import OrderEvent
@@ -31,7 +31,7 @@ PING_INTERVAL   = 25   # seconds between server pings
 PONG_TIMEOUT    = 10   # seconds to wait for client pong
 
 
-class BaseConsumer(AsyncWebsocketConsumer):
+class BaseConsumer(AsyncJsonWebsocketConsumer):
     """Base consumer with authentication utilities"""
 
     @database_sync_to_async

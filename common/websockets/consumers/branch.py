@@ -10,6 +10,7 @@ from django.db.models import Subquery
 from .base import (
     BaseConsumer, CLOSE_FORBIDDEN, CLOSE_UNAUTHENTICATED
 )
+from django.core.serializers.json import DjangoJSONEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,7 @@ class BranchConsumer(BaseConsumer):
 
         orders = Order.objects.filter(
             branch_id=self.branch_id,
-            status__in=['pending', 'confirmed', 'payment_pending', 'preparing', 'ready']
+            status__in=['pending', 'confirmed', 'preparing', 'ready'] #'payment_pending',
         ).select_related('orderer').annotate(
             last_event_type=Subquery(last_event.values('event_type')[:1]),
             last_event_time=Subquery(last_event.values('timestamp')[:1]),
@@ -109,7 +110,7 @@ class BranchConsumer(BaseConsumer):
                 **order,
                 'created_at': order['created_at'].isoformat() if order['created_at'] else None,
                 'last_event_time': order['last_event_time'].isoformat() if order['last_event_time'] else None,
-                'amount': order['subtotal']
+                'amount': order["subtotal"]
             }
             for order in orders
         ]
