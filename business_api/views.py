@@ -1048,7 +1048,7 @@ class BusinessTransactionHistoryView(BaseBuisAdminAPIView):
         )
 
 
-class UpdateBusinessImagesView(BaseBuisAdminAPIView, ImageMixin):
+class UpdateBusinessImagesView(BaseBuisAdminAPIView, ImageMixin, BuilkS3ImageManagedMixin):
     
     def patch(self, request):
         business_admin = self.get_buisnessadmn(request)

@@ -286,7 +286,7 @@ class DeleteMenuView(BaseBuisAdminAPIView):
 # Body: { "menus": [...ids], "categories": [...ids], "items": [...ids], "addons": [...ids] }
 # ─────────────────────────────────────────────────────────────────────────────
 
-class BulkDeleteMenuView(BaseBuisAdminAPIView, ):
+class BulkDeleteMenuView(BaseBuisAdminAPIView):
     """
     Bulk-delete any combination of Menus, MenuCategories, MenuItems, and MenuItemAddons
     in a single atomic transaction. After all deletions, orphaned BaseItems are

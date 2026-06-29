@@ -126,7 +126,9 @@ def notify_order_created(order):
     from .events import ORDER_CREATED
     
     event_data = build_order_event(ORDER_CREATED, order)
-    broadcast_to_branch(order.branch_id, event_data)
+    # broadcast_to_branch(order.branch_id, event_data)
+    #:old 
+    # will hook up to the app admins
     
     # Also create the order group for future updates
     # (users will join when they connect)
@@ -203,7 +205,7 @@ def notify_order_confirmed(order):
 
 def notify_payment_completed(order):
     """Notify branch to start preparing, and customer that payment went through"""
-    from .events import ORDER_PAYMENT_COMPLETED, ORDER_PREPARING
+    from .events import ORDER_PAYMENT_COMPLETED
 
     # Customer: payment received
     customer_event = build_order_event(
@@ -215,7 +217,7 @@ def notify_payment_completed(order):
 
     # Branch: start preparing
     branch_event = build_order_event(
-        ORDER_PREPARING,
+        ORDER_PAYMENT_COMPLETED,
         order,
         message="Payment confirmed. Start preparing the order."
     )

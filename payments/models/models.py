@@ -253,4 +253,3 @@ class ReconciliationLog(models.Model):
 
     def __str__(self):
         return f"Reconciliation {self.run_date} - {self.status}"
-
