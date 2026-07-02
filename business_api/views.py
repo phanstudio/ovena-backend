@@ -1054,6 +1054,9 @@ class UpdateBusinessImagesView(BaseBuisAdminAPIView, ImageMixin, BuilkS3ImageMan
         business_admin = self.get_buisnessadmn(request)
         restaurant = business_admin.business
 
+        print(request.data)
+        print(request.FILES)
+
         business_image = request.FILES.get("business_image")
         business_logo = request.FILES.get("business_logo")
 
