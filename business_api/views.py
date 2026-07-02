@@ -1215,8 +1215,8 @@ class BuisnessBannerManageView(BaseBuisAdminAPIView):
 
 class BuisnessCarouselManageView(BaseBuisAdminAPIView, ImageMixin, S3ImageManagedMixin):
     serializer_class = InS.BusinessUpdateSerializer
-    permission_classes = [HasFeature]
-    required_feature = ON_CAROUSEL
+    # permission_classes = [HasFeature]
+    # required_feature = ON_CAROUSEL
 
     def get_image(self, request, image_name):
         image = request.FILES.get(image_name)
@@ -1317,14 +1317,15 @@ class BuisnessCarouselManageView(BaseBuisAdminAPIView, ImageMixin, S3ImageManage
         business = business_admin.business
 
         try:
-            carousel = BusinessSubscription.objects.filter(business=business).values(
+            carousel = BusinessSubscription.objects.filter(business=business).only(
                 "carousel_image"
             ).first()
             return Response(
-                {"carousel": carousel},
+                {"carousel_image": carousel.carousel_image.url},
                 status=status.HTTP_200_OK,
             )
-        except Exception:
+        except Exception as e:
+            print(e)
             return Response(
                 {"detail": "Failed to upload banner."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -95,3 +95,7 @@ class LogInView(APIView): # can work with password, will be removed
             "refresh": token["refresh"],
             "access": token["access"],
         }, status=200)
+
+class Health(APIView):
+    def get(self, _request):
+        return Response({"message": "healthy"}, status=200)

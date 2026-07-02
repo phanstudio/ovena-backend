@@ -350,7 +350,7 @@ class ResturantOrderView(GenericAPIView):
         )
 
         if action == "pickup":
-            order = self.get_queryset().filter(order_id=order_id, driver_number=order_code).first()
+            order = self.get_queryset().filter(id=order_id, driver_number=order_code).first()
         else:
             order = self.get_queryset().filter(id=order_id).first()
         
@@ -526,8 +526,7 @@ class ResturantOrderView(GenericAPIView):
         # 🔥 Notify all parties of successful delivery
         notify_order_delivered(order)
         # trigger first split and crediting
-        sale_result = complete_service(order.sale.id)
-        ledger_credit_for_delivered_order(order)
+        sale_result = complete_service(order.sale.id, order.picked_up_by_user) # attach the refund too
         logger.info(f"sale info: {sale_result}")
 
         # TODO: Process payments to branch and driver

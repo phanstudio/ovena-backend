@@ -108,14 +108,22 @@ def get_ledger_balance(user) -> int:
     result = LedgerEntry.objects.filter(user=user).aggregate(total=Sum("amount"))
     return result["total"] or 0
 
-
+# this is where we can refund the user
 @transaction.atomic
-def credit_all_parties(sale, split: dict):
+def credit_all_parties(sale, split: dict, picked_up: bool= False):
     """Credit all parties after service completion. All or nothing."""
     parties = [
-        {"user": sale.driver, "role": "driver", "amount": split["amounts"]["driver"]},
+        # {"user": sale.driver, "role": "driver", "amount": split["amounts"]["driver"]},
         {"user": sale.business_owner, "role": "business_owner", "amount": split["amounts"]["business_owner"]},
     ]
+    if sale.driver == None: 
+        # the order was delivered with out a driver now we just check if it was a pickup or not.
+        parties.append({"user": sale.driver, "role": "driver", "amount": split["amounts"]["driver"]})
+    else:
+        if not picked_up:
+            # note it as a refund is it is not a split
+            # parties.append({"user": sale.payer, "role": "customer", "amount": split["amounts"]["driver"]})
+            ...
     if sale.referral_user and split["amounts"]["referral"] > 0:
         parties.append({"user": sale.referral_user, "role": "referral", "amount": split["amounts"]["referral"]})
 

@@ -83,7 +83,7 @@ def assign_driver(order, driver_id):
     Sale.objects.filter(id=order.sale_id).update(driver_id=driver_id)
 
 @transaction.atomic
-def complete_service(sale_id):
+def complete_service(sale_id, picked_up: bool= False):
     """
     STEP 2: Service is done. Credit all parties from the frozen split snapshot.
     """
@@ -93,7 +93,7 @@ def complete_service(sale_id):
         raise ValueError(f"Cannot complete sale with status: {sale.status}")
 
     split = sale.split_snapshot
-    credit_all_parties(sale, split)
+    credit_all_parties(sale, split, picked_up)
 
     sale.status = "completed"
     sale.service_completed_at = timezone.now()
