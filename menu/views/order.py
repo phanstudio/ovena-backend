@@ -335,6 +335,8 @@ class ResturantOrderView(GenericAPIView):
         order_id = request.data.get("order_id")
         order_code = request.data.get("order_code")
 
+        print(order_id, type(order_id))
+
         if not action or action not in ["accept", "cancel", "made", "pickup", "complete"]:
             return Response(
                 {"error": "Action required"}, status=status.HTTP_400_BAD_REQUEST
@@ -529,14 +531,12 @@ class ResturantOrderView(GenericAPIView):
         sale_result = complete_service(order.sale.id, order.picked_up_by_user) # attach the refund too
         logger.info(f"sale info: {sale_result}")
 
-        # TODO: Process payments to branch and driver
-
         logger.info(
-            f"Order {order.id} delivered successfully by driver {order.driver_id}"
+            f"Order {order.id} was picked up successfully"
         )
 
         return Response(
-            {"message": "Order delivered successfully!"},
+            {"message": "Order picked up successfully!"},
             status=status.HTTP_200_OK,
         )
 

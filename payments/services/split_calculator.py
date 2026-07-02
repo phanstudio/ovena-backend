@@ -116,7 +116,7 @@ def credit_all_parties(sale, split: dict, picked_up: bool= False):
         # {"user": sale.driver, "role": "driver", "amount": split["amounts"]["driver"]},
         {"user": sale.business_owner, "role": "business_owner", "amount": split["amounts"]["business_owner"]},
     ]
-    if sale.driver == None: 
+    if sale.driver != None: 
         # the order was delivered with out a driver now we just check if it was a pickup or not.
         parties.append({"user": sale.driver, "role": "driver", "amount": split["amounts"]["driver"]})
     else:
