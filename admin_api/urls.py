@@ -4,6 +4,7 @@ from accounts.views import (
     jwt_views,
     PasswordResetView, PassWordResetSendView, ChangePasswordView
 )
+import payments.views as pay_views
 
 token_urls = [
     path("rotate-token/", jwt_views.RotateTokenView.as_view(), name="rotate-token"),
@@ -41,6 +42,9 @@ urlpatterns = [
     # notifications
     path("notifications/", views.AdminNotificationListView.as_view(), name="admin-notifications"),
     path("notifications/send/", views.AdminSendNotificationView.as_view(), name="admin-notifications-send"),
+
+    # banks
+    path("banks/sync/", pay_views.SyncBanks.as_view(), name="list-banks"),
 
     path("", include(token_urls)),
     path("password-reset/", PasswordResetView.as_view(), name="password-reset"),
