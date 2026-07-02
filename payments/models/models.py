@@ -49,6 +49,26 @@ class PlatformConfig(models.Model):
         verbose_name_plural = "Platform Configs"
 
 
+class Bank(models.Model):
+    country = models.CharField(max_length=50)  # ISO 3166-1 alpha-2, e.g. "NG"
+    code = models.CharField(max_length=20)
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=50)
+    supports_transfer = models.BooleanField(default=True)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["country", "code"],
+                name="unique_bank_per_country",
+            )
+        ]
+    
+    def __str__(self):
+        return self.name
+
+
 class PaymentIdempotencyKey(models.Model):
     scope = models.CharField(max_length=64)
     actor_id = models.CharField(max_length=64)

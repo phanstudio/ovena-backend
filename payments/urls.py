@@ -18,4 +18,7 @@ urlpatterns = [
 
     # Callbacks
     path("payments/paystack/callback/",paystack.paystack_callback,     name="paystack-callback"),
+
+    # Banks
+    path("banks/", views.ListBanks.as_view(), name="list-banks"),
 ]

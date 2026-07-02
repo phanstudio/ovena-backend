@@ -16,10 +16,11 @@ token_urls = [
     path("refresh/", jwt_views.RefreshTokenView.as_view(), name="refresh"),
     path("logout/", jwt_views.LogoutView.as_view(), name="logout"), # for 
     path("login/", jwt_views.LogInView.as_view(), name="login"),
+    path("health/", jwt_views.Health.as_view(), name="health"),
 ]
 
 account_urls = [
-    path("admin-login/", AdminLoginView.as_view(), name="admin-login"),
+    path("business/admin-login/", AdminLoginView.as_view(), name="business-admin-login"),
     path("driver-login/", DriverLoginView.as_view(), name="driver-login"),
     path("staff-login/", StaffLoginView.as_view(), name="staff-login"),
     path("password-reset/", PasswordResetView.as_view(), name="password-reset"),

@@ -339,18 +339,19 @@ class ResturantOrderView(GenericAPIView):
             return Response(
                 {"error": "Action required"}, status=status.HTTP_400_BAD_REQUEST
             )
+        
+        if not order_id:
+            return Response(
+            {"error": "Order id missing"}, status=status.HTTP_400_BAD_REQUEST
+        )
+        if not order_code and action in ["pickup", "complete"]:
+            return Response(
+            {"error": "Order code missing"}, status=status.HTTP_400_BAD_REQUEST
+        )
 
         if action == "pickup":
-            if not order_code:
-                return Response(
-                {"error": "Order code missing"}, status=status.HTTP_400_BAD_REQUEST
-            )
-            order = self.get_queryset().filter(driver_number=order_code).first()
+            order = self.get_queryset().filter(order_id=order_id, driver_number=order_code).first()
         else:
-            if not order_id:
-                return Response(
-                {"error": "Order id missing"}, status=status.HTTP_400_BAD_REQUEST
-            )
             order = self.get_queryset().filter(id=order_id).first()
         
         if not order:
@@ -365,7 +366,7 @@ class ResturantOrderView(GenericAPIView):
         elif action == "pickup":
             return self.pickup_order(order)
         elif action == "complete":
-            return self.complete_order(order, order_code)
+            return self.complete_order(order, delivery_code=order_code)
         else:
             return self.cancel_order(order)
 
@@ -398,7 +399,7 @@ class ResturantOrderView(GenericAPIView):
 
         logger.info(f"Order {order.id} confirmed by branch, preparation started")
 
-        return Response(
+        return Response( #:bug check later
             {
                 "message": "Order accepted successfully",
                 "payment_reference": order.payment_reference,
@@ -478,19 +479,22 @@ class ResturantOrderView(GenericAPIView):
             status=status.HTTP_202_ACCEPTED,
         )
 
-    def complete_order(self, order: Order, order_code: str):
+    def complete_order(self, order: Order, delivery_code: str):
         """Driver delivers order with verification code"""
-        if not order_code:
+        if not delivery_code:
             return Response(
-                {"error": "Order code missing"},
+                {"error": "Delivery code missing"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         
         if not order.picked_up_by_user:
-            return Response(
-                {"error": "Order code missing"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            # return Response(
+            #     {"error": "The order is meant to be delivered"},
+            #     status=status.HTTP_400_BAD_REQUEST,
+            # )
+            # we need to refund the user and penelize the driver.
+            # add expected time, throw an error if the expected time is not reached.?? not sure
+            ...
 
         old_status = order.status
         if order.status not in [OrderStatus.READY]:
@@ -500,7 +504,7 @@ class ResturantOrderView(GenericAPIView):
             )
 
         # Verify delivery code
-        verified = verify_delivery_phrase(order, order_code)
+        verified = verify_delivery_phrase(order, delivery_code)
         if not verified:
             return Response(
                 {"error": "Invalid delivery code"},

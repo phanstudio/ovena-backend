@@ -14,6 +14,13 @@ from payments.payouts.services import create_withdrawal_request, get_balance_sum
 from payments.payouts.tasks import process_withdrawal
 from payments.webhooks.paystack import handle_paystack_webhook, process_event
 
+from payments.models import Bank
+from payments.integrations.client import client
+from rest_framework.generics import ListAPIView
+from common.pagination import PageNumberPagination
+from .serializers import BankSerializer
+from admin_api.views import BaseAppAdminAPIView
+
 logger = logging.getLogger(__name__)
 
 
@@ -192,3 +199,51 @@ def paystack_webhook_view(request):
 def _process_webhook(body):
     """Compatibility proxy for tests/legacy callers."""
     process_event(body)
+
+
+# Bank views
+class SyncBanks(BaseAppAdminAPIView):
+    def get(self, _request):
+        try:
+            country = "nigeria"
+            banks_data = client.list_banks({"country": country, "currency": "NGN"})
+
+            if not banks_data.get('status'):
+                return Response({"detail": f'Sync failed: status failed'}, status=500)
+
+            unique_banks = {}
+
+            for b in banks_data["data"]:
+                unique_banks[(country, b["code"])] = Bank(
+                    country=country,
+                    code=b["code"],
+                    name=b["name"],
+                    slug=b["slug"],
+                    supports_transfer=b.get("supports_transfer", True),
+                    active=b.get("active", True),
+                )
+
+            banks = list(unique_banks.values())
+
+            Bank.objects.bulk_create(
+                banks,
+                update_conflicts=True,
+                update_fields=[
+                    "name",
+                    "slug",
+                    "supports_transfer",
+                    "active",
+                ],
+                unique_fields=["code", "country"],
+            )
+        except Exception as e:
+            return Response({"detail": f'Sync failed: {e}'}, status=500)
+
+        return Response({"detail": 'Successfully synced banks.'})
+
+
+class ListBanks(ListAPIView): # require an active profile
+    permission_classes = [IsAuthenticated]
+    pagination_class = PageNumberPagination
+    queryset = Bank.objects.all()
+    serializer_class = BankSerializer
