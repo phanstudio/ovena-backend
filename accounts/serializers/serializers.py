@@ -148,7 +148,7 @@ class CreateCustomerSerializer(serializers.Serializer):
     lat = serializers.FloatField(required=False)
     long = serializers.FloatField(required=False)
     birth_date = serializers.DateField(required=False)
-    referre_code = serializers.CharField(required=False, allow_blank=True)
+    referral_code = serializers.CharField(required=False, allow_blank=True)
     profile_pic = serializers.CharField(
         required=False, allow_blank=True
     )
@@ -223,15 +223,15 @@ class CreateCustomerSerializer(serializers.Serializer):
         if location:
             profile.addresses.add(location)
 
-        referre_code = validated_data.get("referre_code")
-        print(referre_code)
-        if referre_code:
+        referral_code = validated_data.get("referral_code")
+        print(referral_code)
+        if referral_code:
             try:
-                apply_referral_code(profile=profile, code=referre_code)
+                apply_referral_code(profile=profile, code=referral_code)
             except DjangoValidationError as exc:
                 msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
                 print(msg)
-                raise serializers.ValidationError({"referre_code": msg})
+                raise serializers.ValidationError({"referral_code": msg})
 
         return profile
 
