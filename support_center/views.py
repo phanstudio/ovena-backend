@@ -240,7 +240,7 @@ class BaseSupportTicketViewSet(
         ticket = self.get_object()
 
         # Ensure the request.user is the owner of the ticket
-        if ticket.owner != request.user:
+        if ticket.owner != request.user or ticket.created_by_type == SenderRole.SENDER_SYSTEM:
             return Response(
                 {"detail": "You do not have permission to close this ticket."},
                 status=status.HTTP_403_FORBIDDEN

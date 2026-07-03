@@ -1,8 +1,9 @@
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.generics import GenericAPIView
-from menu.models import Order, OrderEvent, OrderItem, DriverProfile, OrderStatus
-from menu.pagifications import StandardResultsSetPagination
+from django.shortcuts import get_object_or_404
+from django.conf import settings
+from django.utils import timezone
 
 from accounts.models import User
 from authflow.authentication import (
@@ -11,10 +12,8 @@ from authflow.authentication import (
 from authflow.permissions import IsBusinessStaff
 from authflow.services import verify_delivery_phrase, mint_driver_pin
 
-from django.shortcuts import get_object_or_404
-from django.conf import settings
-from django.utils import timezone
-
+from menu.models import Order, OrderEvent, OrderItem, DriverProfile, OrderStatus
+from menu.pagifications import StandardResultsSetPagination
 from menu.websocket_utils import (
     notify_order_cancelled,
     notify_order_created,
@@ -42,6 +41,8 @@ from common.customer.view import BaseCustomerAPIView
 from driver_api.views import BaseDriverAPIView
 from addresses.serializers import LocationGetSerializer
 from addresses.utils import make_point
+from support_center.services import Role
+from support_center.task import create_system_ticket
 
 logger = logging.getLogger(__name__)
 # add atomcity #:priority
@@ -335,8 +336,6 @@ class ResturantOrderView(GenericAPIView):
         order_id = request.data.get("order_id")
         order_code = request.data.get("order_code")
 
-        print(order_id, type(order_id))
-
         if not action or action not in ["accept", "cancel", "made", "pickup", "complete"]:
             return Response(
                 {"error": "Action required"}, status=status.HTTP_400_BAD_REQUEST
@@ -344,12 +343,13 @@ class ResturantOrderView(GenericAPIView):
         
         if not order_id:
             return Response(
-            {"error": "Order id missing"}, status=status.HTTP_400_BAD_REQUEST
-        )
+                {"error": "Order id missing"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        
         if not order_code and action in ["pickup", "complete"]:
             return Response(
-            {"error": "Order code missing"}, status=status.HTTP_400_BAD_REQUEST
-        )
+                {"error": "Order code missing"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         if action == "pickup":
             order = self.get_queryset().filter(id=order_id, driver_number=order_code).first()
@@ -503,6 +503,21 @@ class ResturantOrderView(GenericAPIView):
             return Response(
                 {"error": "Order not ready for delivery"},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+        
+        if order.driver:
+            driver = order.driver
+            driver.is_available = True
+            driver.current_order = None
+            driver.save(update_fields=["is_available", "current_order"])
+            # create a support ticket blocking the driver
+            create_system_ticket.delay(
+                user=driver.user,
+                role=Role.OWNER_DRIVER,
+                subject="Failed Order",
+                message="You failed to deliver the order on time",
+                category="order",
+                description="You failed to deliver the order on time",
             )
 
         # Verify delivery code

@@ -122,6 +122,8 @@ def create_system_support_ticket(
     category: str = "general",
     priority: str = SupportTicket.PRIORITY_LOW,
 ):
+    if created_by_type == SenderRole.SENDER_SUPPORT and created_by == None:
+        raise ValueError("Created by should only be None for system created tickects.")
     return create_support_ticket_obj(
         owner=owner,
         role=role,
