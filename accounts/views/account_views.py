@@ -495,7 +495,7 @@ class DriverLoginView(LoginView):
         #         status=status.HTTP_403_FORBIDDEN
         #     )
 
-        return self.return_jwt(user)
+        return self.return_jwt(request.user)
 
 
 class AdminLoginView(LoginView):
