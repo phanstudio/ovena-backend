@@ -9,33 +9,66 @@ class S3StorageService:
     def get_storage():
         return storages["default"]
 
-    @classmethod
-    def delete_file_by_url(cls, public_url: str) -> bool:
-        """
-        Extracts the S3 object key path from a full public URL and deletes it.
-        """
-        if not public_url:
-            return False
+    # @classmethod
+    # def delete_file_by_url(cls, public_url: str) -> bool:
+    #     """
+    #     Extracts the S3 object key path from a full public URL and deletes it.
+    #     """
+    #     if not public_url:
+    #         return False
             
+    #     storage = cls.get_storage()
+    #     custom_domain = getattr(storage, "custom_domain", None) or settings.AWS_S3_CUSTOM_DOMAIN
+        
+    #     try:
+    #         # Strip out the domain prefix to isolate the storage path/key
+    #         prefix = f"https://{custom_domain}/"
+    #         if public_url.startswith(prefix):
+    #             key = public_url.replace(prefix, "")
+    #         else:
+    #             # Fallback check if it contains the bucket sub-root path
+    #             key = public_url.split(f"{storage.bucket_name}/")[-1]
+            
+    #         print(storage.exists(key))
+    #         if storage.exists(key):
+    #             print("exist")
+    #             storage.delete(key)
+    #             return True
+    #     except Exception as e:
+    #         logger.error(f"S3 file deletion failed for URL {public_url}: {str(e)}")
+            
+    #     return False
+    
+    @classmethod
+    def extract_key_from_url(cls, public_url: str) -> str:
+        """Helper to safely parse out the S3 object key from a full URL string."""
+        if not public_url or not isinstance(public_url, str):
+            return ""
         storage = cls.get_storage()
         custom_domain = getattr(storage, "custom_domain", None) or settings.AWS_S3_CUSTOM_DOMAIN
+        prefix = f"https://{custom_domain}/"
         
+        if public_url.startswith(prefix):
+            return public_url.replace(prefix, "")
+        elif f"{storage.bucket_name}/" in public_url:
+            return public_url.split(f"{storage.bucket_name}/")[-1]
+        return public_url
+
+    @classmethod
+    def delete_file_by_url(cls, public_url: str) -> bool:
+        if not public_url:
+            return False
+        storage = cls.get_storage()
+        key = cls.extract_key_from_url(public_url)  # reuse the same helper
+        if not key:
+            return False
         try:
-            # Strip out the domain prefix to isolate the storage path/key
-            prefix = f"https://{custom_domain}/"
-            if public_url.startswith(prefix):
-                key = public_url.replace(prefix, "")
-            else:
-                # Fallback check if it contains the bucket sub-root path
-                key = public_url.split(f"{storage.bucket_name}/")[-1]
-                
-            if storage.exists(key):
-                storage.delete(key)
-                return True
+            s3_client = storage.connection.meta.client
+            s3_client.delete_object(Bucket=storage.bucket_name, Key=key)
+            return True
         except Exception as e:
-            logger.error(f"S3 file deletion failed for URL {public_url}: {str(e)}")
-            
-        return False
+            logger.error(f"[S3 image delete]: {str(e)}")
+            return False
 
 
 class BulkS3StorageService:

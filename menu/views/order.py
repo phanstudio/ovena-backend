@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.utils import timezone
 
-from accounts.models import User
+from accounts.models import User, CustomerProfile
 from authflow.authentication import (
     CustomBStaffAuth,
 )
@@ -43,6 +43,7 @@ from addresses.serializers import LocationGetSerializer
 from addresses.utils import make_point
 from support_center.services import Role
 from support_center.task import create_system_ticket
+from common.mail.services import send_email, EmailMessage
 
 logger = logging.getLogger(__name__)
 # add atomcity #:priority
@@ -539,6 +540,23 @@ class ResturantOrderView(GenericAPIView):
             old_status=old_status,
             new_status=order.status,
         )
+
+        profile = (
+            CustomerProfile.objects
+            .select_related("user")
+            .filter(id=order.orderer_id)
+            .first()
+        )
+
+        if profile:
+            email = profile.user.email
+
+            message = EmailMessage(
+                subject= "Your order completed",
+                body="Thank you for your patronage",
+                to=email,
+            )
+            send_email(message)
 
         # 🔥 Notify all parties of successful delivery
         notify_order_delivered(order)
