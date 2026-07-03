@@ -224,11 +224,13 @@ class CreateCustomerSerializer(serializers.Serializer):
             profile.addresses.add(location)
 
         referre_code = validated_data.get("referre_code")
+        print(referre_code)
         if referre_code:
             try:
                 apply_referral_code(profile=profile, code=referre_code)
             except DjangoValidationError as exc:
                 msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+                print(msg)
                 raise serializers.ValidationError({"referre_code": msg})
 
         return profile
