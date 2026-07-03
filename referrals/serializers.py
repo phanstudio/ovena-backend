@@ -17,12 +17,18 @@ class MyReferralStatusSerializer(serializers.Serializer):
     pending_referrals = serializers.IntegerField()
 
 class ReferralItemSerializer(serializers.ModelSerializer):
-    # referee_user_id = serializers.IntegerField(source="referee_user_id", read_only=True)
-    referee_user_id = serializers.IntegerField()
+    referee_user_name = serializers.CharField(
+        source="referee_user.username",  # or "name", "full_name", etc.
+        read_only=True,
+    )
+    referee_user_id = serializers.IntegerField(
+        source="referee_user.id",
+        read_only=True,
+    )
 
     class Meta:
         model = ProfileReferral
-        fields = ["id", "created_at", "converted_at", "is_consumed", "referee_user_id"]
+        fields = ["id", "created_at", "converted_at", "is_consumed", "referee_user_id", "referee_user_name"]
 
 class ReferralPayoutSerializer(serializers.ModelSerializer):
     referrals_used = serializers.IntegerField(read_only=True)
