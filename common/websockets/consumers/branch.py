@@ -92,7 +92,8 @@ class BranchConsumer(BaseConsumer):
 
         orders = Order.objects.filter(
             branch_id=self.branch_id,
-            status__in=['pending', 'confirmed', 'preparing', 'ready'] #'payment_pending',
+            status__in=['pending', 'confirmed', 'preparing', 'ready', 
+                        'driver_assigned', 'picked_up'] #'payment_pending',
         ).select_related('orderer').annotate(
             last_event_type=Subquery(last_event.values('event_type')[:1]),
             last_event_time=Subquery(last_event.values('timestamp')[:1]),
