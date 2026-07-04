@@ -220,6 +220,7 @@ class OrderHistoryView(BaseBusiStaffAPIView, ListAPIView):
     serializer_class = OrderHistorySerializer
     def get_queryset(self):
         business_staff = self.get_business_staff(self.request)
-        return (Order.objects.filter(branch=business_staff.branch).select_related("branch__business", "branch", "driver")
+        return (Order.objects.filter(branch=business_staff.branch)
+                .select_related("branch__business", "branch", "driver", "orderer")
                 .prefetch_related("items")
                 .order_by("-created_at"))

@@ -224,7 +224,6 @@ class CreateCustomerSerializer(serializers.Serializer):
             profile.addresses.add(location)
 
         referral_code = validated_data.get("referral_code")
-        print(referral_code)
         if referral_code:
             try:
                 apply_referral_code(profile=profile, code=referral_code)

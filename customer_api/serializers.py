@@ -15,6 +15,11 @@ class OrderHistorySerializer(serializers.ModelSerializer):
         read_only=True
     )
 
+    customer_name = serializers.CharField(
+        source="orderer.name",
+        read_only=True
+    )
+
     product_name = serializers.SerializerMethodField()
     product_image = serializers.SerializerMethodField()
     extra_items = serializers.SerializerMethodField()
@@ -29,7 +34,7 @@ class OrderHistorySerializer(serializers.ModelSerializer):
             "branch",
             "driver",
             "grand_total",
-            "order_number",
+            # "order_number",
             "status",
             "created_at",
         ]
