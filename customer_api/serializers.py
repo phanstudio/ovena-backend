@@ -60,7 +60,7 @@ class OrderHistorySerializer(serializers.ModelSerializer):
             return None
 
         snap = item.snapshot or {}
-        menu_item = snap.get("item") or {}
+        menu_item = snap.get("menu_item") or {}
         return menu_item.get("name")
 
     def get_product_image(self, obj):
