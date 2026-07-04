@@ -37,6 +37,7 @@ class OrderHistorySerializer(serializers.ModelSerializer):
             # "order_number",
             "status",
             "created_at",
+            "customer_name",
         ]
     
     def _first_item(self, obj):
