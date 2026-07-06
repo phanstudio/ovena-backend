@@ -1,6 +1,7 @@
 from django.urls import path, include
 from business_api import views
 from .routers import BaseBranchRouter
+from accounts.views import otp_views 
 
 router = BaseBranchRouter()
 
@@ -112,6 +113,17 @@ urlpatterns = [
         views.BuisnessCarouselManageView.as_view(),
         name="edit-business-carousels",
     ),
+    path(
+        "send/email/",
+        otp_views.SendEmailForRegistration.as_view(),
+        name="send-email-business",
+    ),
+    path(
+        "verify/email/",
+        otp_views.VerifyEmailForRegistration.as_view(),
+        name="verify-email-business",
+    ),
+    # otp_views,
     path("", include("payments.subscriptions.urls.business")),
     path("", include("payments.cards.urls.business")),
 ]
