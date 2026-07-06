@@ -1,6 +1,6 @@
 from django.urls import include, path
-
 from driver_api import views
+from ratings.views import DriverRatingsView
 
 urlpatterns = [
     path("dashboard/", views.DriverDashboardView.as_view(), name="driver-dashboard"),
@@ -14,4 +14,5 @@ urlpatterns = [
     path("withdrawals/", views.DriverWithdrawListCreateView.as_view(), name="driver-withdrawals"),
     path("withdrawals/<int:withdrawal_id>/", views.DriverWithdrawDetailView.as_view(), name="driver-withdrawal-detail"),
     path("analysis/performance/", views.DriverAnalysisPerformanceView.as_view(), name="driver-analysis-performance"),
+    path("driver/ratings/", DriverRatingsView.as_view(), name="driver-ratings"),
 ]

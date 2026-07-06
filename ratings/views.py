@@ -1,8 +1,6 @@
-# ratings/views.py
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView
 
 from menu.models import Order
@@ -13,9 +11,9 @@ from .serializers import (
     BranchRatingReadSerializer,
 )
 from .services import RatingService
-from authflow.permissions import IsBusinessStaff
-from authflow.authentication import CustomDriverAuth, CustomBStaffAuth
 from common.customer.view import BaseCustomerAPIView
+from business_api.views import BaseBusiStaffAPIView
+from driver_api.views import BaseDriverAPIView
 
 class SubmitOrderRatingsView(BaseCustomerAPIView):
     serializer_class = SubmitOrderRatingsSerializer
@@ -68,21 +66,16 @@ class MyBranchRatingsView(BaseCustomerAPIView, ListAPIView):
         rater = self.get_customer_profile(self.request)
         return BranchRating.objects.filter(rater=rater).select_related("branch", "order").order_by("-created_at")
 
-class DriverRatingsView(ListAPIView):
-    authentication_classes = [CustomDriverAuth]
-    permission_classes = [permissions.IsAuthenticated]
+class DriverRatingsView(BaseDriverAPIView, ListAPIView):
     serializer_class = DriverRatingReadSerializer
 
     def get_queryset(self):
-        driver = self.request.user.driver_profile
+        driver = self.get_driver(self.request)
         return DriverRating.objects.filter(driver=driver).select_related("driver", "order").order_by("-created_at")
 
-class BranchRatingsView(ListAPIView):
-    authentication_classes = [CustomBStaffAuth]
-    permission_classes = [IsBusinessStaff]
+class BranchRatingsView(BaseBusiStaffAPIView, ListAPIView):
     serializer_class = BranchRatingReadSerializer
 
     def get_queryset(self):
-        _, primaryagent = self.get_linkeduser()
-        self.request.user
+        primaryagent = self.get_business_staff(self.request)
         return BranchRating.objects.filter(branch=primaryagent.branch).select_related("branch", "order").order_by("-created_at")

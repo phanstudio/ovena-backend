@@ -2,6 +2,7 @@ from django.urls import path, include
 from business_api import views
 from .routers import BaseBranchRouter
 from accounts.views import otp_views 
+from ratings.views import BranchRatingsView
 
 router = BaseBranchRouter()
 
@@ -122,6 +123,11 @@ urlpatterns = [
         "verify/email/",
         otp_views.VerifyEmailForRegistration.as_view(),
         name="verify-email-business",
+    ),
+    path(
+        "branch/ratings/",
+        BranchRatingsView.as_view(),
+        name="branch-ratings",
     ),
     # otp_views,
     path("", include("payments.subscriptions.urls.business")),
