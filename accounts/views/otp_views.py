@@ -26,7 +26,6 @@ class SendPhoneOTPView(GenericAPIView):
         return Response({"detail": "OTP sent.", "sent_at": sent_at.strftime("%b %d, %Y %H:%M:%S %Z"), 'pin_id': "98765433456789976"})
 
 
-
 class SendEmailMixin(GenericAPIView):
     serializer_class = InS.EmailOptSendSerializer
 
@@ -38,6 +37,7 @@ class SendEmailMixin(GenericAPIView):
     def post(self, request):
         vd = self.get_verifed_data(request)
         return request_email_otp(vd["email"])
+
 
 class SendEmailOTPView(SendEmailMixin):
     ...

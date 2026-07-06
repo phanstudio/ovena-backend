@@ -36,7 +36,7 @@ class OrderHistoryView(BaseCustomerAPIView, ListAPIView):
     serializer_class = OrderHistorySerializer
     def get_queryset(self):
         customer = self.get_customer_profile(self.request)
-        return (Order.objects.filter(orderer=customer).select_related("branch__business", "branch", "driver")
+        return (Order.objects.filter(orderer=customer).select_related("branch__business", "branch", "driver__user")
                 .prefetch_related("items")
                 .order_by("-created_at"))
 

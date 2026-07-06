@@ -10,6 +10,11 @@ class OrderHistorySerializer(serializers.ModelSerializer):
         read_only=True
     )
 
+    driver_phone_number = serializers.CharField(
+        source="driver.user.phone_number",
+        read_only=True
+    )
+
     branch = serializers.CharField(
         source="branch.display_name",
         read_only=True
@@ -34,7 +39,7 @@ class OrderHistorySerializer(serializers.ModelSerializer):
             "branch",
             "driver",
             "grand_total",
-            # "order_number",
+            "driver_phone_number",
             "status",
             "created_at",
             "customer_name",
