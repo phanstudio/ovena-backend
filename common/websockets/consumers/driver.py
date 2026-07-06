@@ -125,7 +125,7 @@ class DriverOrdersConsumer(BaseConsumer):
         orders = Order.objects.filter(
             driver_id=self.driver_id,
             status__in=['driver_assigned', 'picked_up', 'on_the_way']
-        ).select_related('branch','orderer').annotate(
+        ).select_related('branch','orderer__user').annotate(
             last_event_type=Subquery(last_event.values('event_type')[:1]),
             last_event_time=Subquery(last_event.values('timestamp')[:1]),
             last_event_metadata=Subquery(last_event.values('metadata')[:1]),
@@ -133,7 +133,8 @@ class DriverOrdersConsumer(BaseConsumer):
             'id','order_number','status',
             'created_at','branch__name',
             'branch__location','orderer__name',
-            'last_event_type','last_event_time', 'last_event_metadata'
+            'last_event_type','last_event_time', 'last_event_metadata',
+            'orderer__user__phone_number'
         )
 
         serialized = []
@@ -159,6 +160,7 @@ class DriverOrdersConsumer(BaseConsumer):
                 },
                 "delivery_type": "Meet at door",
                 'customer_name': order['orderer__name'],
+                'customer_phone_number': order['orderer__phone_number'],
             })
 
         logger.info(f"{len(serialized)}")
