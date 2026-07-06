@@ -160,7 +160,7 @@ class DriverOrdersConsumer(BaseConsumer):
                 },
                 "delivery_type": "Meet at door",
                 'customer_name': order['orderer__name'],
-                'customer_phone_number': order['orderer__phone_number'],
+                'customer_phone_number': order['orderer__user__phone_number'],
             })
 
         logger.info(f"{len(serialized)}")
