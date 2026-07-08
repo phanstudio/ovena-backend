@@ -3,7 +3,7 @@ from rest_framework import serializers
 from accounts.models import User, BusinessAdmin, Business
 
 class AdminUpdateSerializer(serializers.Serializer):
-    phone_number = PhoneNumberField(required=False, allow_null=True)
+    # phone_number = PhoneNumberField(required=False, allow_null=True)
     full_name = serializers.CharField(required=False, allow_blank=True)
     email = serializers.EmailField(required=False, allow_blank=True)
 
@@ -18,16 +18,16 @@ class AdminUpdateSerializer(serializers.Serializer):
 
         return value
 
-    def validate_phone_number(self, value):
-        if not value:
-            return None
+    # def validate_phone_number(self, value):
+    #     if not value:
+    #         return None
 
-        user = self.context["request"].user
+    #     user = self.context["request"].user
 
-        if User.objects.exclude(pk=user.pk).filter(phone_number=value).exists():
-            raise serializers.ValidationError("Phone number already in use.")
+    #     if User.objects.exclude(pk=user.pk).filter(phone_number=value).exists():
+    #         raise serializers.ValidationError("Phone number already in use.")
 
-        return value
+    #     return value
     
 class BusinessUpdateSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)

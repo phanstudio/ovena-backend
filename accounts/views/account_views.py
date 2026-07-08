@@ -593,12 +593,12 @@ class PasswordResetView(GenericAPIView):
         vd = serializer.validated_data
 
         try:
-            identifier = verify_phonenumber(vd["otp_code"], get_phone_number(vd["phone_number"]), vd["pin_id"])
+            identifier = verify(vd["otp_code"], vd["email"])
         except OTPInvalidError as e:
             return Response({"error": str(e)}, status=400)
         # identifier = vd["phone_number"]
 
-        user = User.objects.filter(phone_number=identifier).first()
+        user = User.objects.filter(email=identifier).first()
         if not user:
             return Response({"error": "User not found"}, status=404)
 

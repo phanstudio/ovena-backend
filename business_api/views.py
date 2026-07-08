@@ -204,11 +204,11 @@ class BaseBusiStaffAPIView(GenericAPIView):
 
 
 class SendVerifyView(BaseBuisAdminAPIView):
-    def send(self, vd, user, channel: str = "phone"):
+    def send(self, vd, identifier, channel: str = "phone"):
         data = encode_dict(vd)
         code = OTPManager.send_blank(data)
-        OTPManager.send_code(channel, get_phone_number(user.phone_number), code)
-        print(channel, get_phone_number(user.phone_number), code)
+        OTPManager.send_code(channel, identifier, code)
+        print(channel, identifier, code)
         return code
 
 
@@ -358,8 +358,10 @@ class BuisnessAdminUpdateView(SendVerifyView):
         vd = serializer.validated_data
 
         if "phone_number" in vd:
-            vd["phone_number"] = str(vd["phone_number"])
-        code = self.send(vd, user)
+            vd["phone_number"] = get_phone_number(vd["phone_number"])
+        # get_phone_number(user.phone_number)
+        
+        code = self.send(vd, user.email, "email")
 
         return Response(
             {"detail": f"User update request sent. The code: {code} while it is down"}
@@ -588,7 +590,7 @@ class RestaurantPaymentView(SendVerifyView):
         serializer = acInS.RestaurantPaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
-        code = self.send(vd, user)
+        code = self.send(vd, user.email, "email")
         return Response(
             {"detail": f"Payment info updated. The code: {code} while it is down"}
         )

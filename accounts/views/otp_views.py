@@ -133,12 +133,7 @@ class PassWordResetSendView(GenericAPIView): # just an endpoint doesn't still co
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
-        send_type = vd["send_type"]
-        
-        if send_type == SendType.EMAIL.value:
-            return request_email_otp(vd["email"])
-        if send_type == SendType.PHONE.value:
-            return request_phone_otp(get_phone_number(vd["phone_number"]))
+        return request_email_otp(vd["email"])
 
 
 ## business admin

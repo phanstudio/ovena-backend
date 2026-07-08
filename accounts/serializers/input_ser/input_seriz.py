@@ -28,11 +28,9 @@ class DriverLoginSerializer(LoginSerializer):
 
 
 class PasswordResetSerializer(serializers.Serializer):
-    phone_number = PhoneNumberField(required=False, allow_null=True)
-    email = serializers.EmailField(required=False, allow_null=True)
+    email = serializers.EmailField()
     new_password = serializers.CharField()
     otp_code = serializers.CharField()
-    pin_id = serializers.CharField()
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -93,34 +91,7 @@ class EmailOptSendSerializer(serializers.Serializer):
 
 
 class PasswordResetSendSerializer(serializers.Serializer):
-    send_type = serializers.ChoiceField(
-        choices=[e.value for e in SendType], default="email"
-    )
-    phone_number = PhoneNumberField(required=False, allow_null=True)
     email = serializers.EmailField(required=False, allow_null=True)
-
-    def validate(self, data):
-        send_type = data.get("send_type")
-        phone = data.get("phone_number")
-        email = data.get("email")
-
-        if send_type == SendType.PHONE.value:
-            if not phone:
-                raise serializers.ValidationError(
-                    {
-                        "phone_number": f"This field is required when send_type is '{send_type}'."
-                    }
-                )
-
-        elif send_type == SendType.EMAIL.value:
-            if not email:
-                raise serializers.ValidationError(
-                    {
-                        "email": f"This field is required when send_type is '{send_type}'."
-                    }
-                )
-
-        return data
 
 
 class LogoutSerializer(serializers.Serializer):
