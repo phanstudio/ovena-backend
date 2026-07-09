@@ -359,7 +359,6 @@ class BuisnessAdminUpdateView(SendVerifyView):
 
         if "phone_number" in vd:
             vd["phone_number"] = get_phone_number(vd["phone_number"])
-        # get_phone_number(user.phone_number)
         
         code = self.send(vd, user.email, "email")
 
