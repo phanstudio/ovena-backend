@@ -255,21 +255,13 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
             # Payment info
             payment_data = vd.get("payment", {})
             if payment_data:
-                try:
-                    # account_name = ensure_valid_cred(
-                    #     bank_code=payment_data["bank_code"],
-                    #     bank_account_number=payment_data["account_number"],
-                    # )
-                    account_name = payment_data["account_name"]
-                except PaystackAPIError as e:
-                    return Response({"error": e})
                 BusinessPayoutAccount.objects.update_or_create(
                     business=restaurant,
                     defaults={
                         "bank_name": payment_data["bank"],
                         "bank_code": payment_data.get("bank_code", ""),
                         "bank_account_number": payment_data["account_number"],
-                        "bank_account_name": account_name,
+                        "bank_account_name": payment_data["account_name"],
                         "bvn": payment_data["bvn"][-4:],
                     },
                 )

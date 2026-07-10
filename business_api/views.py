@@ -208,7 +208,6 @@ class SendVerifyView(BaseBuisAdminAPIView):
         data = encode_dict(vd)
         code = OTPManager.send_blank(data)
         OTPManager.send_code(channel, identifier, code)
-        print(channel, identifier, code)
         return code
 
 
@@ -622,8 +621,8 @@ class RestaurantPaymentReceiverView(BaseBuisAdminAPIView):
             defaults={
                 "bank_name": vaild_data["bank"],
                 "bank_code": vaild_data.get("bank_code", ""),
-                "account_number": vaild_data["account_number"],
-                "account_name": vaild_data["account_name"],
+                "bank_account_number": vaild_data["account_number"],
+                "bank_account_name": vaild_data["account_name"],
                 "bvn": vaild_data["bvn"][-4:],
                 "paystack_recipient_code": "",
             },
