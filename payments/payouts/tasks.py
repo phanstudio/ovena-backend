@@ -185,7 +185,7 @@ def ensure_paystack_recipient_for_business_admin(business_admin_id: int):
     payout = BusinessPayoutAccount.objects.filter(business=admin.business).first()
 
     if payout.paystack_recipient_code:
-        return "success"
+        return "already-set"
 
     if not payout:
         return "missing-payout-account"
