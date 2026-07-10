@@ -172,13 +172,18 @@ OAUTH_PROVIDERS = {
         "USERINFO_ENDPOINT": "https://openidconnect.googleapis.com/v1/userinfo",
         "REDIRECT_URI": env('GOOGLE_REDIRECT_URI'), # mobile redirect if used
     },
-    # "apple": {
-    #     "CLIENT_ID": "com.your.app.bundle-id",
-    #     # For Apple you must build a client secret (JWT signed with your Apple key)
-    #     "CLIENT_SECRET": "<GENERATED_APPLE_CLIENT_SECRET_JWT>",
-    #     "TOKEN_ENDPOINT": "https://appleid.apple.com/auth/token",
-    #     "REDIRECT_URI": "com.yourapp:/oauth2redirect/apple",
-    # }
+    "apple": {
+        # "CLIENT_ID": "com.your.app.bundle-id",
+        
+        # # For Apple you must build a client secret (JWT signed with your Apple key)
+        # "CLIENT_SECRET": "<GENERATED_APPLE_CLIENT_SECRET_JWT>",
+        # "TOKEN_ENDPOINT": "https://appleid.apple.com/auth/token",
+        # "REDIRECT_URI": "com.yourapp:/oauth2redirect/apple",
+        "APPLE_ISSUER": "https://appleid.apple.com",
+        "APPLE_JWKS_URL": "https://appleid.apple.com/auth/keys",
+        "APPLE_AUDIENCE": env('APPLE_AUDIENCE'),
+        "APPLE_JWKS_CACHE_TTL": 60 * 60,
+    }
 }
 
 # Channels configuration

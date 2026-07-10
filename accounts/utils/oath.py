@@ -1,27 +1,3 @@
-# from django.conf import settings
-# import jwt
-# import requests
-# from jwt.algorithms import RSAAlgorithm
-
-# APPLE_KEYS_URL = "https://appleid.apple.com/auth/keys"
-
-# def verify_apple_token(token):
-#     keys = requests.get(APPLE_KEYS_URL, timeout=120).json()['keys']
-#     header = jwt.get_unverified_header(token)
-
-#     key = next(k for k in keys if k['kid'] == header['kid'])
-#     public_key = RSAAlgorithm.from_jwk(key)
-
-#     payload = jwt.decode(
-#         token,
-#         public_key,
-#         audience=settings.APPLE_SERVICE_ID,
-#         issuer="https://appleid.apple.com",
-#         algorithms=["RS256"]
-#     )
-#     return payload
-
-
 """
 Apple token verification, kept separate from business logic (accounts/utils/oath.py
 or wherever verify_apple_token currently lives). Google verification isn't shown here
@@ -51,13 +27,14 @@ from google.auth.transport import requests  # type: ignore
 
 _jwks_cache = {"keys": None, "fetched_at": 0}
 
+apple_settings:dict = settings.OAUTH_PROVIDERS["apple"]
 
 def _get_apple_jwks(force_refresh: bool = False):
     now = time.time()
-    ttl = getattr(settings, "APPLE_JWKS_CACHE_TTL", 3600)
+    ttl = apple_settings.get("APPLE_JWKS_CACHE_TTL", 3600)
 
     if force_refresh or _jwks_cache["keys"] is None or now - _jwks_cache["fetched_at"] > ttl:
-        resp = httpx.get(settings.APPLE_JWKS_URL, timeout=5)
+        resp = httpx.get(apple_settings.get("APPLE_JWKS_URL"), timeout=5)
         resp.raise_for_status()
         _jwks_cache["keys"] = resp.json()["keys"]
         _jwks_cache["fetched_at"] = now
@@ -97,8 +74,8 @@ def verify_apple_token(id_token: str) -> dict:
             id_token,
             key=public_key,
             algorithms=["RS256"],
-            audience=settings.APPLE_AUDIENCE,
-            issuer=settings.APPLE_ISSUER,
+            audience=apple_settings.get("APPLE_AUDIENCE"),
+            issuer=apple_settings.get("APPLE_ISSUER"),
         )
     except jwt.PyJWTError as e:
         raise ValidationError({"id_token": f"Invalid Apple token: {e}"})
@@ -116,4 +93,3 @@ def verify_google_token(google_id_token: str):
         raise serializers.ValidationError(f"Invalid Google token: {e}")
     
     return info
-

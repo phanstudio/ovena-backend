@@ -50,6 +50,7 @@ pycountry
 python-ulid
 argon2-cffi 
 bcrypt
+httpx
 
 # drf-spectacular[sidecar]
 drf-spectacular 
