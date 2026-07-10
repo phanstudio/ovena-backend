@@ -28,7 +28,8 @@ def _create_paystack_recipient_on_verified(sender, instance: DriverBankAccount, 
     account = UserAccount.objects.filter(user=instance.driver.user).first()
     if account and account.paystack_recipient_code:
         return
-    ensure_paystack_recipient_for_driver.delay(instance.driver_id)
+    if not instance.paystack_recipient_code:
+        ensure_paystack_recipient_for_driver.delay(instance.driver_id)
 
 
 @receiver(post_save, sender=BusinessPayoutAccount)
@@ -38,4 +39,5 @@ def _sync_business_admin_paystack_recipient(sender, instance: BusinessPayoutAcco
         return
     if not instance.bank_code or not instance.bank_account_number or not instance.bank_account_name:
         return
-    ensure_paystack_recipient_for_business_admin.delay(admin.id)
+    if not instance.paystack_recipient_code:
+        ensure_paystack_recipient_for_business_admin.delay(admin.id)

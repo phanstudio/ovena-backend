@@ -376,8 +376,12 @@ class BuisnessAdminUpdateReceiverView(BaseBuisAdminAPIView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
-        identifier = OTPManager.verify(otp_code=vd["otp_code"])
-        vaild_data = decode_dict(identifier)
+        try:
+            identifier = OTPManager.verify(otp_code=vd["otp_code"])
+            vaild_data = decode_dict(identifier)
+        except OTPInvalidError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
         update_fields = []
 
         if "full_name" in vaild_data:
@@ -605,17 +609,13 @@ class RestaurantPaymentReceiverView(BaseBuisAdminAPIView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
-        identifier = OTPManager.verify(otp_code=vd["otp_code"])
-        vaild_data = decode_dict(identifier)
+        
 
         try:
-            # account_name = ensure_valid_cred(
-            #     bank_code=vaild_data["bank_code"],
-            #     bank_account_number=vaild_data["account_number"],
-            # )
-            account_name = vaild_data["account_name"]
-        except PaystackAPIError as e:
-            return Response({"error": e})
+            identifier = OTPManager.verify(otp_code=vd["otp_code"])
+            vaild_data = decode_dict(identifier)
+        except OTPInvalidError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         BusinessPayoutAccount.objects.update_or_create(
             business=admin.business,
@@ -623,9 +623,9 @@ class RestaurantPaymentReceiverView(BaseBuisAdminAPIView):
                 "bank_name": vaild_data["bank"],
                 "bank_code": vaild_data.get("bank_code", ""),
                 "account_number": vaild_data["account_number"],
-                "account_name": account_name,
+                "account_name": vaild_data["account_name"],
                 "bvn": vaild_data["bvn"][-4:],
-                # "paystack_recipient_code": recipient_code,
+                "paystack_recipient_code": "",
             },
         )
         return Response({"detail": "Payment info updated."})

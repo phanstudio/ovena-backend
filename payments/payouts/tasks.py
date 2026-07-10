@@ -183,6 +183,10 @@ def ensure_paystack_recipient_for_business_admin(business_admin_id: int):
         return "missing-business-admin"
 
     payout = BusinessPayoutAccount.objects.filter(business=admin.business).first()
+
+    if payout.paystack_recipient_code:
+        return "success"
+
     if not payout:
         return "missing-payout-account"
     if not payout.bank_code or not payout.bank_account_number or not payout.bank_account_name:
@@ -203,4 +207,4 @@ def ensure_paystack_recipient_for_business_admin(business_admin_id: int):
 
     payout.paystack_recipient_code = code
     payout.save(update_fields=["paystack_recipient_code", "updated_at"])
-    return code
+    return "success"
