@@ -23,4 +23,5 @@ urlpatterns = [
     path("favorite/", views.FavoriteCreateView.as_view(), name="favorite"),
     path("favorite/remove/", views.FavoriteRemoveView.as_view(), name="favorite-remove"),
     path("favorite/list/", views.FavoriteListView.as_view(), name="favorite-list"),
+    path("staff/detail/<int:id>/", views.StoreDetailsView.as_view(), name="staff-detail"),
 ]

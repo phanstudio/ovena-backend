@@ -6,7 +6,7 @@ from common.customer.paginations import StandardResultsSetPagination
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from .serializers import (
     OrderHistorySerializer, OrderRetrieveSerializer, FavoriteCreateSerializer, 
-    FavoriteListSerializer, OrderCalculationGetSerializer
+    FavoriteListSerializer, OrderCalculationGetSerializer, StoreDetailsSerializer
 )
 # from referrals.models import ProfileReferral
 from .models import FavoriteMenuItem
@@ -21,6 +21,7 @@ from coupons_discount.models import Coupons
 from django.db.models import Q
 from menu.serializers.order import calculate_delivery_fee, PLATFORM_FEES_PERCENT
 
+
 class GenerateLinkView(BaseCustomerAPIView):
     def get(self, request):
         customer = self.get_customer_profile(request)
@@ -29,6 +30,7 @@ class GenerateLinkView(BaseCustomerAPIView):
                 "referral_code": customer.referral_code
             }
         )
+
 
 class OrderHistoryView(BaseCustomerAPIView, ListAPIView):
     queryset = Order.objects.all()
@@ -40,6 +42,7 @@ class OrderHistoryView(BaseCustomerAPIView, ListAPIView):
                 .prefetch_related("items")
                 .order_by("-created_at"))
 
+
 class OrderRetrieveView(BaseCustomerAPIView, RetrieveAPIView):
     queryset = Order.objects.all()
     lookup_field = "id"
@@ -48,6 +51,7 @@ class OrderRetrieveView(BaseCustomerAPIView, RetrieveAPIView):
         customer = self.get_customer_profile(self.request)
         return (Order.objects.filter(orderer=customer).select_related("branch__business", "branch", "driver")
                 .prefetch_related("items"))
+
 
 class ReorderView(BaseCustomerAPIView): # location to the body #:attention 
     serializer_class = LocationGetSerializer
@@ -111,6 +115,7 @@ class ReorderView(BaseCustomerAPIView): # location to the body #:attention
             "delivery_passphrase": phrase,
         }, status=201)
 
+
 class FavoriteCreateView(BaseCustomerAPIView):
     serializer_class = FavoriteCreateSerializer
     def post(self, request):
@@ -125,6 +130,7 @@ class FavoriteCreateView(BaseCustomerAPIView):
         )
         message = "created" if created else "already created"
         return Response({"message": f"success, {message}"}, 200)
+
 
 class FavoriteRemoveView(BaseCustomerAPIView):
     serializer_class = FavoriteCreateSerializer
@@ -141,6 +147,7 @@ class FavoriteRemoveView(BaseCustomerAPIView):
 
         return Response({"message": "favorite removed"}, 200)
 
+
 class FavoriteListView(BaseCustomerAPIView, ListAPIView):
     serializer_class = FavoriteListSerializer
     pagination_class = StandardResultsSetPagination
@@ -149,8 +156,16 @@ class FavoriteListView(BaseCustomerAPIView, ListAPIView):
         customer = self.get_customer_profile(self.request)
         return FavoriteMenuItem.objects.filter(customer=customer).select_related("menu_item", "branch")
 
+
+class StoreDetailsView(RetrieveAPIView):#BaseCustomerAPIView, RetrieveAPIView):
+    queryset = Branch.objects.all()
+    lookup_field = "id"
+    serializer_class = StoreDetailsSerializer
+    def get_queryset(self):
+        return (Branch.objects.select_related("business", "primary_agent").prefetch_related("operating_hours"))
+
+
 # class UpdateAdressView
-# favorite view for menuitem and addons; but endpoint
 
 class OrderCalculationsView(BaseCustomerAPIView):
     serializer_class = OrderCalculationGetSerializer

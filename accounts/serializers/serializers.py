@@ -1,8 +1,8 @@
 from django.db import transaction
 from django.contrib.gis.geos import Point
-from google.oauth2 import id_token  # type: ignore
-from google.auth.transport import requests  # type: ignore
-from django.conf import settings
+# from google.oauth2 import id_token  # type: ignore
+# from google.auth.transport import requests  # type: ignore
+# from django.conf import settings
 from rest_framework import serializers
 from django.core.exceptions import ValidationError as DjangoValidationError
 from ..models import (
@@ -142,7 +142,7 @@ class Delete2Serializer(serializers.Serializer):
 
 
 class CreateCustomerSerializer(serializers.Serializer):
-    name = serializers.CharField(required=False, allow_blank=True)
+    name = serializers.CharField()
     email = serializers.EmailField(required=False, allow_blank=True)
     phone_number = PhoneNumberField(required=False, allow_null=True)
     lat = serializers.FloatField(required=False)
@@ -158,8 +158,7 @@ class CreateCustomerSerializer(serializers.Serializer):
     def validate(self, data):
         user = self.context["user"]
 
-        # thanks to CustomCustomerAuth
-        if user.customer_profile:  # hasattr(user, "customer_profile"):
+        if user.customer_profile:
             raise serializers.ValidationError("Customer profile already exists.")
 
         # identity fill rules
@@ -235,81 +234,6 @@ class CreateCustomerSerializer(serializers.Serializer):
         return profile
 
 
-# class UpdateCustomerSerializer(serializers.Serializer):
-#     name = serializers.CharField(required=False, allow_blank=True)
-#     email = serializers.EmailField(required=False, allow_blank=True)
-#     phone_number = serializers.CharField(required=False, allow_blank=True)
-
-#     lat = serializers.FloatField(required=False)
-#     long = serializers.FloatField(required=False)
-#     birth_date = serializers.DateField(required=False)
-
-#     def validate(self, data):
-#         user = self.context["user"]
-
-#         # EMAIL
-#         email = data.get("email")
-#         if email:
-#             if User.objects.exclude(id=user.id).filter(email=email).exists():
-#                 raise serializers.ValidationError(
-#                     {"email": "This email is already in use."}
-#                 )
-
-#         # PHONE
-#         phone = data.get("phone_number")
-#         if phone:
-#             if User.objects.exclude(id=user.id).filter(phone_number=phone).exists():
-#                 raise serializers.ValidationError(
-#                     {"phone_number": "This phone number is already in use."}
-#                 )
-
-#         return data
-
-#     @transaction.atomic
-#     def update(self, instance, validated_data):
-#         user = self.context["user"]
-
-#         user_updates = []
-
-#         if validated_data.get("name"):
-#             user.name = validated_data["name"]
-#             user_updates.append("name")
-
-#         if validated_data.get("email"):
-#             user.email = validated_data["email"]
-#             user_updates.append("email")
-
-#         if validated_data.get("phone_number"):
-#             user.phone_number = validated_data["phone_number"]
-#             user_updates.append("phone_number")
-
-#         if user_updates:
-#             user.save(update_fields=user_updates)
-
-#         # profile updates
-#         profile_updates = {}
-
-#         if validated_data.get("birth_date"):
-#             profile_updates["birth_date"] = validated_data["birth_date"]
-
-#         lat = validated_data.get("lat")
-#         long = validated_data.get("long")
-#         if lat is not None and long is not None:
-#             location = Address.objects.create(
-#                 address="unknown",
-#                 location=Point(long, lat, srid=4326),
-#             )
-#             profile_updates["default_address"] = location
-#             instance.addresses.add(location)
-
-#         if profile_updates:
-#             for field, value in profile_updates.items():
-#                 setattr(instance, field, value)
-#             instance.save(update_fields=list(profile_updates.keys()))
-
-#         return instance
-
-
 class UpdateCustomerSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True)
     email = serializers.EmailField(required=False, allow_blank=True)
@@ -320,12 +244,12 @@ class UpdateCustomerSerializer(serializers.Serializer):
     birth_date = serializers.DateField(required=False)
     profile_pic = serializers.CharField(
         required=False, allow_blank=True
-    )  # add profle pics.
+    )
 
     def validate(self, data):
         user = self.context["user"]
 
-        if not hasattr(user, "customer_profile"):
+        if not user.customer_profile:
             raise serializers.ValidationError("Customer profile does not exist.")
 
         if data.get("email"):
@@ -393,78 +317,19 @@ class UpdateCustomerSerializer(serializers.Serializer):
 
 
 # Oath
-class GoogleAuthSerializer(serializers.Serializer):
-    id_token = serializers.CharField()
-
-    def validate(self, data):
-        try:
-            client_id = settings.OAUTH_PROVIDERS.get("google").get("CLIENT_ID")
-            info = id_token.verify_oauth2_token(
-                data["id_token"], requests.Request(), client_id
-            )
-        except Exception as e:
-            raise serializers.ValidationError(f"Invalid Google token: {e}")
-
-        data["email"] = info["email"]
-        data["sub"] = info["sub"]
-        data["info"] = info
-        return data
-
-
 # class GoogleAuthSerializer(serializers.Serializer):
-#     """
-#     Validates a Google id_token and returns a normalised payload.
-#     Output shape: { email, given_name, family_name, picture, provider_id }
-#     """
 #     id_token = serializers.CharField()
 
 #     def validate(self, data):
 #         try:
-#             client_id = settings.OAUTH_PROVIDERS["google"]["CLIENT_ID"]
-#             claims = id_token.verify_oauth2_token(
-#                 data["id_token"],
-#                 requests.Request(),
-#                 client_id,
+#             client_id = settings.OAUTH_PROVIDERS.get("google").get("CLIENT_ID")
+#             info = id_token.verify_oauth2_token(
+#                 data["id_token"], requests.Request(), client_id
 #             )
-#         except Exception as exc:
-#             raise serializers.ValidationError(f"Invalid Google token: {exc}")
+#         except Exception as e:
+#             raise serializers.ValidationError(f"Invalid Google token: {e}")
 
-#         return {
-#             "email":       claims["email"],
-#             "given_name":  claims.get("given_name", ""),
-#             "family_name": claims.get("family_name", ""),
-#             "picture":     claims.get("picture", ""),
-#             "provider_id": claims["sub"],
-#         }
-
-
-# class AppleAuthSerializer(serializers.Serializer):
-#     """
-#     Validates an Apple id_token and returns the same normalised payload shape
-#     as GoogleAuthSerializer so the view doesn't need to branch.
-#     Output shape: { email, given_name, family_name, picture, provider_id }
-#     """
-#     id_token = serializers.CharField()
-
-#     def validate(self, data):
-#         from accounts.utils.oath import verify_apple_token  # keep import local
-
-#         try:
-#             claims = verify_apple_token(data["id_token"])
-#         except Exception as exc:
-#             raise serializers.ValidationError(f"Invalid Apple token: {exc}")
-
-#         if not claims.get("email"):
-#             raise serializers.ValidationError(
-#                 "Apple token did not include an email address. "
-#                 "This usually means the user has hidden their email and this "
-#                 "is a repeat login — handle email lookup by 'sub' instead."
-#             )
-
-#         return {
-#             "email":       claims["email"],
-#             "given_name":  "",   # Apple only sends name on first login via their UI
-#             "family_name": "",
-#             "picture":     "",
-#             "provider_id": claims["sub"],
-#         }
+#         data["email"] = info["email"]
+#         data["sub"] = info["sub"]
+#         data["info"] = info
+#         return data

@@ -1,7 +1,9 @@
 from rest_framework import serializers
-from menu.models import Order, OrderItem
+from menu.models import Order, OrderItem, Branch
+from accounts.models import BranchOperatingHours
 from .models import FavoriteMenuItem, MenuItem
 from addresses.serializers import LocationGetSerializer
+from phonenumber_field.serializerfields import PhoneNumberField  # type: ignore
 
 
 class OrderHistorySerializer(serializers.ModelSerializer):
@@ -265,3 +267,60 @@ class OrderCalculationGetSerializer(LocationGetSerializer):
     branch_id = serializers.IntegerField()
     coupon_code = serializers.CharField(required=False, allow_blank=True)
     is_delivery = serializers.BooleanField(default=True, required=False)
+
+
+# how we calculate ratings?? app admin give us.
+
+class OperatingHoursSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BranchOperatingHours
+        fields = ["day", "open_time", "close_time", "name"]
+    
+    def get_name(self, obj):
+        return obj.get_day_display()
+
+
+class StoreDetailsSerializer(serializers.ModelSerializer):
+    business_phone_number = serializers.CharField(
+        source="business.phone_number",
+        read_only=True
+    )
+    business_address = serializers.CharField(
+        source="business.business_address",
+        read_only=True
+    )
+    business_name = serializers.CharField(
+        source="business.name",
+        read_only=True
+    )
+    branch_name = serializers.CharField(
+        source="branch.display_name",
+        read_only=True
+    )
+    branch_contact = PhoneNumberField( # change to phonenumber field
+        source="primary_agent.user.phone_number",
+        read_only=True
+    )
+    operating_hours = OperatingHoursSerializer(many=True, read_only=True)
+    how_we_calculate_ratings = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Branch
+        fields = [
+            "id",
+            "branch_name",
+            "address",
+            "location",
+            "delivery_method",
+            "branch_contact",
+            "business_phone_number",
+            "business_name",
+            "business_address",
+            "operating_hours",
+            "how_we_calculate_ratings",
+        ]
+    
+    def get_how_we_calculate_ratings(self, obj):
+        return "We calculate our ratngs through, user feedback plus how popular the business is."

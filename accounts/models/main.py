@@ -6,6 +6,8 @@ from phonenumber_field.modelfields import PhoneNumberField # type: ignore
 from ratings.models.mixin import RatingModelMixin
 # from django.db.models import Q
 
+BRANCH_DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+
 # if what we are check gets big i'm thing of having a separte model for cert inke in driver but only if it gets out of hand
 # and a main branch option, on creation of jwt for the resturant create add it to the token
 # one database request ediable items, etc?
@@ -34,6 +36,7 @@ class Business(RatingModelMixin, models.Model):
     @property
     def company_name(self):
         return self.business_name
+
 
 # recheck if indexing is possible on foreign keys and checking can work?
 # this branch is not connected to any restorant why
@@ -87,10 +90,9 @@ class Branch(RatingModelMixin, gis_models.Model):
     def restaurant(self, value):
         self.business = value
 
+
 class BranchOperatingHours(models.Model):
-    DAYS = [(i, day) for i, day in enumerate(
-        ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-    )]
+    DAYS = [(i, day) for i, day in enumerate(BRANCH_DAYS)]
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="operating_hours")
     day = models.IntegerField(choices=DAYS)
     open_time = models.TimeField()
@@ -99,6 +101,7 @@ class BranchOperatingHours(models.Model):
 
     class Meta:
         unique_together = ("branch", "day")
+
 
 class UserManager(BaseUserManager):
     def create_user(self, email=None, phone_number=None, password=None, **extra_fields):
@@ -125,6 +128,7 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         return self.create_user(email=email, password=password, **extra_fields)
+
 
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, null=True, blank=True)
@@ -177,3 +181,44 @@ class User(AbstractBaseUser, PermissionsMixin):
     def get_profile_base(self, profile_type):
         # self.profile_bases.filter(profile_type=profile_type).first()
         return self.profile_bases.filter(profile_type=profile_type).select_related().first()
+
+
+class SocialAccount(models.Model):
+    PROVIDER_GOOGLE = "google"
+    PROVIDER_APPLE = "apple"
+    PROVIDER_CHOICES = [
+        (PROVIDER_GOOGLE, "Google"),
+        (PROVIDER_APPLE, "Apple"),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="social_accounts",
+    )
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, db_index=True)
+    provider_uid = models.CharField(max_length=255)
+    email_at_signup = models.EmailField(null=True, blank=True)
+
+    # One-shot data some providers only ever send once (e.g. Apple's
+    # given/family name, sent only on the very first authorization and
+    # never again). Stash it here so it survives past the first login,
+    # since the user may abandon registration and come back later.
+    raw_signup_payload = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "provider_uid"],
+                name="uniq_socialaccount_provider_uid",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "provider"]),
+        ]
+
+    def __str__(self):
+        return f"{self.provider}:{self.provider_uid} -> user {self.user_id}"
+
+# SocialAccount.objects.filter(provider=X, provider_uid=sub).first()

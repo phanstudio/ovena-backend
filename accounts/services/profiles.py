@@ -43,48 +43,6 @@ def normalize_profile_type(profile_type: Optional[str]) -> Optional[str]:
     return _LEGACY_ALIASES.get(pt, pt)
 
 
-# def get_profile(user, profile_type: str):
-#     """
-#     Generic profile resolver used by auth + permissions.
-#     Works with the current base_profile linkage and remains stable for MTI cutover.
-#     """
-#     from accounts.models import ProfileBase
-
-#     pt = normalize_profile_type(profile_type)
-#     if not user or not getattr(user, "is_authenticated", False) or not pt:
-#         return None
-
-#     if pt == PROFILE_CUSTOMER:
-#         base = (
-#             ProfileBase.objects.filter(user=user, profile_type=PROFILE_CUSTOMER)
-#             .select_related("customer_profile")
-#             .first()
-#         )
-#         return getattr(base, "customer_profile", None) if base else None
-
-#     if pt == PROFILE_DRIVER:
-#         base = (
-#             ProfileBase.objects.filter(user=user, profile_type=PROFILE_DRIVER)
-#             .select_related("driver_profile")
-#             .first()
-#         )
-#         return getattr(base, "driver_profile", None) if base else None
-
-#     if pt == PROFILE_BUSINESS_ADMIN:
-#         try:
-#             return user.business_admin
-#         except ObjectDoesNotExist:
-#             return None
-
-#     if pt == PROFILE_BUSINESS_STAFF:
-#         try:
-#             return user.primary_agent
-#         except ObjectDoesNotExist:
-#             return None
-
-#     return None
-
-
 def has_profile(user, profile_type: str) -> bool:
     return get_profile(user, profile_type) is not None
 
@@ -181,46 +139,6 @@ def get_profile(user, profile_type: str):
     cached = cache.get(pt, _SENTINEL)
     if cached is not _SENTINEL:
         return cached  # returns None if explicitly cached as missing
-
-    # result = None
-
-    # if pt == PROFILE_CUSTOMER:
-    #     base = (
-    #         ProfileBase.objects.filter(user=user, profile_type=PROFILE_CUSTOMER)
-    #         .select_related("customer_profile")
-    #         .first()
-    #     )
-    #     result = getattr(base, "customer_profile", None) if base else None
-
-    # elif pt == PROFILE_DRIVER:
-    #     base = (
-    #         ProfileBase.objects.filter(user=user, profile_type=PROFILE_DRIVER)
-    #         .select_related("driver_profile")
-    #         .first()
-    #     )
-    #     result = getattr(base, "driver_profile", None) if base else None
-
-    # elif pt == PROFILE_BUSINESS_ADMIN:
-    #     try:
-    #         result = user.business_admin
-    #     except ObjectDoesNotExist:
-    #         result = None
-
-    # elif pt == PROFILE_BUSINESS_STAFF:
-    #     try:
-    #         result = user.primary_agent
-    #     except ObjectDoesNotExist:
-    #         result = None
-
-    # elif pt == PROFILE_APP_ADMIN:
-    #     print(9)
-    #     print(user.app_admin)
-    #     try:
-    #         # print(user.app_admin)
-    #         result = user.app_admin
-    #     except ObjectDoesNotExist as e:
-    #         print(e)
-    #         result = None
 
     result = retieve_profile(user, profile_type)
 
