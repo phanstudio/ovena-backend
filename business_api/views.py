@@ -613,8 +613,6 @@ class RestaurantPaymentReceiverView(BaseBuisAdminAPIView):
             vaild_data = decode_dict(identifier)
         except OTPInvalidError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
-        print(vaild_data)
 
         BusinessPayoutAccount.objects.update_or_create(
             business=admin.business,
