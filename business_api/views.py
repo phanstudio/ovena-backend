@@ -609,13 +609,13 @@ class RestaurantPaymentReceiverView(BaseBuisAdminAPIView):
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
-        
-
         try:
             identifier = OTPManager.verify(otp_code=vd["otp_code"])
             vaild_data = decode_dict(identifier)
         except OTPInvalidError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+        print(vaild_data)
 
         BusinessPayoutAccount.objects.update_or_create(
             business=admin.business,
