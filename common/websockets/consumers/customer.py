@@ -11,6 +11,7 @@ from .base import (
     BaseConsumer, CLOSE_FORBIDDEN, CLOSE_UNAUTHENTICATED
 )
 from image.utils import get_image
+from common.phone.utils import get_phone_number
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +170,7 @@ class OrderConsumer(BaseConsumer):
                     'id': order.driver.id,
                     'name': order.driver.full_name,
                     'location': driver_location,
-                    'phone_number': order.driver.user.phone_number
+                    'phone_number': get_phone_number(order.driver.user.phone_number)
                 } if order.driver else None,
 
                 'created_at': order.created_at.isoformat(),
