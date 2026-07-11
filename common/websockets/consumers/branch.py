@@ -126,9 +126,9 @@ class BranchConsumer(BaseConsumer):
             )
     
     @database_sync_to_async
-    def get_active_order_ids(self): # doing the samething
+    def get_active_order_ids(self): # doing the same thing
         """Get active order IDs for this branch"""
         return list(Order.objects.filter(
             branch_id=self.branch_id,
-            status__in=['pending', 'confirmed', 'payment_pending', 'preparing', 'ready']
+            status__in=['pending', 'confirmed', 'preparing', 'ready', 'driver_assigned', 'picked_up']
         ).values_list('id', flat=True))

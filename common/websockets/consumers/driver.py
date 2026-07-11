@@ -164,8 +164,6 @@ class DriverOrdersConsumer(BaseConsumer):
                 'customer_phone_number': get_phone_number(order['orderer__user__phone_number']),
             })
 
-        logger.info(f"{len(serialized)}")
-        print(len(serialized))
         DriverProfile.objects.filter(id=self.driver_id).update(
             is_available = False if len(serialized) else True
         )
