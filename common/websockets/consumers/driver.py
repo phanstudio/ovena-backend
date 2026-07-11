@@ -13,6 +13,7 @@ from accounts.models import DriverProfile
 from .base import (
     BaseConsumer, CLOSE_FORBIDDEN, CLOSE_UNAUTHENTICATED
 )
+from common.phone.utils import get_phone_number
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +161,7 @@ class DriverOrdersConsumer(BaseConsumer):
                 },
                 "delivery_type": "Meet at door",
                 'customer_name': order['orderer__name'],
-                'customer_phone_number': order['orderer__user__phone_number'],
+                'customer_phone_number': get_phone_number(order['orderer__user__phone_number']),
             })
 
         logger.info(f"{len(serialized)}")
