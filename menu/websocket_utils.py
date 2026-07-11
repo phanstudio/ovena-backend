@@ -167,6 +167,13 @@ def notify_order_ready(order):
     )
     broadcast_to_order_group(order.id, search_data)
 
+    branch_event = build_order_event(
+        ORDER_READY,
+        order,
+        message="Order ready. Finding a driver..."
+    )
+    broadcast_to_branch(order.branch_id, branch_event)
+
 
 def notify_order_pickup_ready(order):
     """Notify when food is ready and searching for driver"""
@@ -179,6 +186,13 @@ def notify_order_pickup_ready(order):
         message="Your order is ready! Go and pick up your food..."
     )
     broadcast_to_order_group(order.id, event_data)
+
+    branch_event = build_order_event(
+        ORDER_READY,
+        order,
+        message="Order ready. Customer coming..."
+    )
+    broadcast_to_branch(order.branch_id, branch_event)
 
 
 ## new
@@ -262,6 +276,8 @@ def notify_on_the_way(order):
         message="Your order is on the way!"
     )
     broadcast_to_order_group(order.id, event_data)
+    broadcast_to_branch(order.branch_id, event_data)
+
     if order.driver_id:
         broadcast_to_specific_drivers([order.driver_id], build_order_event(
             ORDER_IN_TRANSIT,
