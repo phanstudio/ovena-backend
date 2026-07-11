@@ -502,7 +502,7 @@ class AdminLoginView(LoginView):
     serializer_class = InS.AdminLoginSerializer
 
     def get_profile_type(self):
-        return PROFILE_BUSINESS_ADMIN
+        return PROFILE_APP_ADMIN
 
 
 class StaffLoginView(LoginView):
