@@ -13,7 +13,7 @@ from .models import FavoriteMenuItem
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from menu.serializers import OrderCreateSerializer
-from menu.views import log_created_order
+from menu.views import log_created_order, create_payment
 from addresses.utils import make_point, get_cached_distance_km_from_2points
 from addresses.serializers import LocationGetSerializer
 from accounts.models import Branch
@@ -55,6 +55,7 @@ class OrderRetrieveView(BaseCustomerAPIView, RetrieveAPIView):
 
 class ReorderView(BaseCustomerAPIView): # location to the body #:attention 
     serializer_class = LocationGetSerializer
+
     @transaction.atomic
     def post(self, request, order_id):
         customer = self.get_customer_profile(request)
@@ -104,15 +105,20 @@ class ReorderView(BaseCustomerAPIView): # location to the body #:attention
 
         serializer.is_valid(raise_exception=True)
 
-        order, phrase = serializer.save()
+        with transaction.atomic():
+            order, phrase = serializer.save()
+            # Initialize payment via Sale (unified payments)
+            payment_url = create_payment(order)
 
-        log_created_order(order, request.user)
+        log_created_order(order, request.user, payment_url)
 
         return Response({
             "message": "Order recreated successfully",
             "order_id": order.id,
             "order_number": order.order_number,
             "delivery_passphrase": phrase,
+            "payment_url": payment_url,
+            "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
         }, status=201)
 
 

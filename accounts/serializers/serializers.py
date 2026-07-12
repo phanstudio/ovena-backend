@@ -148,7 +148,7 @@ class CreateCustomerSerializer(serializers.Serializer):
     lat = serializers.FloatField(required=False)
     long = serializers.FloatField(required=False)
     birth_date = serializers.DateField(required=False)
-    referral_code = serializers.CharField(required=False, allow_blank=True)
+    referral_code = serializers.CharField(required=False, allow_blank=True, default="")
     profile_pic = serializers.CharField(
         required=False, allow_blank=True
     )

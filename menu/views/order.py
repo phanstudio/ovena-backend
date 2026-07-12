@@ -101,6 +101,15 @@ def create_payment(order):
     return payment_url
 
 
+def send_thank_you_email(email):
+    message = EmailMessage(
+        subject= "Your order completed",
+        body="Thank you for your patronage",
+        to=[email],
+    )
+    send_email(message)
+
+
 # update with new system
 class OrderView(BaseCustomerAPIView):
     def get_list_queryset(self, request):
@@ -549,15 +558,12 @@ class ResturantOrderView(GenericAPIView):
         )
 
         if profile:
-            email = profile.user.email
-
-            message = EmailMessage(
-                subject= "Your order completed",
-                body="Thank you for your patronage",
-                to=email,
-            )
-            send_email(message)
-
+            try: # change this to a queue email sevice.
+                email = profile.user.email
+                send_thank_you_email(email)
+            except Exception as e:
+                logger.error("Error occured while sending email: " + str(e))
+            
         # 🔥 Notify all parties of successful delivery
         notify_order_delivered(order)
         # trigger first split and crediting
