@@ -71,6 +71,61 @@ class S3StorageService:
             return False
 
 
+# class BulkS3StorageService:
+#     @staticmethod
+#     def get_storage():
+#         return storages["default"]
+
+#     @classmethod
+#     def extract_key_from_url(cls, public_url: str) -> str:
+#         """Helper to safely parse out the S3 object key from a full URL string."""
+#         if not public_url or not isinstance(public_url, str):
+#             return ""
+#         storage = cls.get_storage()
+#         custom_domain = getattr(storage, "custom_domain", None) or settings.AWS_S3_CUSTOM_DOMAIN
+#         prefix = f"https://{custom_domain}/"
+        
+#         if public_url.startswith(prefix):
+#             return public_url.replace(prefix, "")
+#         elif f"{storage.bucket_name}/" in public_url:
+#             return public_url.split(f"{storage.bucket_name}/")[-1]
+#         return public_url
+
+#     @classmethod
+#     def batch_delete_urls(cls, url_list: list[str]) -> bool:
+#         """
+#         Deletes up to 1,000 S3 assets in a single network request.
+#         """
+#         # Filter out empty entries and extract the keys
+#         keys_to_delete = [
+#             {"Key": cls.extract_key_from_url(url)} 
+#             for url in url_list if url
+#         ]
+        
+#         if not keys_to_delete:
+#             return False
+
+#         storage = cls.get_storage()
+#         s3_client = storage.connection.meta.client
+
+#         try:
+#             # Chunk into blocks of 1000 (AWS S3 MAX limit per call)
+#             for i in range(0, len(keys_to_delete), 1000):
+#                 chunk = keys_to_delete[i:i+1000]
+#                 s3_client.delete_objects(
+#                     Bucket=storage.bucket_name,
+#                     Delete={"Objects": chunk, "Quiet": True}
+#                 )
+#             return True
+#         except Exception as e:
+#             logger.error(f"Failed to execute batch S3 deletion: {str(e)}")
+#             return False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# S3 bulk-delete service
+# ─────────────────────────────────────────────────────────────────────────────
+
 class BulkS3StorageService:
     @staticmethod
     def get_storage():
@@ -78,13 +133,12 @@ class BulkS3StorageService:
 
     @classmethod
     def extract_key_from_url(cls, public_url: str) -> str:
-        """Helper to safely parse out the S3 object key from a full URL string."""
+        """Safely parse the S3 object key out of a full URL string."""
         if not public_url or not isinstance(public_url, str):
             return ""
         storage = cls.get_storage()
         custom_domain = getattr(storage, "custom_domain", None) or settings.AWS_S3_CUSTOM_DOMAIN
         prefix = f"https://{custom_domain}/"
-        
         if public_url.startswith(prefix):
             return public_url.replace(prefix, "")
         elif f"{storage.bucket_name}/" in public_url:
@@ -94,27 +148,24 @@ class BulkS3StorageService:
     @classmethod
     def batch_delete_urls(cls, url_list: list[str]) -> bool:
         """
-        Deletes up to 1,000 S3 assets in a single network request.
+        Deletes S3 assets in chunks of 1,000 (AWS hard limit per call).
+        Returns False if there is nothing to delete or the call fails.
         """
-        # Filter out empty entries and extract the keys
         keys_to_delete = [
-            {"Key": cls.extract_key_from_url(url)} 
+            {"Key": cls.extract_key_from_url(url)}
             for url in url_list if url
         ]
-        
         if not keys_to_delete:
             return False
 
         storage = cls.get_storage()
         s3_client = storage.connection.meta.client
-
         try:
-            # Chunk into blocks of 1000 (AWS S3 MAX limit per call)
             for i in range(0, len(keys_to_delete), 1000):
-                chunk = keys_to_delete[i:i+1000]
+                chunk = keys_to_delete[i:i + 1000]
                 s3_client.delete_objects(
                     Bucket=storage.bucket_name,
-                    Delete={"Objects": chunk, "Quiet": True}
+                    Delete={"Objects": chunk, "Quiet": True},
                 )
             return True
         except Exception as e:

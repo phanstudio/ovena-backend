@@ -1,5 +1,3 @@
-# from rest_framework.response import Response
-# from rest_framework import status
 from .services import S3StorageService, BulkS3StorageService
 
 class S3ImageManagedMixin:
@@ -33,11 +31,6 @@ class S3ImageManagedMixin:
         setattr(instance, field_name, None)
         if hasattr(instance, "save") and save:
             instance.save(update_fields=[field_name])
-            
-        # return Response(
-        #     {"detail": f"Asset attached to '{field_name}' successfully removed."}, 
-        #     status=status.HTTP_204_NO_CONTENT
-        # )
 
 
 class BuilkS3ImageManagedMixin:
@@ -50,10 +43,13 @@ class BuilkS3ImageManagedMixin:
         """
         Safely replaces an existing image URL with a new path, cleaning up S3.
         """
+
+        print(image_dict)
          
         old_urls = []
         for field_name in image_dict.keys():
             old_image = getattr(instance, field_name, None)
+            if old_image is None: continue
             if old_image.url:
                 old_urls.append(old_image.url)
         
@@ -83,9 +79,3 @@ class BuilkS3ImageManagedMixin:
             setattr(instance, field_name, None)
         if hasattr(instance, "save") and save:
             instance.save(update_fields=field_names)
-            
-        # return Response(
-        #     {"detail": f"Asset attached to '{field_name}' successfully removed."}, 
-        #     status=status.HTTP_204_NO_CONTENT
-        # )
-
