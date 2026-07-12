@@ -101,13 +101,25 @@ def create_payment(order):
     return payment_url
 
 
-def send_thank_you_email(email):
-    message = EmailMessage(
-        subject= "Your order completed",
-        body="Thank you for your patronage",
-        to=[email],
-    )
-    send_email(message)
+def send_thank_you_email(order):
+    profile = (
+            CustomerProfile.objects
+            .select_related("user")
+            .filter(id=order.orderer_id)
+            .first()
+        )
+
+    if profile:
+        try: # change this to a queue email sevice.
+            email = profile.user.email
+            message = EmailMessage(
+                subject= "Your order completed",
+                body="Thank you for your patronage",
+                to=[email],
+            )
+            send_email(message)
+        except Exception as e:
+            logger.error("Error occured while sending email: " + str(e))
 
 
 # update with new system
@@ -550,19 +562,7 @@ class ResturantOrderView(GenericAPIView):
             new_status=order.status,
         )
 
-        profile = (
-            CustomerProfile.objects
-            .select_related("user")
-            .filter(id=order.orderer_id)
-            .first()
-        )
-
-        if profile:
-            try: # change this to a queue email sevice.
-                email = profile.user.email
-                send_thank_you_email(email)
-            except Exception as e:
-                logger.error("Error occured while sending email: " + str(e))
+        send_thank_you_email(order)
             
         # 🔥 Notify all parties of successful delivery
         notify_order_delivered(order)
@@ -748,6 +748,8 @@ class DriverOrderView(BaseDriverAPIView):
             old_status=old_status,
             new_status=order.status,
         )
+
+        send_thank_you_email(order)
 
         # 🔥 Notify all parties of successful delivery
         notify_order_delivered(order)
