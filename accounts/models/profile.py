@@ -149,7 +149,7 @@ class DriverProfile(RatingModelMixin, ProfileBase):
     birth_date = models.DateField(null=True, blank=True) # should this be moveed to creds
     first_name = models.CharField(max_length=80, blank=True)
     last_name = models.CharField(max_length=80, blank=True)
-    full_name = models.CharField(max_length=150, blank=True, null= True)
+
     gender = models.CharField(
         max_length=20,
         choices=[("male","Male"),("female","Female"),("other","Other"),("na","Prefer not to say")],

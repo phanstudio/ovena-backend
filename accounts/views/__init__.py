@@ -2,7 +2,7 @@ from .otp_views import VerifyPhoneOTPView, VerifyEmailOTPView, SendEmailOTPView,
 from .account_views import (
     RegisterCustomer, LinkApproveView, LinkRequestCreateView, # noqa: F401
     UserProfileView, DeleteAccountView, Delete2AccountView, # noqa: F401
-    UpdateCustomer, PasswordResetView, AdminLoginView, # noqa: F401
+    UpdateCustomer, PasswordResetView, BusinessAdminLoginView, # noqa: F401
     DriverLoginView, StaffLoginView, ChangePasswordView, # noqa: F401
     AppAdminApproveView, AppAdminRequestCreateView, # noqa: F401
 )

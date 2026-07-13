@@ -3,7 +3,7 @@ from .views import (
     VerifyPhoneOTPView, UserProfileView, DeleteAccountView, Delete2AccountView,
     OAuthExchangeView, RegisterCustomer, UpdateCustomer, LinkApproveView,
     jwt_views, SendEmailOTPView, VerifyEmailOTPView, SendPhoneOTPView,
-    PasswordResetView, AdminLoginView, DriverLoginView, LinkRequestCreateView, 
+    PasswordResetView, BusinessAdminLoginView, DriverLoginView, LinkRequestCreateView, 
     StaffLoginView, PassWordResetSendView, ChangePasswordView, 
     AppAdminRequestCreateView, AppAdminApproveView
 )
@@ -20,7 +20,7 @@ token_urls = [
 ]
 
 account_urls = [
-    path("business/admin-login/", AdminLoginView.as_view(), name="business-admin-login"),
+    path("business/admin-login/", BusinessAdminLoginView.as_view(), name="business-admin-login"),
     path("driver-login/", DriverLoginView.as_view(), name="driver-login"),
     path("staff-login/", StaffLoginView.as_view(), name="staff-login"),
     path("password-reset/", PasswordResetView.as_view(), name="password-reset"),
