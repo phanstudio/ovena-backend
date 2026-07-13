@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from .profile import DriverProfile
+from payments.models import AbstractPayoutAccount
 
 
 
@@ -142,16 +143,13 @@ class DriverVerification(models.Model):
         ]
 
 
-class DriverBankAccount(models.Model): # should next of kin be used here
+class DriverBankAccount(AbstractPayoutAccount): # should next of kin be used here
     driver = models.OneToOneField(DriverProfile, on_delete=models.CASCADE, related_name="bank_account")
 
-    bank_code = models.CharField(max_length=20, blank=True)   # from API
     bank_name = models.CharField(max_length=120, blank=True)  # cached display name
-    account_number = models.CharField(max_length=20, blank=True)
-    account_name = models.CharField(max_length=160, blank=True)
 
     is_verified = models.BooleanField(default=False)
     verified_at = models.DateTimeField(null=True, blank=True)
 
-    updated_at = models.DateTimeField(auto_now=True)
-
+    def get_recipient_code(self) -> str:
+        return self.paystack_recipient_code or ""

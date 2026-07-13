@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from uuid import uuid4
-
 from django.utils import timezone
-
 from driver_api.models import DriverWithdrawalRequest
+from accounts.models import DriverBankAccount
 from payments.models import UserAccount, Withdrawal as PaymentWithdrawal
 from payments.observability.metrics import increment
 from payments.payouts.services import execute_realtime as execute_payments_realtime
@@ -27,7 +26,7 @@ def _ensure_payments_withdrawal(withdrawal: DriverWithdrawalRequest, recipient_c
     user = withdrawal.driver.user
 
     # Ensure the payment-specific account exists and has the latest recipient code.
-    account, _created = UserAccount.objects.get_or_create(user=user)
+    account, _ = DriverBankAccount.objects.get_or_create(user=user)
     if not account.paystack_recipient_code:
         account.paystack_recipient_code = recipient_code
         account.save(update_fields=["paystack_recipient_code", "updated_at"])

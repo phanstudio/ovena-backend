@@ -261,8 +261,8 @@ paystack_client = PaystackClient()
 def _ensure_transfer_recipient(bank_account: DriverBankAccount):
     payload = {
         "type": "nuban",
-        "name": bank_account.account_name,
-        "account_number": bank_account.account_number,
+        "name": bank_account.bank_account_name,
+        "account_number": bank_account.bank_account_number,
         "bank_code": bank_account.bank_code,
         "currency": "NGN",
     }

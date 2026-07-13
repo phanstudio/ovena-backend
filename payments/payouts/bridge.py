@@ -46,7 +46,7 @@ def _resolve_for_individual(user) -> "AbstractPayoutAccount | None":
     """
     Individual actors (drivers, referrals) use UserAccount.
     """
-    from payments.models.accounts import UserAccount
+    from payments.models import UserAccount
 
     try:
         return user.payment_account  # OneToOne reverse from UserAccount

@@ -553,9 +553,9 @@ class OnboardingPhase4View(GenericAPIView):
         bank_account, _ = DriverBankAccount.objects.get_or_create(driver=profile)
         bank_account.bank_name = data["bank_name"]
         bank_account.bank_code = bank_code
-        bank_account.account_number = data["account_number"]
+        bank_account.bank_account_number = data["account_number"]
         # Use Paystack-resolved name if available, else trust driver input
-        bank_account.account_name = data["account_name"]
+        bank_account.bank_account_name = data["account_name"]
         bank_account.is_verified = True#bank_result["success"]
         bank_account.verified_at = timezone.now()
         bank_account.save()
@@ -572,8 +572,8 @@ class OnboardingPhase4View(GenericAPIView):
         # ── Snapshot & mark complete ──
         answers["phase_4"] = {
             "bank_name": bank_account.bank_name,
-            "account_number": bank_account.account_number,
-            "account_name": bank_account.account_name,
+            "account_number": bank_account.bank_account_number,
+            "account_name": bank_account.bank_account_name,
             # "bank_verification_status": "verified" if bank_result["success"] else "failed",
             "bank_verification_status": "verified",
             "selfie_url": selfie_doc.file.url if selfie_doc.file else "",

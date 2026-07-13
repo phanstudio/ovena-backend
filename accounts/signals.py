@@ -25,9 +25,7 @@ def _create_paystack_recipient_on_verified(sender, instance: DriverBankAccount, 
         return
     if getattr(instance, "_was_verified", False):
         return
-    account = UserAccount.objects.filter(user=instance.driver.user).first()
-    if account and account.paystack_recipient_code:
-        return
+
     if not instance.paystack_recipient_code:
         ensure_paystack_recipient_for_driver.delay(instance.driver_id)
 
