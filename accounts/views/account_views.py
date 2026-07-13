@@ -498,11 +498,11 @@ class DriverLoginView(LoginView):
         return self.return_jwt(result["user"])
 
 
-class AdminLoginView(LoginView):
+class BusinessAdminLoginView(LoginView):
     serializer_class = InS.AdminLoginSerializer
 
     def get_profile_type(self):
-        return PROFILE_APP_ADMIN
+        return PROFILE_BUSINESS_ADMIN
 
 
 class StaffLoginView(LoginView):

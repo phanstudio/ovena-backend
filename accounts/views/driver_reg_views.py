@@ -147,11 +147,10 @@ class OnboardingPhase1View(GenericAPIView):
         # ── Persist to DriverProfile ──
         profile.first_name = data["first_name"]
         profile.last_name = data["last_name"]
-        profile.full_name = f"{data['first_name']} {data['last_name']}"
         profile.gender = data["gender"]
         profile.birth_date = data["birth_date"]
         profile.residential_address = data["residential_address"]
-        profile.save(update_fields=["first_name", "last_name", "gender", "birth_date", "residential_address", "full_name"])
+        profile.save(update_fields=["first_name", "last_name", "gender", "birth_date", "residential_address"])
 
         # ── Persist to User ──
         user.phone_number = data["phone_number"]
