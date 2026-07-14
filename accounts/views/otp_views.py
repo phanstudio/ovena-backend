@@ -49,7 +49,7 @@ class SendEmailMixin(SendOptMixin):
     serializer_class = InS.EmailOptSendSerializer
 
     def request_data(self, vd):
-        return request_email_otp(vd)
+        return request_email_otp(vd["email"])
 
 
 class SendPhoneOTPView(SendPhoneOTPMixin):
