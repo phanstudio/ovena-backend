@@ -78,6 +78,7 @@ LOCAL_APPS = [
     'support_center',
     'admin_api',
     'customer_api',
+    'points',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

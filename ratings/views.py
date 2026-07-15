@@ -14,6 +14,7 @@ from .services import RatingService
 from common.customer.view import BaseCustomerAPIView
 from business_api.views import BaseBusiStaffAPIView
 from driver_api.views import BaseDriverAPIView
+from points.tasks import award_order_rated_task
 
 class SubmitOrderRatingsView(BaseCustomerAPIView):
     serializer_class = SubmitOrderRatingsSerializer
@@ -34,6 +35,9 @@ class SubmitOrderRatingsView(BaseCustomerAPIView):
 
         if getattr(order, "status", None) not in ("delivered", "completed"):
             return Response({"detail": "You can only rate after delivery."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        driver_rating = getattr(rater, "driverrating_given", None)
+        branch_rating = getattr(rater, "branchrating_given", None)
 
         results = RatingService.submit_for_order(
             order=order,
@@ -47,6 +51,20 @@ class SubmitOrderRatingsView(BaseCustomerAPIView):
             payload["driver_rating"] = DriverRatingReadSerializer(results["driver_rating"]).data
         if results.get("branch_rating"):
             payload["branch_rating"] = BranchRatingReadSerializer(results["branch_rating"]).data
+        
+        if not(driver_rating or branch_rating):
+            rating_type = ""
+            rating_id = None
+            if results.get("branch_rating"):
+                rating_type = "branch"
+                rating_id = results["branch_rating"].id
+            else:
+                rating_type = "driver"
+                rating_id = results["driver_rating"].id
+            idempotency_key = f"order-rated:{order.id}:{rater.id}"#:{rating_type}"
+            award_order_rated_task.delay(
+                rater.user.id, rating_id=rating_id, idempotency_key=idempotency_key, rating_type=rating_type
+            )
 
         return Response(payload, status=status.HTTP_200_OK)
 

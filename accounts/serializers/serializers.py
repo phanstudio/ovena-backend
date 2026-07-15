@@ -16,6 +16,7 @@ from ..models import (
 )
 from referrals.services import apply_referral_code, ensure_profile_base
 from phonenumber_field.serializerfields import PhoneNumberField  # type: ignore
+from points.tasks import award_referral_success_task
 
 
 class AddressSerializer(serializers.ModelSerializer):
@@ -225,7 +226,12 @@ class CreateCustomerSerializer(serializers.Serializer):
         referral_code = validated_data.get("referral_code")
         if referral_code:
             try:
-                apply_referral_code(profile=profile, code=referral_code)
+                referral = apply_referral_code(profile=profile, code=referral_code)
+                idempotency_key = f"referral-success:{referral.id}:{profile}"
+                award_referral_success_task.delay(
+                    referrer_id= referral.referrer_user.id, referred_user_id= referral.referee_user.id, 
+                    idempotency_key= idempotency_key
+                )
             except DjangoValidationError as exc:
                 msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
                 print(msg)

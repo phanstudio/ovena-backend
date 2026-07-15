@@ -6,7 +6,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from payments.integrations.paystack.client import PaystackClient
-from payments.models import UserAccount, Withdrawal
+from payments.models import Withdrawal
 from payments.payouts.services import execute_batch, execute_realtime, mark_withdrawal_failed, mark_withdrawal_paid
 
 logger = logging.getLogger(__name__)
@@ -147,14 +147,13 @@ def ensure_paystack_recipient_for_driver(driver_id: int):
     if not bank or not bank.is_verified:
         return "bank-not-verified"
 
-    account, _ = UserAccount.objects.get_or_create(user=driver.user)
-    if account.paystack_recipient_code:
+    if bank.paystack_recipient_code:
         return "already-set"
 
     payload = {
         "type": "nuban",
-        "name": bank.account_name,
-        "account_number": bank.account_number,
+        "name": bank.bank_account_name,
+        "account_number": bank.bank_account_number,
         "bank_code": bank.bank_code,
         "currency": "NGN",
     }
@@ -163,11 +162,8 @@ def ensure_paystack_recipient_for_driver(driver_id: int):
     code = recipient.get("recipient_code", "")
     if not code:
         return "missing-recipient-code"
-    account.paystack_recipient_code = code
-    account.bank_account_number = bank.account_number
-    account.bank_code = bank.bank_code
-    account.bank_account_name = bank.account_name
-    account.save(update_fields=["paystack_recipient_code", "bank_account_number", "bank_code", "bank_account_name", "updated_at"])
+    bank.paystack_recipient_code = code
+    bank.save(update_fields=["paystack_recipient_code", "updated_at"])
     return code
 
 
