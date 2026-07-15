@@ -9,6 +9,7 @@ from .serializers import (
     FavoriteListSerializer, OrderCalculationGetSerializer, StoreDetailsSerializer
 )
 # from referrals.models import ProfileReferral
+from django.conf import settings
 from .models import FavoriteMenuItem
 from django.db import transaction
 from django.shortcuts import get_object_or_404
