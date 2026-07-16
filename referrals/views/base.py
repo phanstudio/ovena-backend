@@ -93,7 +93,7 @@ class MyReferralsListView(ListAPIView):
     serializer_class = ReferralItemSerializer
 
     def get_queryset(self):
-        return ProfileReferral.objects.filter(referrer_user=self.request.user).select_related("user").order_by("-created_at")
+        return ProfileReferral.objects.filter(referrer_user=self.request.user).select_related("referee_profile").order_by("-created_at")
 
 
 class CustomerMyReferralStatusView(MyReferralStatusView, BaseCustomerAPIView):

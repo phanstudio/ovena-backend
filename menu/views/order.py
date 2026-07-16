@@ -44,6 +44,7 @@ from addresses.utils import make_point
 from support_center.services import Role
 from support_center.task import create_system_ticket
 from common.mail.services import send_email, EmailMessage
+from points.tasks import award_referred_first_order_task
 
 logger = logging.getLogger(__name__)
 # add atomcity #:priority
@@ -550,7 +551,11 @@ class ResturantOrderView(GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        convert_referral_once(referee_profile=order.orderer)
+        if convert_referral_once(referee_profile=order.orderer):
+            idempotency_key = f"referred-order:{order.id}:{order.orderer.id}"
+            award_referred_first_order_task.delay(
+                referrer_id= order.orderer.id, sale_id = order.sale.id, idempotency_key=idempotency_key
+            )
 
         # Log event
         OrderEvent.objects.create(
@@ -735,9 +740,18 @@ class DriverOrderView(BaseDriverAPIView):
         # Conversion criteria:
         # - referee customer converts on first delivered order
         # - referee driver converts on first completed delivery
-        convert_referral_once(referee_profile=order.orderer)
+        # convert_referral_once(referee_profile=order.orderer)
+
+        reffered = False
+        reffered = convert_referral_once(referee_profile=order.orderer)
         if driver:
-            convert_referral_once(referee_profile=driver)
+            reffered = convert_referral_once(referee_profile=driver)
+
+        if reffered:
+            idempotency_key = f"referred-order:{order.id}:{order.orderer.id}"
+            award_referred_first_order_task.delay(
+                referrer_id= order.orderer.id, sale_id = order.sale.id, idempotency_key=idempotency_key
+            )
 
         # Log event
         OrderEvent.objects.create(

@@ -815,6 +815,57 @@ class BusinessDashboardView(BaseBuisAdminAPIView):
         return Response({"detail": "Business dashboard", "data": data})
 
 
+
+class BusinessStaffDashboardView(BaseBusiStaffAPIView):
+    serializer_class = InS.BusinessMetricsQuerySerializer
+
+    def get(self, request):
+        business_staff = self.get_business_staff(request)
+        serializer = self.get_serializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        start, end = _resolve_period(serializer.validated_data)
+
+        all_orders = (
+            Order.objects.filter(
+                branch__business=business_staff.branch, status="delivered"
+            )
+            .select_related("branch", "sale")
+            .annotate(effective_at=Coalesce("delivered_at", "created_at"))
+        )
+        filtered_orders = _filter_period(all_orders, start, end)
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_orders = _filter_period(all_orders, today_start, timezone.now())
+
+        today_totals = today_orders.aggregate(
+            today_sales=_decimal_sum("items_total"), sales_count=Count("id")
+        )
+        shipment_totals = filtered_orders.aggregate(
+            amount=_decimal_sum("items_total"), count=Count("id")
+        )
+
+        total_orders_filtered = filtered_orders.aggregate(count=Count("id"), amount=_decimal_sum("items_total"))
+
+        data = {
+            "username": business_staff.name
+            or request.user.email
+            or get_phone_number(request.user.phone_number)
+            or "",
+            "today_sales": today_totals["today_sales"],
+            "today_sales_count": today_totals["sales_count"],
+            "total_shipment": {
+                "filter": serializer.validated_data["range"],
+                "count": shipment_totals["count"],
+                "amount": shipment_totals["amount"],
+            },
+            "total_orders": {
+                "filter": serializer.validated_data["range"],
+                "count": total_orders_filtered["count"],
+                "amount": total_orders_filtered["amount"],
+            },
+        }
+        return Response({"detail": "Business Staff dashboard", "data": data})
+
+
 class BusinessStoreAnalysisView(BaseBuisAdminAPIView):
     serializer_class = InS.BusinessMetricsQuerySerializer
 
