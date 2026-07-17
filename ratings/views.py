@@ -39,10 +39,14 @@ class SubmitOrderRatingsView(BaseCustomerAPIView):
         driver_rating = getattr(rater, "driverrating_given", None)
         branch_rating = getattr(rater, "branchrating_given", None)
 
+        driver_payload = s.validated_data.get("driver")
+        if order.picked_up_by_user or order.driver == None:
+            driver_payload = None
+
         results = RatingService.submit_for_order(
             order=order,
             rater=rater,
-            driver_payload=s.validated_data.get("driver"),
+            driver_payload=driver_payload,
             branch_payload=s.validated_data.get("branch"),
         )
 

@@ -17,18 +17,25 @@ class MyReferralStatusSerializer(serializers.Serializer):
     pending_referrals = serializers.IntegerField()
 
 class ReferralItemSerializer(serializers.ModelSerializer):
-    referee_user_name = serializers.CharField(
-        source="referee_user.username",  # or "name", "full_name", etc.
-        read_only=True,
-    )
+    # referee_user_name = serializers.CharField(
+    #     source="referee_user.username",  # or "name", "full_name", etc.
+    #     read_only=True,
+    # )
     referee_user_id = serializers.IntegerField(
-        source="referee_user.id",
+        source="referee_profile.user.id",
         read_only=True,
     )
+    referee_user_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ProfileReferral
         fields = ["id", "created_at", "converted_at", "is_consumed", "referee_user_id", "referee_user_name"]
+    
+    def get_referee_user_id(self, obj):
+        refeered = obj.referee_profile
+        if hasattr(refeered, "name"):
+            return refeered.name
+        return getattr(refeered, "fullname", None)
 
 class ReferralPayoutSerializer(serializers.ModelSerializer):
     referrals_used = serializers.IntegerField(read_only=True)
