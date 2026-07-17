@@ -115,7 +115,7 @@ def get_live_leaderboard(limit: int = 50, use_cache: bool = True) -> list[dict]:
     )
 
     results = [
-        {"rank": idx + 1, "user_id": str(r["id"]), "name": r["name"] or "", "points": r["points_this_month"]}
+        {"rank": idx + 1, "user_id": str(r["user_id"]), "name": r["name"] or "", "points": r["points_this_month"]}
         for idx, r in enumerate(rows)
     ]
 
