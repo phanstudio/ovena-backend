@@ -28,6 +28,7 @@ from django.db import transaction
 from django.db.models import Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
+from accounts.models import CustomerProfile
 
 from points.models import (
     MonthlyLeaderboardEntry,
@@ -81,15 +82,36 @@ def get_live_leaderboard(limit: int = 50, use_cache: bool = True) -> list[dict]:
             return cached
 
     period_start, period_end = _month_bounds(period)
+    # rows = (
+    #     User.objects.filter(
+    #         points_entries__created_at__date__gte=period_start,
+    #         points_entries__created_at__date__lte=period_end,
+    #     )
+    #     .select_related("customer_profile")
+    #     .annotate(points_this_month=Coalesce(Sum("points_entries__points"), Value(0)))
+    #     .exclude(points_this_month__lte=0)
+    #     .order_by("-points_this_month")[:limit]
+    #     .values("id", "points_this_month", "customer_profile_name")
+    # )
+
     rows = (
-        User.objects.filter(
+        CustomerProfile.objects.filter(
             points_entries__created_at__date__gte=period_start,
             points_entries__created_at__date__lte=period_end,
         )
-        .annotate(points_this_month=Coalesce(Sum("points_entries__points"), Value(0)))
+        .annotate(
+            points_this_month=Coalesce(
+                Sum("user__points_entries__points"),
+                Value(0),
+            )
+        )
         .exclude(points_this_month__lte=0)
         .order_by("-points_this_month")[:limit]
-        .values("id", "name", "points_this_month")
+        .values(
+            "user_id",
+            "name",
+            "points_this_month",
+        )
     )
 
     results = [
