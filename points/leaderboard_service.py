@@ -96,8 +96,8 @@ def get_live_leaderboard(limit: int = 50, use_cache: bool = True) -> list[dict]:
 
     rows = (
         CustomerProfile.objects.filter(
-            points_entries__created_at__date__gte=period_start,
-            points_entries__created_at__date__lte=period_end,
+            user__points_entries__created_at__date__gte=period_start,
+            user__points_entries__created_at__date__lte=period_end,
         )
         .annotate(
             points_this_month=Coalesce(
