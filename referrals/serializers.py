@@ -31,7 +31,7 @@ class ReferralItemSerializer(serializers.ModelSerializer):
         model = ProfileReferral
         fields = ["id", "created_at", "converted_at", "is_consumed", "referee_user_id", "referee_user_name"]
     
-    def get_referee_user_id(self, obj):
+    def get_referee_user_name(self, obj):
         refeered = obj.referee_profile
         if hasattr(refeered, "name"):
             return refeered.name
