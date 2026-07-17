@@ -45,6 +45,7 @@ class OrderHistorySerializer(serializers.ModelSerializer):
             "status",
             "created_at",
             "customer_name",
+            "picked_up_by_user",
         ]
     
     def _first_item(self, obj):
@@ -110,6 +111,10 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
         source="driver.vehicle_type",
         read_only=True
     )
+    driver_phone_number = serializers.CharField(
+        source="driver.user.phone_number",
+        read_only=True
+    )
     branch_name = serializers.CharField(
         source="branch.display_name",
         read_only=True
@@ -133,49 +138,9 @@ class OrderRetrieveSerializer(serializers.ModelSerializer):
             "status",
             "created_at",
             "items",
+            "driver_phone_number",
+            "picked_up_by_user",
         ]
-    
-    # def to_representation(self, instance):
-    #     data = super().to_representation(instance)
-
-    #     # menu_ids = set()
-
-    #     # for item in instance.items.all():
-    #     #     snap = item.snapshot or {}
-    #     #     menu_item = snap.get("item") or {}
-    #     #     menu_id = menu_item.get("id")
-    #     #     if menu_id:
-    #     #         menu_ids.add(menu_id)
-    #     menu_ids = {
-    #         item.menu_item_id
-    #         for item in instance.items.all()
-    #         if item.menu_item_id
-    #     }
-
-    #     menu_map = MenuItem.objects.filter(id__in=menu_ids).in_bulk()
-
-    #     # attach image into response
-    #     for item in data["items"]:
-    #         menu_id = item["snapshot"]["item"]["id"]
-    #         menu = menu_map.get(menu_id)
-
-    #         if menu:
-    #             item["snapshot"]["item"]["image"] = (
-    #                 menu.image.url if menu.image else None
-    #             )
-    #             item["snapshot"]["item"]["id"] = menu_id
-    #     # for item, obj in zip(data["items"], instance.items.all()):
-    #     #     menu = menu_map.get(obj.menu_item_id)
-
-    #     #     if menu:
-    #     #         item["snapshot"]["item"]["image"] = (
-    #     #             menu.image
-    #     #         )
-    #     #         item["snapshot"]["item"]["id"] = (
-    #     #             obj.menu_item_id
-    #     #         )
-
-    #     return data
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
