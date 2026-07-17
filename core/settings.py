@@ -418,7 +418,7 @@ ANYMAIL = {
 
 PRODUCT_NAME = "ovena-delivery"
 WEBSITE_URL = "https://ovena-delivery.com/"
-EMAIL_LOGO_URL = "https://res.cloudinary.com/daxdh7b3t/image/upload/v1767957815/1f2b751b-cc9a-42cd-a623-05b0febc4472.webp" 
+EMAIL_LOGO_URL = "https://pub-db5f714a040140489df7a6fc1372c2ab.r2.dev/ovena/images/logo%20(1).jpeg" 
 
 # Phone number settings
 PHONENUMBER_DEFAULT_REGION = "NG"
