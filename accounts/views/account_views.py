@@ -240,6 +240,7 @@ class LinkApproveView(GenericAPIView):
                     existing_agent.revoked = False
                     existing_agent.revoked_at = None
                     existing_agent.created_by = business_admin
+                    existing_agent.name=vd["username"]
                     existing_agent.save()
                 except IntegrityError:
                     return Response(
