@@ -23,7 +23,7 @@ from accounts.utils.driver_verification import (
     verify_nin_mono, verify_bvn_mono, verify_bank_account_paystack,
 )
 from ulid import ULID # type: ignore
-from referrals.services import apply_referral_code, ensure_profile_base
+from referrals.services import apply_referral_code
 from drf_spectacular.utils import extend_schema # type: ignore
 from authflow.services.phone_number import get_phone_number
 from authflow.services.jwt import issue_jwt_for_user_with_plan
@@ -164,8 +164,6 @@ class OnboardingPhase1View(GenericAPIView):
         cred.next_of_kin_name = data["next_of_kin_name"]
         cred.next_of_kin_phone = data["next_of_kin_phone"]
         cred.save(update_fields=["next_of_kin_name", "next_of_kin_phone"])
-
-        ensure_profile_base(profile)
 
         referre_code = data.get("referre_code", "")
         if referre_code:

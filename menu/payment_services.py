@@ -2,11 +2,13 @@ from django.conf import settings
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 
-from payments.integrations.paystack.client import PaystackClient
+from payments.integrations.client import client
+from payments.integrations.paystack.errors import PaystackClientError
+from payments.integrations.paystack.classify import classify_paystack_error
 from payments.services.sale_service import initialize_sale
 
 
-paystack_client = PaystackClient()
+paystack_client = client
 
 
 def initialize_paystack_transaction(amount, email):
@@ -44,22 +46,27 @@ def initialize_order_sale(order):
     delivery_fee_kobo = int(order.delivery_price * 100)
     platform_fee_percent = float(order.ovena_commission or 5)
 
-    result = initialize_sale(
-        payer_id=str(order.orderer.user_id),
-        driver_id=str(order.driver.user_id) if order.driver_id else None,
-        business_owner_id=business_owner_id,
-        amount_kobo=amount_kobo,
-        metadata={
-            "order_id": str(order.id),
-            "order_number": order.order_number,
-            "split_rule": "order_v1",
-            "items_total_kobo": items_total_kobo,
-            "delivery_fee_kobo": delivery_fee_kobo,
-            "platform_fee_type": "percent",
-            "platform_fee_percent": platform_fee_percent,
-            "platform_fee_fixed_kobo": 500 * 100,
-        },
-    )
+    
+    try:
+        result = initialize_sale(
+            payer_id=str(order.orderer.user_id),
+            driver_id=str(order.driver.user_id) if order.driver_id else None,
+            business_owner_id=business_owner_id,
+            amount_kobo=amount_kobo,
+            metadata={
+                "order_id": str(order.id),
+                "order_number": order.order_number,
+                "split_rule": "order_v1",
+                "items_total_kobo": items_total_kobo,
+                "delivery_fee_kobo": delivery_fee_kobo,
+                "platform_fee_type": "percent",
+                "platform_fee_percent": platform_fee_percent,
+                "platform_fee_fixed_kobo": 500 * 100,
+            },
+        )
+    except PaystackClientError as exc:
+        raise classify_paystack_error(exc) from exc
+
     return result
 
 
