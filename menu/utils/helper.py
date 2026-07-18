@@ -117,20 +117,41 @@ def apply_top_picks_ranking(qs):
     )
 
 
-def is_branch_open(branch) -> bool:
+def get_hours(branch) -> BranchOperatingHours:
+    # Use prefetched todays_hours if available, else fall back to DB query
     now = timezone.localtime()
 
-    # Use prefetched todays_hours if available, else fall back to DB query
     if hasattr(branch, "todays_hours"):
         hours_list = branch.todays_hours  # already filtered to today
         if not hours_list:
-            return True
+            return None
         hours = hours_list[0]
     else:
         try:
             hours = branch.operating_hours.get(day=now.weekday())
         except BranchOperatingHours.DoesNotExist:
-            return True
+            return None
+
+    return hours.open_time
+
+
+def is_branch_open(branch) -> bool:
+    now = timezone.localtime()
+
+    hours = get_hours(branch)
+    if not hours:
+        return True
+
+    if hours.is_closed:
+        return False
+
+    return hours.open_time <= now.time() <= hours.close_time
+
+
+def is_branch_hours_open(hours: BranchOperatingHours) -> bool:
+    now = timezone.localtime()
+    if not hours:
+        return True
 
     if hours.is_closed:
         return False

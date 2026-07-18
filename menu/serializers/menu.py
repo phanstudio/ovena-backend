@@ -7,7 +7,7 @@ from ..models import (
     MenuItemAddonGroup, MenuItemAddon
 )
 from accounts.models import BusinessSubscription
-from menu.utils.helper import is_branch_open
+from menu.utils.helper import is_branch_hours_open, get_hours
 
 
 # ============================================================================
@@ -342,6 +342,7 @@ class BusinessDetailSerializer(serializers.ModelSerializer, BaseWithAddressMixin
         if not branch:
             return None
         distance = self.context.get("distance")
+        hours = get_hours(branch)
         return {
             "id": branch.id,
             "name": branch.name,
@@ -350,5 +351,8 @@ class BusinessDetailSerializer(serializers.ModelSerializer, BaseWithAddressMixin
             "long": self.get_long(branch),
             "address": branch.address,
             "average_prep_time": branch.average_prep_time,
-            "is_open": is_branch_open(branch),   # ← add this
+            "is_open": is_branch_hours_open(hours),   # ← add this
+            "open_time": getattr(hours, "open_time", None),
+            "close_time": getattr(hours, "close_time", None),
+            "delivery_method": branch.delivery_method,
         }

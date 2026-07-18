@@ -117,7 +117,7 @@ class BaseSupportTicketViewSet(
         return SupportTicket.objects.filter(
             owner=self.request.user,
             owner_role=self.owner_role.value
-        ).order_by("-created_at")
+        ).select_related("owner").order_by("-created_at")
 
     def get_serializer_class(self):
 
@@ -439,7 +439,6 @@ class AppAdminSupportTicketViewSet(
             status=status.HTTP_200_OK
         )
 
-
 class CustomerSupportTicketViewSet(
     BaseCustomerAPIView,
     BaseSupportTicketViewSet
@@ -460,6 +459,4 @@ class CustomerSupportTicketViewSet(
     def messages(self, request, pk=None):
         return super().messages(request, pk=pk)
 
-
 # we need system views
-# we need customer views

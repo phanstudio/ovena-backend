@@ -35,6 +35,11 @@ class FAQItemSerializer(serializers.ModelSerializer):
 
 
 class TicketListSerializer(serializers.ModelSerializer):
+    owner_name = serializers.CharField(
+        source="owner.name",
+        read_only=True
+    )
+
     class Meta:
         model = SupportTicket
         fields = [
@@ -48,6 +53,7 @@ class TicketListSerializer(serializers.ModelSerializer):
             "closed_at",
             "owner_role",
             "owner",
+            "owner_name",
         ]
 
 
@@ -103,6 +109,7 @@ class TicketDetailSerializer(serializers.ModelSerializer):
             "closed_at",
             "owner_role",
             "owner",
+            "owner_name",
         ]
 
 
