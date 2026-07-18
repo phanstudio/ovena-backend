@@ -518,8 +518,11 @@ class StaffLoginView(LoginView):
 
         device_id = vd["device_id"]  # migth add branch_id
         buisness_staff = (
-            PrimaryAgent.objects.filter(device_name=device_id)
-            .select_related("user")
+            PrimaryAgent.objects.filter(
+                device_name=device_id, 
+                # user__phone_number=vd["phone_number"],
+                revoked=False,
+            ).select_related("user")
             .first()
         )
 
@@ -529,11 +532,6 @@ class StaffLoginView(LoginView):
             )
         
         user = buisness_staff.user
-
-        if buisness_staff.revoked:
-            return Response(
-                {"error": "Account revoked"}, status=status.HTTP_403_FORBIDDEN
-            )
 
         # if not user or not user.check_password(vd["password"]): # add this later after we remove
         #     return Response(

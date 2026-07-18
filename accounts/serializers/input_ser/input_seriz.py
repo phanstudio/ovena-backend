@@ -67,6 +67,7 @@ class LinkStaffLoginSerializer(serializers.Serializer):
     device_id = serializers.CharField()
     # password = serializers.CharField()
     # branch_id = serializers.CharField() or int
+    # phone_number = PhoneNumberField()
 
 
 class BaseVerifyOtpSerizer(serializers.Serializer):
