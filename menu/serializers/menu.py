@@ -7,7 +7,7 @@ from ..models import (
     MenuItemAddonGroup, MenuItemAddon
 )
 from accounts.models import BusinessSubscription
-from menu.utils.helper import is_branch_hours_open, get_hours
+from menu.utils.helper import is_branch_hours_open, get_hours, is_branch_open
 
 
 # ============================================================================
