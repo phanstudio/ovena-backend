@@ -14,7 +14,7 @@ from ..models import (
     BusinessAdmin,
     PrimaryAgent, Branch
 )
-from referrals.services import apply_referral_code, ensure_profile_base
+from referrals.services import apply_referral_code
 from phonenumber_field.serializerfields import PhoneNumberField  # type: ignore
 from points.tasks import award_referral_success_task
 
@@ -218,7 +218,6 @@ class CreateCustomerSerializer(serializers.Serializer):
             name=validated_data["name"],
             pickup_food=validated_data["is_picking_up_food"],
         )
-        ensure_profile_base(profile)
 
         if location:
             profile.addresses.add(location)

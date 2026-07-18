@@ -337,22 +337,8 @@ class BusinessDetailSerializer(serializers.ModelSerializer, BaseWithAddressMixin
             context=self.context  # passes availability_map down
         ).data
 
-    # def get_nearest_branch(self, obj):
-    #     branch = self.context.get("branch")
-    #     if not branch:
-    #         return None
-    #     distance = self.context.get("distance")
-    #     return {
-    #         "id": branch.id,
-    #         "name": branch.name,
-    #         "distance_km": round(distance.km, 2) if distance else None,
-    #         "lat": self.get_lat(branch),
-    #         "long": self.get_long(branch),
-    #         "address": branch.address,
-    #     }
-
     def get_nearest_branch(self, obj):
-        branch = self.context.get("branch")
+        branch:Branch = self.context.get("branch")
         if not branch:
             return None
         distance = self.context.get("distance")
@@ -363,5 +349,6 @@ class BusinessDetailSerializer(serializers.ModelSerializer, BaseWithAddressMixin
             "lat": self.get_lat(branch),
             "long": self.get_long(branch),
             "address": branch.address,
+            "average_prep_time": branch.average_prep_time,
             "is_open": is_branch_open(branch),   # ← add this
         }
