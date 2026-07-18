@@ -259,6 +259,7 @@ class LinkApproveView(GenericAPIView):
                     device_name=device_id,
                     branch=branch,
                     user=user,
+                    name=vd["username"]
                 )
 
         # 🔑 Step 5: Issue token
@@ -269,7 +270,7 @@ class LinkApproveView(GenericAPIView):
                 "message": "Account registered successfully",
                 "refresh": token["refresh"],
                 "access": token["access"],
-                "user": {"id": sub_user.id, "name": sub_user.device_name,},
+                "user": {"id": sub_user.id, "name": sub_user.name,},
             }
         )
 
