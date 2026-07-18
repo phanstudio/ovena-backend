@@ -22,7 +22,7 @@ from accounts.models import (
 from accounts.serializers import InS as acInS
 from business_api.serializers import InS, OpS
 
-from authflow.services import OTPManager
+from authflow.services import OTPManager, OTPInvalidError
 from authflow.authentication import CustomBAdminAuth, CustomBusinessAgentsAuth, CustomBStaffAuth
 from authflow.permissions import IsBusinessAdmin, IsBusinessAgent, IsBusinessStaff, HasFeature
 from authflow.features import ON_BANNER, ON_CAROUSEL
@@ -827,7 +827,7 @@ class BusinessStaffDashboardView(BaseBusiStaffAPIView):
 
         all_orders = (
             Order.objects.filter(
-                branch__business=business_staff.branch, status="delivered"
+                branch=business_staff.branch, status="delivered"
             )
             .select_related("branch", "sale")
             .annotate(effective_at=Coalesce("delivered_at", "created_at"))
