@@ -132,7 +132,7 @@ def get_hours(branch) -> BranchOperatingHours:
         except BranchOperatingHours.DoesNotExist:
             return None
 
-    return hours.open_time
+    return hours
 
 
 def is_branch_open(branch) -> bool:
