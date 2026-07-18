@@ -46,6 +46,8 @@ class TicketListSerializer(serializers.ModelSerializer):
             "is_blocking",
             "created_at",
             "closed_at",
+            "owner_role",
+            "owner",
         ]
 
 
@@ -99,6 +101,8 @@ class TicketDetailSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "closed_at",
+            "owner_role",
+            "owner",
         ]
 
 
