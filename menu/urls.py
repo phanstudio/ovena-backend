@@ -65,7 +65,7 @@ urlpatterns = [
     path("order/", views.OrderView.as_view(), name="order"),
     path("orders/<int:order_id>/", views.OrderView.as_view(), name="order-detail"),
     path(
-        "orders/<int:order_id>/retry-payment/", 
+        "orders/retry-payment/", 
         views.PaymentRetryView.as_view(), 
         name="order-retry-payment",
     ),
