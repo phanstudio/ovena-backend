@@ -62,6 +62,10 @@ class Order(models.Model): # do we add a coupon snap shot or not also a discount
     # WebSocket group management
     websocket_group_name = models.CharField(max_length=100, blank=True, null=True)
 
+    payment_retry_count = models.PositiveSmallIntegerField(default=0)
+    last_payment_attempt = models.DateTimeField(blank=True, null=True)
+    next_retry_at = models.DateTimeField(blank=True, null=True)
+
     # delivery address and user note
     # create delivery address and user note
     

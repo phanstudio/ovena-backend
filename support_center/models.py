@@ -1,6 +1,19 @@
+import os
+import uuid
+
 from django.conf import settings
+from django.core.validators import FileExtensionValidator
 from django.db import models
 from authflow.services.model import AbstractBaseModel, AbstractUBaseModel
+
+# Keep this in sync with ALLOWED_ATTACHMENT_CONTENT_TYPES in serializers.py
+ALLOWED_ATTACHMENT_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "heic"]
+MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024  # 5MB
+
+
+def ticket_attachment_upload_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return f"support_tickets/{instance.message.ticket_id}/{uuid.uuid4().hex}{ext}"
 
 class SupportTicket(AbstractUBaseModel):
     OWNER_DRIVER = "driver"
@@ -83,6 +96,7 @@ class SupportTicket(AbstractUBaseModel):
     def __str__(self):
         return f"SupportTicket({self.id}) {self.owner_role} {self.subject}"
 
+
 class SupportTicketMessage(AbstractBaseModel):
     SENDER_DRIVER = "driver"
     SENDER_BUSINESS_ADMIN = "business_admin"
@@ -108,10 +122,42 @@ class SupportTicketMessage(AbstractBaseModel):
         on_delete=models.SET_NULL
     )
     message = models.TextField()
-    attachments_json = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ["created_at"]
         indexes = [
             models.Index(fields=["ticket", "created_at"])
         ]
+
+
+class SupportTicketAttachment(AbstractBaseModel):
+    message = models.ForeignKey(
+        SupportTicketMessage,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+    )
+    # ImageField validates (via Pillow) that the uploaded file is actually
+    # a real image, on top of the extension whitelist below.
+    file = models.ImageField(
+        upload_to=ticket_attachment_upload_path,
+        validators=[FileExtensionValidator(allowed_extensions=ALLOWED_ATTACHMENT_EXTENSIONS)],
+    )
+    original_filename = models.CharField(max_length=255, blank=True)
+    content_type = models.CharField(max_length=100, blank=True)
+    file_size = models.PositiveIntegerField(default=0)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="support_ticket_attachments",
+    )
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["message", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"SupportTicketAttachment({self.id}) msg={self.message_id}"

@@ -4,6 +4,7 @@ from rest_framework.generics import GenericAPIView
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.utils import timezone
+from datetime import timedelta
 
 from accounts.models import User, CustomerProfile
 from authflow.authentication import (
@@ -32,7 +33,7 @@ from menu.tasks import (
 import logging
 from menu.payment_services import initialize_order_sale
 from django.db import transaction
-from menu.serializers import OrderCreateSerializer
+from menu.serializers import OrderCreateSerializer, PaymentRetrySerializer
 from django.db.models import Prefetch
 from referrals.services import convert_referral_once
 from payments.services.sale_service import complete_service, assign_driver
@@ -45,9 +46,13 @@ from support_center.services import Role
 from support_center.task import create_system_ticket
 from common.mail.services import send_email, EmailMessage
 from points.tasks import award_referred_first_order_task
+from payments.integrations.errors import TemporaryPaymentError, PermanentPaymentError
 
 logger = logging.getLogger(__name__)
 # add atomcity #:priority
+MAX_INIT_RETRIES = 3
+RETRY_DELAYS = [2, 5]  # seconds between automatic attempts
+
 
 def log_created_order(order, user, payment_url):
     # log + websocket + timeout (same as you already do)
@@ -71,13 +76,68 @@ def log_created_order(order, user, payment_url):
     # )
 
 
-def create_payment(order):
-    try:
-        sale_result = initialize_order_sale(order)
-    except Exception as exc:
-        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+# def create_payment(order):
+#     try:
+#         sale_result = initialize_order_sale(order)
+#     except Exception as exc:
+#         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Save payment reference
+#     # Save payment reference
+#     order.payment_reference = sale_result["reference"]
+#     order.payment_initialized_at = timezone.now()
+#     order.status = OrderStatus.PAYMENT_PENDING
+#     order.sale_id = sale_result["sale_id"]
+#     order.save(
+#         update_fields=[
+#             "payment_reference",
+#             "payment_initialized_at",
+#             "status",
+#             "sale",
+#         ]
+#     )
+
+#     payment_url = sale_result["payment_url"]
+
+#     # 🔥 Start payment timeout
+#     check_payment_timeout.apply_async(
+#         args=[order.id], countdown=settings.PAYMENT_TIMEOUT
+#     )
+
+#     logger.info("Order %s sale initialized via payments service", order.id)
+#     return payment_url
+
+
+def create_payment(order):
+    """
+    Initializes payment for an order.
+    Raises PermanentPaymentError / TemporaryPaymentError on failure.
+    Never returns a Response — that's the view's job.
+    """
+    last_exc = None
+    retry_attempts = 0
+
+    for attempt in range(MAX_INIT_RETRIES):
+        try:
+            sale_result = initialize_order_sale(order)
+            break
+        except PermanentPaymentError:
+            raise  # don't waste retries on bad input/auth
+        except TemporaryPaymentError as exc:
+            last_exc = exc
+            retry_attempts += 1
+
+            if attempt == MAX_INIT_RETRIES - 1:
+                order.payment_retry_count = retry_attempts
+                order.last_payment_attempt = timezone.now()
+                order.save(update_fields=["payment_retry_count", "last_payment_attempt"])
+                raise
+            # time.sleep(RETRY_DELAYS[attempt])
+    else:
+        raise last_exc
+
+    order.payment_retry_count = retry_attempts
+    order.last_payment_attempt = timezone.now()
+    
     order.payment_reference = sale_result["reference"]
     order.payment_initialized_at = timezone.now()
     order.status = OrderStatus.PAYMENT_PENDING
@@ -88,18 +148,17 @@ def create_payment(order):
             "payment_initialized_at",
             "status",
             "sale",
+            "payment_retry_count", 
+            "last_payment_attempt"
         ]
     )
 
-    payment_url = sale_result["payment_url"]
-
-    # 🔥 Start payment timeout
     check_payment_timeout.apply_async(
         args=[order.id], countdown=settings.PAYMENT_TIMEOUT
     )
 
     logger.info("Order %s sale initialized via payments service", order.id)
-    return payment_url
+    return sale_result["payment_url"]
 
 
 def send_thank_you_email(order):
@@ -203,6 +262,53 @@ class OrderView(BaseCustomerAPIView):
         )
         return Response(list(orders))
 
+    # def post(self, request):
+    #     user = request.user
+    #     customer = self.get_customer_profile(request)
+
+    #     serializer = LocationGetSerializer(data=request.data)
+    #     serializer.is_valid(raise_exception=True)
+    #     vd = serializer.validated_data
+        
+    #     # user_location = customer.default_address.location
+    #     user_location = make_point(vd["long"], vd["lat"])
+
+    #     serializer = OrderCreateSerializer(
+    #         data=request.data,
+    #         context={
+    #             "request": request,
+    #             "user": user,
+    #             "customer": customer,
+    #             "user_location": user_location
+    #         },
+    #     )
+    #     serializer.is_valid(raise_exception=True)
+
+    #     with transaction.atomic():
+    #         order, phrase = serializer.save()
+    #         # Initialize payment via Sale (unified payments)
+        
+    #     # on failure
+    #     # order.status = OrderStatus.PAYMENT_INITIALIZATION_FAILED
+
+        
+        
+    #     payment_url = create_payment(order)
+
+    #     log_created_order(order, user, payment_url)
+
+    #     return Response(
+    #         {
+    #             "order_id": order.id,
+    #             "order_number": order.order_number,
+    #             "delivery_passphrase": phrase,
+    #             "payment_url": payment_url,
+    #             "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
+    #             "message": "Order created successfully. Waiting for restaurant confirmation.",
+    #         },
+    #         status=status.HTTP_201_CREATED,
+    #     )
+
     def post(self, request):
         user = request.user
         customer = self.get_customer_profile(request)
@@ -210,8 +316,6 @@ class OrderView(BaseCustomerAPIView):
         serializer = LocationGetSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
-        
-        # user_location = customer.default_address.location
         user_location = make_point(vd["long"], vd["lat"])
 
         serializer = OrderCreateSerializer(
@@ -220,15 +324,34 @@ class OrderView(BaseCustomerAPIView):
                 "request": request,
                 "user": user,
                 "customer": customer,
-                "user_location": user_location
+                "user_location": user_location,
             },
         )
         serializer.is_valid(raise_exception=True)
 
         with transaction.atomic():
             order, phrase = serializer.save()
-            # Initialize payment via Sale (unified payments)
+
+        try:
             payment_url = create_payment(order)
+        except Exception as exc:
+            order.status = OrderStatus.PAYMENT_INITIALIZATION_FAILED
+            order.next_retry_at = timezone.now() + timedelta(minutes=1)
+            order.save(update_fields=["status", "next_retry_at"])
+
+            logger.error("Payment init failed for order %s: %s", order.id, exc)
+
+            return Response(
+                {
+                    "order_id": order.id,
+                    "order_number": order.order_number,
+                    "delivery_passphrase": phrase,
+                    "status": order.status,
+                    "message": "Order created, but payment initialization failed. You can retry shortly.",
+                    "retry_after": order.next_retry_at,
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
 
         log_created_order(order, user, payment_url)
 
@@ -236,12 +359,81 @@ class OrderView(BaseCustomerAPIView):
             {
                 "order_id": order.id,
                 "order_number": order.order_number,
+                "status": order.status,
                 "delivery_passphrase": phrase,
                 "payment_url": payment_url,
                 "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
                 "message": "Order created successfully. Waiting for restaurant confirmation.",
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+class PaymentRetryView(BaseCustomerAPIView):
+    serializer_class = PaymentRetrySerializer
+
+    def post(self, request):
+        customer = self.get_customer_profile(request)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+
+        order = get_object_or_404(
+            Order.objects.filter(orderer=customer), id=vd["order_id"]
+        )
+
+        if order.status != OrderStatus.PAYMENT_INITIALIZATION_FAILED:
+            return Response(
+                {"message": f"Order is not awaiting payment retry (status: {order.status})."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if order.next_retry_at and timezone.now() < order.next_retry_at:
+            return Response(
+                {
+                    "message": "Please wait before retrying.",
+                    "retry_after": order.next_retry_at,
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        if order.payment_retry_count >= 10:
+            return Response(
+                {"message": "Maximum retry attempts reached. Please contact support."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            payment_url = create_payment(order)
+        except Exception as exc:
+            order.status = OrderStatus.PAYMENT_INITIALIZATION_FAILED
+            order.next_retry_at = timezone.now() + timedelta(minutes=1)
+            order.save(update_fields=["status", "next_retry_at"])
+
+            logger.error("Retry payment init failed for order %s: %s", order.id, exc)
+
+            return Response(
+                {
+                    "order_id": order.id,
+                    "status": order.status,
+                    "message": "Payment initialization failed again. Please retry shortly.",
+                    "retry_after": order.next_retry_at,
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+        
+        log_created_order(order, request.user, payment_url)
+
+        return Response(
+            {
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "payment_url": payment_url,
+                "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
+                "message": "Payment initialized. Please complete payment.",
+            },
+            status=status.HTTP_200_OK,
         )
 
 

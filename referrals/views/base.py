@@ -13,7 +13,6 @@ from referrals.serializers import (
 )
 from referrals.services import (
     apply_referral_code,
-    ensure_profile_base,
     referral_stats
 )
 from common.customer.view import BaseCustomerAPIView
@@ -74,8 +73,7 @@ class MyReferralStatusView(APIView):
     def get(self, request):
         profile = self.get_profile(request)
 
-        base_profile = ensure_profile_base(profile)
-        code = base_profile.referral_code
+        code = profile.referral_code
 
         stats = referral_stats(profile)
 

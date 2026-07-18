@@ -4,7 +4,7 @@ from django.utils import timezone
 import hashlib
 import json
 
-from accounts.models import CustomerProfile, DriverProfile, ProfileBase
+from accounts.models import ProfileBase
 from referrals.models import ProfileReferral, ReferralPayout
 from django.db.models import Count, Q
 
@@ -14,48 +14,13 @@ def _normalized_code(code: str) -> str:
     return (code or "").strip().upper()
 
 
-def _ensure_profile_base(profile) -> ProfileBase:
-    if isinstance(profile, ProfileBase):
-        return profile
-
-    if isinstance(profile, CustomerProfile):
-        if profile.base_profile_id:
-            return profile.base_profile
-        base = ProfileBase.objects.create(
-            user=profile.user,
-            profile_type=ProfileBase.PROFILE_CUSTOMER,
-        )
-        profile.base_profile = base
-        profile.save(update_fields=["base_profile"])
-        return base
-
-    if isinstance(profile, DriverProfile):
-        if profile.base_profile_id:
-            return profile.base_profile
-        base = ProfileBase.objects.create(
-            user=profile.user,
-            profile_type=ProfileBase.PROFILE_DRIVER,
-        )
-        profile.base_profile = base
-        profile.save(update_fields=["base_profile"])
-        return base
-
-    raise ValidationError("Unsupported profile type.")
-
-
-def ensure_profile_base(profile) -> ProfileBase:
-    return _ensure_profile_base(profile)
-
-
 @transaction.atomic
 def apply_referral_code(profile, code: str) -> ProfileReferral:
     code = _normalized_code(code)
     if not code:
         raise ValidationError("Referral code is required.")
 
-    referee_profile = _ensure_profile_base(profile)
-
-    if ProfileReferral.objects.filter(referee_user=referee_profile.user).exists():
+    if ProfileReferral.objects.filter(referee_user=profile.user).exists():
         raise ValidationError("You already applied a referral code.")
 
     referrer_profile = (
@@ -63,37 +28,38 @@ def apply_referral_code(profile, code: str) -> ProfileReferral:
         .filter(referral_code=code)
         .first()
     )
+    referred_profile = (
+        ProfileBase.objects.select_related("user")
+        .filter(user=profile.user)
+        .first()
+    )
     if not referrer_profile:
         raise ValidationError("Invalid referral code.")
 
-    if referrer_profile.user_id == referee_profile.user_id:
+    if referrer_profile.user_id == referred_profile.user_id:
         raise ValidationError("You cannot use your own referral code.")
 
     return ProfileReferral.objects.create(
         referrer_profile=referrer_profile,
-        referee_profile=referee_profile,
+        referee_profile=referred_profile,
         referrer_user=referrer_profile.user,
-        referee_user=referee_profile.user,
+        referee_user=referred_profile.user,
     )
 
 
 def referral_count(profile) -> int:
-    base = _ensure_profile_base(profile)
-    return ProfileReferral.objects.filter(referrer_user=base.user).count()
+    return ProfileReferral.objects.filter(referrer_user=profile.user).count()
 
 
 def successful_referrals(profile) -> int:
-    base = _ensure_profile_base(profile)
     return ProfileReferral.objects.filter(
-        referrer_user=base.user,
+        referrer_user=profile.user,
         converted_at__isnull=False,
     ).count()
 
 
 def referral_stats(profile):
-    base = _ensure_profile_base(profile)
-
-    qs = ProfileReferral.objects.filter(referrer_user=base.user)
+    qs = ProfileReferral.objects.filter(referrer_user=profile.user)
 
     stats = qs.aggregate(
         total=Count("id"),
@@ -115,9 +81,8 @@ def referred_by(user):
 
 @transaction.atomic
 def convert_referral_once(*, referee_profile) -> bool:
-    base = _ensure_profile_base(referee_profile)
     try:
-        referral = ProfileReferral.objects.select_for_update().get(referee_user=base.user)
+        referral = ProfileReferral.objects.select_for_update().get(referee_user=referee_profile.user)
     except ProfileReferral.DoesNotExist:
         return False
 

@@ -465,7 +465,7 @@ class BusinessDetailView(LocationDependantMixin,APIView):
                 )
             )
             .annotate(distance=Distance("location", user_point))
-            .only('id', 'business_id')
+            # .only('id', 'business_id')
             .order_by("distance")
             .first()
         )

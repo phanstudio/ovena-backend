@@ -4,6 +4,7 @@ from typing import Any, Callable
 
 from django.conf import settings
 from paystackapi.paystack import Paystack
+import requests
 
 from payments.integrations.paystack.errors import PaystackAPIError, PaystackRequestError
 
@@ -23,10 +24,20 @@ class PaystackClient:
         self._client = Paystack(secret_key=self.secret_key)
 
     def _call(self, method: Callable[..., dict[str, Any]], payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        # try:
+        #     result = method(**(payload or {}))
+        # except Exception as exc:  # pragma: no cover - defensive
+        #     raise PaystackRequestError(str(exc)) from exc
+        
         try:
             result = method(**(payload or {}))
-        except Exception as exc:  # pragma: no cover - defensive
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
             raise PaystackRequestError(str(exc)) from exc
+        except requests.exceptions.RequestException as exc:
+            # other requests-layer issues (SSL, too many redirects, etc.) — still transient-ish
+            raise PaystackRequestError(str(exc)) from exc
+        # anything else (TypeError, AttributeError, KeyError from a bad payload)
+        # is a bug — let it propagate as-is, don't disguise it as a retryable error
 
         # `paystackapi` typically returns {"status": bool, "message": str, "data": {...}}
         if not isinstance(result, dict):

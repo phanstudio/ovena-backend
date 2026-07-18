@@ -34,6 +34,10 @@ class OrderItemCreateSerializer(serializers.Serializer):
     )
 
 
+class PaymentRetrySerializer(serializers.Serializer):
+    order_id = serializers.IntegerField()
+
+
 class OrderCreateSerializer(serializers.Serializer):
     branch_id = serializers.IntegerField()
 

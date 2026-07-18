@@ -4,6 +4,7 @@ from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView
 from rest_framework.exceptions import NotFound
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from drf_spectacular.utils import extend_schema  # type: ignore
 
 from accounts.models import BusinessAdmin, DriverProfile, PrimaryAgent
@@ -100,6 +101,8 @@ class BaseSupportTicketViewSet(
 ):
 
     pagination_class = SupportPagination
+    # JSONParser kept so plain JSON bodies (e.g. reopen/close/assign, and
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     owner_role = None
     sender_role = None
@@ -146,6 +149,7 @@ class BaseSupportTicketViewSet(
             category=serializer.validated_data.get("category", "general"),
             priority=serializer.validated_data.get("priority"),
             description=serializer.validated_data["description"],
+            attachment_files=serializer.validated_data.get("attachments", []),
         )
         auto_assign_ticket.delay(ticket.id)
 
@@ -182,7 +186,7 @@ class BaseSupportTicketViewSet(
             ticket=ticket,
             user=request.user,
             message=serializer.validated_data["message"],
-            attachments_json=serializer.validated_data.get("attachments_json", [])
+            attachment_files=serializer.validated_data.get("attachments", []),
         )
 
         return Response(
@@ -223,7 +227,6 @@ class BaseSupportTicketViewSet(
             sender_type=SupportTicketMessage.SENDER_SYSTEM,
             sender=None,
             message=f"Ticket reopened by {request.user.id}",
-            attachments_json=[]
         )
 
         return Response(
@@ -371,6 +374,7 @@ class AppAdminSupportTicketViewSet(
             description=serializer.validated_data["description"],
             created_by_type=self.sender_role,
             created_by=request.user,
+            attachment_files=serializer.validated_data.get("attachments", []),
         )
 
         return Response(

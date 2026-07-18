@@ -11,4 +11,4 @@ class OrderStatus(models.TextChoices):
     ON_THE_WAY = "on_the_way", "On the Way"
     DELIVERED = "delivered", "Delivered"
     CANCELLED = "cancelled", "Cancelled"
-
+    PAYMENT_INITIALIZATION_FAILED = "payment_initialization_failed", "Payment Initialization Failed"
