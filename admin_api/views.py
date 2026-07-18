@@ -48,6 +48,7 @@ from rest_framework.pagination import LimitOffsetPagination
 from accounts.services.profiles import (
     PROFILE_APP_ADMIN,
 )
+from accounts.serializers import main_serializers as main_serial
 
 
 class AdminPagination(LimitOffsetPagination):
@@ -391,6 +392,18 @@ class AdminUserDetailView(BaseAppAdminAPIView):
         ):
             payload["business"] = AdminBusinessListSerializer(
                 user.business_admin.business
+            ).data
+        if getattr(user, "customer_profile", None):
+            payload["customer_profile"] = main_serial.CustomerProfileSerializer(
+                user.customer_profile
+            ).data
+        if getattr(user, "app_admin", None):
+            payload["app_admin"] = AppAdminProfileSerializer(
+                user.app_admin
+            ).data
+        if getattr(user, "primary_agent", None):
+            payload["business_staff"] = main_serial.PrimaryAgentProfileSerializer(
+                user.primary_agent
             ).data
 
         return Response(payload)

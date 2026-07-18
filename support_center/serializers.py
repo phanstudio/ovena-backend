@@ -35,8 +35,12 @@ class FAQItemSerializer(serializers.ModelSerializer):
 
 
 class TicketListSerializer(serializers.ModelSerializer):
-    owner_name = serializers.CharField(
-        source="owner.name",
+    owner_email = serializers.EmailField(
+        source="owner.email",
+        read_only=True
+    )
+    owner_id = serializers.CharField(
+        source="owner.id",
         read_only=True
     )
 
@@ -52,8 +56,8 @@ class TicketListSerializer(serializers.ModelSerializer):
             "created_at",
             "closed_at",
             "owner_role",
-            "owner",
-            "owner_name",
+            "owner_id",
+            "owner_email",
         ]
 
 
@@ -94,6 +98,14 @@ class TicketCreateSerializer(AttachmentValidationMixin, serializers.ModelSeriali
 
 
 class TicketDetailSerializer(serializers.ModelSerializer):
+    owner_email = serializers.CharField(
+        source="owner.email",
+        read_only=True
+    )
+    owner_id = serializers.CharField(
+        source="owner.id",
+        read_only=True
+    )
     class Meta:
         model = SupportTicket
         fields = [
@@ -108,8 +120,8 @@ class TicketDetailSerializer(serializers.ModelSerializer):
             "updated_at",
             "closed_at",
             "owner_role",
-            "owner",
-            "owner_name",
+            "owner_id",
+            "owner_email",
         ]
 
 
