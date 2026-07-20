@@ -15,8 +15,8 @@ urlpatterns = [
     path(
         "generate/link/", views.GenerateLinkView.as_view(), name="customer-generate-link"
     ),
-    path("ref/", include("referrals.external_ulrs.customer")),
-    path("rating/", include("ratings.external_ulrs.customer")),
+    path("ref/", include("referrals.external_urls.customer")),
+    path("rating/", include("ratings.external_urls.customer")),
     path("", include("support_center.urls.customer")),
     path("", include("notifications.urls.customer")),
     path("", include("payments.subscriptions.urls.client")),
@@ -24,5 +24,5 @@ urlpatterns = [
     path("favorite/remove/", views.FavoriteRemoveView.as_view(), name="favorite-remove"),
     path("favorite/list/", views.FavoriteListView.as_view(), name="favorite-list"),
     path("staff/detail/<int:id>/", views.StoreDetailsView.as_view(), name="staff-detail"),
-    path("points/", include("points.external_ulrs.customer")),
+    path("points/", include("points.external_urls.customer")),
 ]

@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 LIVE_LEADERBOARD_CACHE_TTL_SECONDS = 90
-LIVE_LEADERBOARD_CACHE_KEY = "points:leaderboard:live:{period}:{limit}"
+LIVE_LEADERBOARD_CACHE_KEY = "points:leaderboard:live:{user_type}:{period}:{limit}"
 
 
 def _month_bounds(period: date) -> tuple[date, date]:
@@ -74,7 +74,7 @@ def get_live_leaderboard(limit: int = 50, use_cache: bool = True, user_type="cus
     separate source of truth.
     """
     period = current_period()
-    cache_key = LIVE_LEADERBOARD_CACHE_KEY.format(period=period.isoformat(), limit=limit)
+    cache_key = LIVE_LEADERBOARD_CACHE_KEY.format(period=period.isoformat(), limit=limit, user_type=user_type)
 
     if use_cache:
         cached = cache.get(cache_key)
@@ -82,42 +82,33 @@ def get_live_leaderboard(limit: int = 50, use_cache: bool = True, user_type="cus
             return cached
 
     period_start, period_end = _month_bounds(period)
-    # rows = (
-    #     User.objects.filter(
-    #         points_entries__created_at__date__gte=period_start,
-    #         points_entries__created_at__date__lte=period_end,
-    #     )
-    #     .select_related("customer_profile")
-    #     .annotate(points_this_month=Coalesce(Sum("points_entries__points"), Value(0)))
-    #     .exclude(points_this_month__lte=0)
-    #     .order_by("-points_this_month")[:limit]
-    #     .values("id", "points_this_month", "customer_profile_name")
-    # )
 
-    rows = (
-        CustomerProfile.objects.filter(
-            user__points_entries__created_at__date__gte=period_start,
-            user__points_entries__created_at__date__lte=period_end,
-        )
-        .annotate(
-            points_this_month=Coalesce(
-                Sum("user__points_entries__points"),
-                Value(0),
+    if user_type == "customer":
+        rows = (
+            CustomerProfile.objects.filter(
+                user__points_entries__created_at__date__gte=period_start,
+                user__points_entries__created_at__date__lte=period_end,
+            )
+            .annotate(
+                points_this_month=Coalesce(
+                    Sum("user__points_entries__points"),
+                    Value(0),
+                )
+            )
+            .exclude(points_this_month__lte=0)
+            .order_by("-points_this_month")[:limit]
+            .values(
+                "user_id",
+                "name",
+                "points_this_month",
             )
         )
-        .exclude(points_this_month__lte=0)
-        .order_by("-points_this_month")[:limit]
-        .values(
-            "user_id",
-            "name",
-            "points_this_month",
-        )
-    )
 
-    results = [
-        {"rank": idx + 1, "user_id": str(r["user_id"]), "name": r["name"] or "", "points": r["points_this_month"]}
-        for idx, r in enumerate(rows)
-    ]
+        results = [
+            {"rank": idx + 1, "user_id": str(r["user_id"]), "name": r["name"] or "", "points": r["points_this_month"]}
+            for idx, r in enumerate(rows)
+        ]
+    # we can add the theres
 
     if use_cache:
         cache.set(cache_key, results, LIVE_LEADERBOARD_CACHE_TTL_SECONDS)
