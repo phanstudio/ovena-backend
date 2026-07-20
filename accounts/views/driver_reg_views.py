@@ -354,6 +354,32 @@ class OnboardingPhase2View(GenericAPIView):
         license_doc.status = DriverDocument.STATUS_PENDING
         license_doc.save(update_fields=["file", "status"])
 
+        
+        # nin_ver = DriverVerification.objects.create(
+        #     driver=profile,
+        #     verification_type=DriverVerification.TYPE_NIN,
+        #     status=DriverVerification.STATUS_SUCCESS,
+        #     provider_name="mono",
+        #     provider_ref= ULID(),
+        #     request_payload={"nin": data["nin"][-4:].zfill(11)},  # store masked
+        #     response_payload={"data":"successful"},
+        #     completed_at=timezone.now(),
+        # )
+
+        nin_ver, _ = DriverVerification.objects.update_or_create(
+            driver=profile,
+            verification_type=DriverVerification.TYPE_NIN,
+            defaults={
+                "status": DriverVerification.STATUS_SUCCESS,
+                "provider_name": "mono",
+                "provider_ref": ULID(),
+                "request_payload": {"nin": data["nin"][-4:].zfill(11)},  # store masked
+                "response_payload": {"data":"successful"},
+                "completed_at": timezone.now(),
+            }
+        )
+
+
         # ── NIN verification via Mono ──
         # nin_result = verify_nin_mono(data["nin"])
         # nin_ver = DriverVerification.objects.create(
@@ -366,17 +392,6 @@ class OnboardingPhase2View(GenericAPIView):
         #     response_payload=nin_result["response_payload"],
         #     completed_at=timezone.now(),
         # )
-
-        nin_ver = DriverVerification.objects.create(
-            driver=profile,
-            verification_type=DriverVerification.TYPE_NIN,
-            status=DriverVerification.STATUS_SUCCESS,
-            provider_name="mono",
-            provider_ref= ULID(),
-            request_payload={"nin": data["nin"][-4:].zfill(11)},  # store masked
-            response_payload={"data":"successful"},
-            completed_at=timezone.now(),
-        )
 
 
         # ── BVN verification via Mono ──
