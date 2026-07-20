@@ -65,7 +65,7 @@ def previous_period(period: date | None = None) -> date:
 # Live (current month) -- always computed from the ledger, briefly cached
 # ---------------------------------------------------------------------------
 
-def get_live_leaderboard(limit: int = 50, use_cache: bool = True) -> list[dict]:
+def get_live_leaderboard(limit: int = 50, use_cache: bool = True, user_type="customer") -> list[dict]:
     """
     Current month's standings. This never persists anything -- it's a
     point-in-time read of the ledger for [period_start, now]. Cached for a
@@ -124,7 +124,7 @@ def get_live_leaderboard(limit: int = 50, use_cache: bool = True) -> list[dict]:
     return results
 
 
-def get_my_live_rank(user) -> dict:
+def get_my_live_rank(user, user_type="customer") -> dict:
     """
     Uncached on purpose: this is a single user's row, not the whole ranked
     list, so it's cheap, and it should always reflect their latest action

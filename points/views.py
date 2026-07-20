@@ -35,6 +35,8 @@ from points.serializers import (
     PointsWithdrawalRequestSerializer,
     PointsWithdrawalResolveSerializer,
 )
+from admin_api.views import BaseAppAdminAPIView
+from common.customer.view import BaseCustomerAPIView
 
 User = get_user_model()
 
@@ -204,10 +206,11 @@ class LeaderboardCurrentView(generics.ListAPIView):
     serializer_class = LeaderboardEntrySerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = None  # this is a top-N board, not a paged table
+    user_type = "customer"
 
     def list(self, request, *args, **kwargs):
         limit = int(request.query_params.get("limit", 50))
-        data = leaderboard_service.get_live_leaderboard(limit=limit)
+        data = leaderboard_service.get_live_leaderboard(limit=limit, user_type=self.user_type)
         return Response(self.get_serializer(data, many=True).data)
 
 
@@ -216,9 +219,10 @@ class MyLeaderboardRankView(generics.GenericAPIView):
 
     serializer_class = MyLeaderboardRankSerializer
     permission_classes = [permissions.IsAuthenticated]
+    user_type = "customer"
 
     def get(self, request, *args, **kwargs):
-        data = leaderboard_service.get_my_live_rank(request.user)
+        data = leaderboard_service.get_my_live_rank(request.user, user_type=self.user_type)
         return Response(self.get_serializer(data).data)
 
 
@@ -280,3 +284,50 @@ class PointsEventRuleDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = PointsEventRuleSerializer
     permission_classes = [permissions.IsAdminUser]
     queryset = PointsEventRule.objects.all()
+
+
+
+
+
+
+
+
+# Customer
+# ---------------------------------------------------------------------------
+# Balances -- "list of individuals and their points"
+# ---------------------------------------------------------------------------
+
+class CustomerMyPointsBalanceView(BaseCustomerAPIView, MyPointsBalanceView):
+    ...
+
+
+# ---------------------------------------------------------------------------
+# History
+# ---------------------------------------------------------------------------
+
+class CustomerMyPointsHistoryListView(BaseCustomerAPIView, MyPointsHistoryListView):
+    ...
+
+
+# ---------------------------------------------------------------------------
+# Withdrawals
+# ---------------------------------------------------------------------------
+
+class CustomerPointsWithdrawalRequestCreateView(BaseCustomerAPIView, PointsWithdrawalRequestCreateView):
+    ...
+
+
+class CustomerMyPointsWithdrawalRequestListView(BaseCustomerAPIView, MyPointsWithdrawalRequestListView):
+    ...
+
+
+# ---------------------------------------------------------------------------
+# Leaderboard
+# ---------------------------------------------------------------------------
+
+class CustomerLeaderboardCurrentView(BaseCustomerAPIView, LeaderboardCurrentView):
+    user_type = "customer"
+
+
+class CustomerMyLeaderboardRankView(BaseCustomerAPIView, MyLeaderboardRankView):
+    user_type = "customer"

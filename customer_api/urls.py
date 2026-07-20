@@ -24,4 +24,5 @@ urlpatterns = [
     path("favorite/remove/", views.FavoriteRemoveView.as_view(), name="favorite-remove"),
     path("favorite/list/", views.FavoriteListView.as_view(), name="favorite-list"),
     path("staff/detail/<int:id>/", views.StoreDetailsView.as_view(), name="staff-detail"),
+    path("points/", include("points.external_ulrs.customer")),
 ]

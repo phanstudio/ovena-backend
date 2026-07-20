@@ -10,5 +10,5 @@ urlpatterns = [
     path("coupons/", include("coupons_discount.urls")),
     path("customer/", include("customer_api.urls")),
     path("", include("payments.urls")),
-    path("points/", include("points.urls")),
+    # path("points/", include("points.urls")),
 ]
