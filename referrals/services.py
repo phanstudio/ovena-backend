@@ -76,7 +76,7 @@ def referral_stats(profile):
 def referred_by(user):
     return ProfileReferral.objects.filter(
         referee_user=user,
-    ).first()
+    ).select_related("referrer_profile__user").first()
 
 
 @transaction.atomic

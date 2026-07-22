@@ -152,6 +152,7 @@ class VerifyEmailOTPView(VerifyEmailMixin):
             "is_new_user": created
         }, status=status.HTTP_200_OK)
 
+
 # add a lond ulid string for this in some way stored in the system as otp and accessed via url or something
 # maybe 2fa
 class PassWordResetSendView(GenericAPIView): # just an endpoint doesn't still consitute as valid 
