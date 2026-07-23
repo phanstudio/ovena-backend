@@ -76,37 +76,6 @@ def log_created_order(order, user, payment_url):
     # )
 
 
-# def create_payment(order):
-#     try:
-#         sale_result = initialize_order_sale(order)
-#     except Exception as exc:
-#         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-    
-#     # Save payment reference
-#     order.payment_reference = sale_result["reference"]
-#     order.payment_initialized_at = timezone.now()
-#     order.status = OrderStatus.PAYMENT_PENDING
-#     order.sale_id = sale_result["sale_id"]
-#     order.save(
-#         update_fields=[
-#             "payment_reference",
-#             "payment_initialized_at",
-#             "status",
-#             "sale",
-#         ]
-#     )
-
-#     payment_url = sale_result["payment_url"]
-
-#     # 🔥 Start payment timeout
-#     check_payment_timeout.apply_async(
-#         args=[order.id], countdown=settings.PAYMENT_TIMEOUT
-#     )
-
-#     logger.info("Order %s sale initialized via payments service", order.id)
-#     return payment_url
-
-
 def create_payment(order):
     """
     Initializes payment for an order.
@@ -746,7 +715,7 @@ class ResturantOrderView(GenericAPIView):
         if convert_referral_once(referee_profile=order.orderer):
             idempotency_key = f"referred-order:{order.id}:{order.orderer.id}"
             award_referred_first_order_task.delay(
-                referrer_id= order.orderer.id, sale_id = order.sale.id, idempotency_key=idempotency_key
+                referred_id= order.orderer.id, sale_id= order.sale.id, idempotency_key=idempotency_key
             )
 
         # Log event
@@ -942,7 +911,7 @@ class DriverOrderView(BaseDriverAPIView):
         if reffered:
             idempotency_key = f"referred-order:{order.id}:{order.orderer.id}"
             award_referred_first_order_task.delay(
-                referrer_id= order.orderer.id, sale_id = order.sale.id, idempotency_key=idempotency_key
+                referred_id= order.orderer.id, sale_id = order.sale.id, idempotency_key=idempotency_key
             )
 
         # Log event
