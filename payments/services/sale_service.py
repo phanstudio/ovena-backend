@@ -24,7 +24,8 @@ def initialize_sale(payer_id, driver_id, business_owner_id, amount_kobo, metadat
     payer = User.objects.get(id=payer_id)
     driver = User.objects.get(id=driver_id) if driver_id else None
     business_owner = User.objects.get(id=business_owner_id)
-    referral_user = referred_by(payer).referrer_profile.user
+    referral = referred_by(payer)
+    referral_user = referral.referrer_profile.user if referral else None
 
     config = load_split_config() #remove
     split = calculate_split(amount_kobo, bool(referral_user), config, metadata=metadata or {})
