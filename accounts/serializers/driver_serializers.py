@@ -15,7 +15,7 @@ COMPLIANCE_QUESTIONS = [
     "how_long_worked_as_rider",        # conditional on above
     "familiarity_with_local_routes",
     "have_used_gps_for_deliveries",
-    "can_handle_cash_on_delivery",
+    # "can_handle_cash_on_delivery",
     "willing_to_follow_traffic_rules",
     "willing_to_wear_helmet_and_gear",
     "punctuality_self_rating",
