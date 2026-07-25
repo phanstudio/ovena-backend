@@ -306,3 +306,15 @@ class DriverAnalysisPerformanceView(BaseDriverAPIView):
             granularity=vd.get("granularity", "day"),
         )
         return Response({"detail": "Performance analysis", "data": data})
+
+
+class DriverIsApprovedView(BaseDriverAPIView):
+    def get(self, request):
+        driver = self.get_driver(request)
+        data = {
+            "is_approved": request.user.is_approved,
+            "id": driver.id,
+            "full_name": driver.full_name,
+            "days_taken_for_approval": "4",
+        }
+        return Response({"detail": "Approval Status", "data": data}, status=status.HTTP_200_OK)

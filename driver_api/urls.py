@@ -15,4 +15,5 @@ urlpatterns = [
     path("withdrawals/<int:withdrawal_id>/", views.DriverWithdrawDetailView.as_view(), name="driver-withdrawal-detail"),
     path("analysis/performance/", views.DriverAnalysisPerformanceView.as_view(), name="driver-analysis-performance"),
     path("ratings/", DriverRatingsView.as_view(), name="driver-ratings"),
+    path("status/", views.DriverIsApprovedView.as_view(), name="driver_is_approved")
 ]
