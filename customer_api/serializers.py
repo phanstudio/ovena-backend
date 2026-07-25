@@ -87,7 +87,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = OrderItem
-        fields = ["quantity", "line_total", "snapshot"]
+        fields = ["quantity", "line_total", "snapshot", "addtional_note"]
 
     def get_snapshot(self, obj):
         snap = obj.snapshot or {}
