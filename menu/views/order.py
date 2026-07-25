@@ -150,7 +150,7 @@ def send_thank_you_email(order):
         except Exception as e:
             logger.error("Error occured while sending email: " + str(e))
 
- 
+# 'NoneType' object has no attribute 'referrer_profile'
 # update with new system
 class OrderView(BaseCustomerAPIView):
     def get_list_queryset(self, request):

@@ -133,7 +133,6 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, null=True, blank=True)
     phone_number = PhoneNumberField(unique=True, null=True, blank=True)
-    # name = models.CharField(max_length=150, blank=True, null= True)
     # username = models.CharField(max_length=150, blank=True, null= True, unique=True)
 
     is_active = models.BooleanField(default=True)

@@ -134,9 +134,6 @@ class UpdateAppAdmin(BaseAppAdminAPIView):
         )
 
 
-# class VerifyDriverDocumentView(BaseAppAdminAPIView):
-#     ...  # similar pattern to AdminDriverOnboardingReviewView, but for documents instead of onboarding submissions
-
 class ApproveDriverView(BaseAppAdminAPIView):
     def post(self, request, driver_id: int):
         updated = User.objects.filter(
@@ -154,39 +151,6 @@ class ApproveDriverView(BaseAppAdminAPIView):
                 "is_approved": True,
             }
         )
-
-# class AdminReferralPayoutListView(BaseAppAdminAPIView, ListAPIView):
-#     serializer_class = ReferralPayoutSerializer
-
-#     def get_queryset(self):
-#         qs = (
-#             ReferralPayout.objects
-#             .select_related("user")
-#             .order_by("-created_at")
-#         )
-
-#         user_id = self.request.query_params.get("user_id")
-#         if user_id:
-#             qs = qs.filter(user_id=user_id)
-
-#         return qs
-
-#     def list(self, request, *args, **kwargs):
-#         qs = self.get_queryset()
-
-#         total_units = qs.aggregate(
-#             total=Sum("units_paid")
-#         )["total"] or 0
-
-#         total_payouts = qs.count()
-
-#         serializer = self.get_serializer(qs, many=True)
-
-#         return Response({
-#             "count": total_payouts,
-#             "total_units_paid": total_units,
-#             "results": serializer.data,
-#         })
 
 
 class AdminReferralPayoutListView(BaseAppAdminAPIView, ListAPIView):

@@ -169,5 +169,6 @@ class PassWordResetSendView(GenericAPIView): # just an endpoint doesn't still co
 class SendEmailForRegistration(BaseBuisAdminAPIView, SendEmailMixin):
     ...
 
+
 class VerifyEmailForRegistration(BaseBuisAdminAPIView, VerifyEmailMixin):
     ...

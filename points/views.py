@@ -286,12 +286,6 @@ class PointsEventRuleDetailView(generics.RetrieveUpdateAPIView):
     queryset = PointsEventRule.objects.all()
 
 
-
-
-
-
-
-
 # Customer
 # ---------------------------------------------------------------------------
 # Balances -- "list of individuals and their points"
