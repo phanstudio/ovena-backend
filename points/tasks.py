@@ -72,6 +72,7 @@ def award_referred_first_order_task(self, referred_id: str, sale_id: str, idempo
     try:
         service.award_referred_first_order(referrer=referrer, sale=sale, idempotency_key=idempotency_key)
     except Exception as exc:
+        print(str(exc))
         raise self.retry(exc=exc)
 
 
