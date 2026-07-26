@@ -63,10 +63,11 @@ def award_referred_first_order_task(self, referred_id: str, sale_id: str, idempo
 
     try:
         # referrer = User.objects.get(id=referrer_id)
-        referral = ProfileReferral.objects.select_related("referrer_user").get(referee_user_id=referred_id)
+        referral = ProfileReferral.objects.select_related("referrer_user").get(referee_profile_id=referred_id)
         referrer = referral.referrer_user#User.objects.get(id=referral.referrer_user.id)
         sale = Sale.objects.get(id=sale_id)
-    except (User.DoesNotExist, Sale.DoesNotExist):
+    except (User.DoesNotExist, Sale.DoesNotExist, ProfileReferral.DoesNotExist) as e:
+        print("Award error:", str(e))
         return
     try:
         service.award_referred_first_order(referrer=referrer, sale=sale, idempotency_key=idempotency_key)
