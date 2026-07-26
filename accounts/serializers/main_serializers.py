@@ -56,7 +56,8 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
             "age",
             "referral_code",
             "name",
-            "pickup_food"
+            "pickup_food",
+            "points"
         ]
 
     def get_points(self, obj):
