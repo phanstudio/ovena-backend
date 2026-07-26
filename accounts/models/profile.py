@@ -109,6 +109,8 @@ class CustomerProfile(
         related_name="default_for_customers",
     )  # set normally but change if requested
     pickup_food = models.BooleanField(default=False)
+    # profile_image_url = models.URLField(blank=True, null=True)
+
     # not validated; which allow us to use create normally?? aso stopping people from using a different profile to create a user.
     #:attention
 
@@ -136,8 +138,17 @@ class CustomerProfile(
     def successful_referrals(self):
         return 0
 
-
+# revoked can withdraw their money
+# 
 class DriverProfile(RatingModelMixin, ProfileBase):
+    # STATUS_CHOICES = [
+    #     ("active", "Active"),
+    #     ("revoked", "Revoked"),
+    #     ("on_trial", "On Trail"),
+    #     ("unauthenticated", "Unauthenticated"),
+    #     ("deactivated", "Deactivated"),
+    # ]
+    
     profilebase_ptr = models.OneToOneField(
         ProfileBase,
         on_delete=models.CASCADE,
@@ -172,6 +183,12 @@ class DriverProfile(RatingModelMixin, ProfileBase):
         # choices=[("bike","Bike"),("car","Car"),("van","Van")],
     )  # bike, car, etc.
     vehicle_number = models.CharField(max_length=50, blank=True, null=True)
+    # status = models.CharField(
+    #     max_length=50,
+    #     choices=STATUS_CHOICES,
+    #     default="unauthenticated",
+    # )
+    # trail_start_time = models.DateTimeField()
 
     # Stats
     total_deliveries = models.IntegerField(default=0)

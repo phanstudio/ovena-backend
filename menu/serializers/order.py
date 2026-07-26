@@ -23,6 +23,10 @@ def calculate_delivery_fee(is_delivery, distance_km)-> float:
     return delivery_fee
 
 
+class PaymentRetrySerializer(serializers.Serializer):
+    order_id = serializers.IntegerField()
+
+
 class OrderItemCreateSerializer(serializers.Serializer):
     menu_item_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
@@ -32,10 +36,7 @@ class OrderItemCreateSerializer(serializers.Serializer):
     addon_ids = serializers.ListField(
         child=serializers.IntegerField(), required=False, allow_empty=True
     )
-
-
-class PaymentRetrySerializer(serializers.Serializer):
-    order_id = serializers.IntegerField()
+    addtional_note = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class OrderCreateSerializer(serializers.Serializer):
@@ -317,6 +318,7 @@ class OrderCreateSerializer(serializers.Serializer):
                 "menu_item": {
                     "id": menu_item.id,
                     "name": menu_item.custom_name or menu_item.base_item.name,
+                    "image": menu_item.effective_image,
                 },
                 "pricing": {
                     "base_price": str(base_price),
@@ -355,6 +357,7 @@ class OrderCreateSerializer(serializers.Serializer):
                     added_total=added_total,
                     line_total=line_total,
                     snapshot=snapshot,
+                    addtional_note=entry["addtional_note"]
                 )
             )
 

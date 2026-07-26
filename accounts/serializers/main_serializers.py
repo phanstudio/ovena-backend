@@ -17,6 +17,7 @@ from ..models import (
 from referrals.services import apply_referral_code
 from phonenumber_field.serializerfields import PhoneNumberField  # type: ignore
 from points.tasks import award_referral_success_task
+from points import service
 
 
 class AddressSerializer(serializers.ModelSerializer):
@@ -43,6 +44,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
     age = serializers.ReadOnlyField()  # uses the @property
     default_address = AddressSerializer(read_only=True)
     addresses = AddressSerializer(many=True, read_only=True)
+    points = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomerProfile
@@ -56,6 +58,10 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
             "name",
             "pickup_food"
         ]
+
+    def get_points(self, obj):
+        user = self.context["user"]
+        return service.get_points_balance(user)
 
 
 class DriverProfileSerializer(serializers.ModelSerializer):
@@ -150,9 +156,7 @@ class CreateCustomerSerializer(serializers.Serializer):
     long = serializers.FloatField(required=False)
     birth_date = serializers.DateField(required=False)
     referral_code = serializers.CharField(required=False, allow_blank=True, default="")
-    profile_pic = serializers.CharField(
-        required=False, allow_blank=True
-    )
+    profile_pic = serializers.CharField(required=False, allow_blank=True)
     address = serializers.CharField(required=False, allow_blank=True, default="unknown")
     is_picking_up_food = serializers.BooleanField(required=False, default=False)
 
@@ -217,6 +221,7 @@ class CreateCustomerSerializer(serializers.Serializer):
             default_address=location,
             name=validated_data["name"],
             pickup_food=validated_data["is_picking_up_food"],
+            # profile_image_url=validated_data["profile_pic"]
         )
 
         if location:

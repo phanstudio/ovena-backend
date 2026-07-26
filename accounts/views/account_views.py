@@ -46,6 +46,7 @@ class UserProfileView(APIView):
         user = request.user
         requested_type = request.query_params.get("profile_type")
         user_roles = sorted(get_user_roles(user))
+        user_context = {"user": user}
 
         active_profile_type = requested_type
         if requested_type == "customer":
@@ -55,7 +56,7 @@ class UserProfileView(APIView):
                     {"detail": "Customer profile not found."},
                     status=status.HTTP_404_NOT_FOUND,
                 )
-            serializer = CustomerProfileSerializer(profile)
+            serializer = CustomerProfileSerializer(profile, user_context)
         elif requested_type == "driver":
             profile = getattr(user, "driver_profile", None)
             if not profile:
@@ -81,7 +82,7 @@ class UserProfileView(APIView):
                 )
             serializer = PrimaryAgentProfileSerializer(profile)
         elif hasattr(user, "customer_profile"):
-            serializer = CustomerProfileSerializer(user.customer_profile)
+            serializer = CustomerProfileSerializer(user.customer_profile, context=user_context)
             active_profile_type = "customer"
         elif hasattr(user, "driver_profile"):
             serializer = DriverProfileSerializer(user.driver_profile)
