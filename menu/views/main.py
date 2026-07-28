@@ -141,7 +141,7 @@ class HomePageView(LocationDependantMixin, BaseCustomerAPIView):
 # BUSINESS LIST — Infinite Scroll (ultra-lightweight)
 # ============================================================================
 # add is closed #:attention
-class BusinessListView(LocationDependantMixin, APIView):
+class BusinessListView(LocationDependantMixin, GenericAPIView):
     """
     GET /businesses/?lat=&lng=&page=
     2 queries per page.
@@ -380,7 +380,7 @@ class BusinessSearchView(LocationDependantMixin, GenericAPIView):
 # cachable but avalability is updated;
 # ============================================================================
 
-class BusinessDetailView(LocationDependantMixin,APIView):
+class BusinessDetailView(LocationDependantMixin, GenericAPIView):
     """
     GET /businesses/<id>/?lat=&lng=
     - Full menu with variants and addons
