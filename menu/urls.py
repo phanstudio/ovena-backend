@@ -30,14 +30,7 @@ business_urls = [
         name="staff-order-history",
     ),
     path("business/bulk-delete/", deleteview.BulkDeleteMenuView.as_view(), name="bulk-delete-menu"),
-    path(
-        "business/<str:menu_id>/delete/", 
-        deleteview.DeleteMenuView.as_view(), 
-        name="delete-menu"
-    ),
-    path("business/category/<str:category_id>/delete/", deleteview.DeleteMenuCategoryView.as_view(), name="delete-category"),
-    path("business/item/<str:item_id>/delete/", deleteview.DeleteMenuItemView.as_view(), name="delete-menu-item"),
-    path("business/addon/<str:addon_id>/delete/", deleteview.DeleteAddonView.as_view(), name="delete-addon"),
+    path("business/bulk-delete/images/", deleteview.BulkDeleteMenuImagesView.as_view(), name="bulk-delete-menu-images"),
 ]
 
 customer_urls = [

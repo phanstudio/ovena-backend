@@ -69,3 +69,13 @@ class BulkDeleteResponseSerializer(serializers.Serializer):
     message            = serializers.CharField()
     deleted            = BulkDeletedCountsSerializer()
     base_items_deleted = DeletedBaseItemsField()
+
+
+class BulkDeleteImageRequestSerializer(serializers.Serializer):
+    items      = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+    addons     = serializers.ListField(child=serializers.CharField(), required=False, default=list)
+
+    def validate(self, data):
+        if not any([data.get("items"), data.get("addons")]):
+            raise serializers.ValidationError("At least one ID must be provided across menus, categories, items, or addons or varity.")
+        return data
