@@ -2,12 +2,10 @@ from decimal import Decimal
 from rest_framework import serializers
 from accounts.models import DriverAvailability
 from driver_api.models import (
-    DriverLedgerEntry,
-    DriverWallet,
-    DriverWithdrawalRequest,
     SupportFAQCategory,
     SupportFAQItem,
 )
+from payments.models import LedgerEntry, Withdrawal
 from support_center.models import SupportTicket, SupportTicketMessage
 from phonenumber_field.serializerfields import PhoneNumberField  # type: ignore
 
@@ -112,10 +110,12 @@ class TicketMessageCreateSerializer(serializers.Serializer):
     )
 
 
-class WalletSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DriverWallet
-        fields = ["current_balance", "available_balance", "pending_balance", "last_settled_at", "updated_at"]
+class WalletSerializer(serializers.Serializer):
+    current_balance = serializers.DecimalField(max_digits=12, decimal_places=2)
+    available_balance = serializers.DecimalField(max_digits=12, decimal_places=2)
+    pending_balance = serializers.DecimalField(max_digits=12, decimal_places=2)
+    last_settled_at = serializers.DateTimeField()
+    updated_at = serializers.DateTimeField()
 
 
 class EarningsSummarySerializer(serializers.Serializer):
@@ -128,8 +128,15 @@ class EarningsSummarySerializer(serializers.Serializer):
 
 
 class LedgerEntrySerializer(serializers.ModelSerializer):
+    entry_type = serializers.CharField(source="type")
+    amount = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+    source_type = serializers.SerializerMethodField()
+    source_id = serializers.SerializerMethodField()
+    metadata = serializers.SerializerMethodField()
+
     class Meta:
-        model = DriverLedgerEntry
+        model = LedgerEntry
         fields = [
             "id",
             "entry_type",
@@ -140,6 +147,21 @@ class LedgerEntrySerializer(serializers.ModelSerializer):
             "metadata",
             "created_at",
         ]
+
+    def get_amount(self, obj):
+        return Decimal(obj.amount or 0) / Decimal("100")
+
+    def get_status(self, _obj):
+        return "posted"
+
+    def get_source_type(self, obj):
+        return "sale" if obj.sale_id else "withdrawal"
+
+    def get_source_id(self, obj):
+        return str(obj.sale_id or "")
+
+    def get_metadata(self, obj):
+        return {"role": obj.role, "notes": obj.notes}
 
 
 class WithdrawalEligibilitySerializer(serializers.Serializer):
@@ -155,8 +177,17 @@ class WithdrawalRequestCreateSerializer(serializers.Serializer):
 
 
 class WithdrawalRequestSerializer(serializers.ModelSerializer):
+    amount = serializers.SerializerMethodField()
+    bank_snapshot = serializers.SerializerMethodField()
+    review_snapshot = serializers.SerializerMethodField()
+    transfer_ref = serializers.CharField(source="paystack_transfer_ref", allow_blank=True, allow_null=True)
+    payment_withdrawal = serializers.SerializerMethodField()
+    needs_manual_review = serializers.SerializerMethodField()
+    approved_at = serializers.DateTimeField(source="requested_at")
+    paid_at = serializers.DateTimeField(source="completed_at", allow_null=True)
+
     class Meta:
-        model = DriverWithdrawalRequest
+        model = Withdrawal
         fields = [
             "id",
             "amount",
@@ -174,6 +205,21 @@ class WithdrawalRequestSerializer(serializers.ModelSerializer):
             "processed_at",
             "paid_at",
         ]
+
+    def get_amount(self, obj):
+        return Decimal(obj.amount or 0) / Decimal("100")
+
+    def get_bank_snapshot(self, obj):
+        return {"recipient_code": obj.paystack_recipient_code}
+
+    def get_review_snapshot(self, obj):
+        return {"strategy": obj.strategy}
+
+    def get_payment_withdrawal(self, obj):
+        return str(obj.id)
+
+    def get_needs_manual_review(self, obj):
+        return obj.status == "failed"
 
 
 class AnalysisPerformanceQuerySerializer(serializers.Serializer):

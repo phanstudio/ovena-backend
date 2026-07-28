@@ -34,9 +34,6 @@ class Order(models.Model): # do we add a coupon snap shot or not also a discount
     
     # Payment
     sale = models.OneToOneField(Sale, on_delete=models.CASCADE, related_name="sale", null=True, blank=True)
-    payment_reference = models.CharField(max_length=200, blank=True, null=True)
-    payment_initialized_at = models.DateTimeField(blank=True, null=True)
-    payment_completed_at = models.DateTimeField(blank=True, null=True)
     
     # Delivery verification
     delivery_secret_hash = models.CharField(max_length=200)

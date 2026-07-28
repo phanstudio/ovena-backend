@@ -65,7 +65,10 @@ def get_balance_summary(user_id, role: str | None = None):
     user = User.objects.get(id=user_id)
     balance = get_ledger_balance(user)
     pending = _pending_total(user)
-    available = balance - pending
+    # Withdrawal requests create a ledger debit hold immediately, so the ledger
+    # balance is already the available balance. Add pending back for total.
+    available = balance
+    total = balance + pending
 
     if role:
         ledger_role = _normalize_ledger_role(role)
@@ -77,13 +80,13 @@ def get_balance_summary(user_id, role: str | None = None):
             minimum = 0
 
     return {
-        "total_balance_kobo": balance,
+        "total_balance_kobo": total,
         "pending_withdrawal_kobo": pending,
         "available_balance_kobo": available,
         "minimum_withdrawal_kobo": minimum,
         "can_withdraw": available >= minimum,
         "needed_to_withdraw_kobo": max(0, minimum - available),
-        "total_balance_ngn": balance / 100,
+        "total_balance_ngn": total / 100,
         "available_balance_ngn": available / 100,
         "minimum_ngn": minimum / 100,
     }

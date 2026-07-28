@@ -16,6 +16,7 @@ from accounts.models import (
     User,
     Branch,
     PrimaryAgent,
+    PrimaryAgentAction
 )
 from admin_api.models import AppAdmin
 from django.db import transaction, IntegrityError

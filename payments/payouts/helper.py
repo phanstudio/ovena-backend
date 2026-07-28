@@ -75,7 +75,7 @@ def _infer_ledger_role_for_user(user: User) -> str:
 
 def _pending_total(user) -> int:
     result = Withdrawal.objects.filter(
-        user=user, status="pending_batch"
+        user=user, status__in=["pending_batch", "processing"]
     ).aggregate(total=Sum("amount"))
     return result["total"] or 0
 

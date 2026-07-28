@@ -3,7 +3,7 @@
 These tests focus on:
 - protecting `sales.initialize` with idempotency keys so callers can safely retry;
 - de-duping Paystack webhooks while still recording every attempt;
-- wiring transfer webhooks into the unified withdrawal + driver sync pipeline;
+- wiring transfer webhooks into the centralized withdrawal pipeline;
 - emitting basic observability metrics around webhook lag and outcomes.
 """
 
@@ -156,26 +156,17 @@ def test_webhook_processed_and_error_transitions(monkeypatch):
 
 
 
-def test_transfer_event_syncs_driver_via_link_and_skips_fallback_reconcile(monkeypatch):
-    """Happy-path transfer.success: update payments.Withdrawal and sync linked driver withdrawal, no fallback reconcile."""
+def test_transfer_event_marks_payment_withdrawal_paid(monkeypatch):
+    """Happy-path transfer.success updates only the centralized payments.Withdrawal."""
     payment_withdrawal = object()
-    called = {"paid": 0, "sync": 0, "reconcile": 0}
+    called = {"paid": 0}
 
     monkeypatch.setattr(paystack_webhooks, "_find_payment_withdrawal", lambda **kwargs: payment_withdrawal)
 
     def fake_paid(_withdrawal):
         called["paid"] += 1
 
-    def fake_sync(**kwargs):
-        called["sync"] += 1
-        return True
-
-    def fake_reconcile(**kwargs):
-        called["reconcile"] += 1
-
     monkeypatch.setattr(paystack_webhooks, "mark_withdrawal_paid", fake_paid)
-    monkeypatch.setattr(paystack_webhooks, "_sync_driver_withdrawal_from_linked_payment", fake_sync)
-    monkeypatch.setattr(paystack_webhooks, "_reconcile_driver_withdrawal", fake_reconcile)
 
     paystack_webhooks.process_event(
         {
@@ -184,11 +175,11 @@ def test_transfer_event_syncs_driver_via_link_and_skips_fallback_reconcile(monke
         }
     )
 
-    assert called == {"paid": 1, "sync": 1, "reconcile": 0}
+    assert called == {"paid": 1}
 
 
-def test_transfer_event_falls_back_to_reconcile_when_link_sync_not_available(monkeypatch):
-    """When no linked driver record is found, Paystack transfer events should fall back to reconcile-based resolution."""
+def test_transfer_event_marks_payment_withdrawal_failed(monkeypatch):
+    """transfer.failed updates only the centralized payments.Withdrawal."""
     payment_withdrawal = object()
     captured = {}
 
@@ -198,12 +189,6 @@ def test_transfer_event_falls_back_to_reconcile_when_link_sync_not_available(mon
         captured["reason"] = reason
 
     monkeypatch.setattr(paystack_webhooks, "mark_withdrawal_failed", fake_failed)
-    monkeypatch.setattr(paystack_webhooks, "_sync_driver_withdrawal_from_linked_payment", lambda **kwargs: False)
-
-    def fake_reconcile(**kwargs):
-        captured["reconcile"] = kwargs
-
-    monkeypatch.setattr(paystack_webhooks, "_reconcile_driver_withdrawal", fake_reconcile)
 
     paystack_webhooks.process_event(
         {
@@ -213,11 +198,6 @@ def test_transfer_event_falls_back_to_reconcile_when_link_sync_not_available(mon
     )
 
     assert captured["reason"] == "declined"
-    assert captured["reconcile"] == {
-        "transfer_reference": "trf-fallback",
-        "transfer_status": "failed",
-        "reason": "declined",
-    }
 
 @pytest.mark.django_db
 @override_settings(PAYSTACK_SECRET_KEY="sk_test_secret")

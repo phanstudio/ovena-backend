@@ -95,12 +95,10 @@ def reconcile_stale_processing_withdrawals():
         status = (ps.get("status") or "").lower().strip()
         if status == "success":
             mark_withdrawal_paid(withdrawal)
-            _sync_driver_withdrawal_if_linked(withdrawal, "success", "")
             reconciled += 1
         elif status in {"failed", "reversed"}:
             reason = ps.get("failure_reason") or ps.get("gateway_response") or "Paystack marked transfer as failed"
             mark_withdrawal_failed(withdrawal, reason)
-            _sync_driver_withdrawal_if_linked(withdrawal, "failed", reason)
             reconciled += 1
         else:
             skipped += 1
@@ -115,22 +113,6 @@ def reconcile_stale_processing_withdrawals():
         },
     )
     return f"reconciled={reconciled} skipped={skipped} errors={errors}"
-
-
-def _sync_driver_withdrawal_if_linked(withdrawal: Withdrawal, status: str, reason: str):
-    driver_withdrawal = getattr(withdrawal, "driver_withdrawal", None)
-    if not driver_withdrawal:
-        return
-    try:
-        from driver_api.services import mark_withdrawal_failed as driver_mark_failed
-        from driver_api.services import mark_withdrawal_paid as driver_mark_paid
-    except Exception:
-        return
-    if status == "success":
-        driver_mark_paid(driver_withdrawal)
-    else:
-        driver_mark_failed(driver_withdrawal, reason=reason or "Paystack marked transfer as failed", manual=False)
-
 
 @shared_task(name="payments.payouts.ensure_paystack_recipient_for_driver")
 def ensure_paystack_recipient_for_driver(driver_id: int):

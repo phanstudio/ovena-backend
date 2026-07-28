@@ -402,8 +402,8 @@ def check_all_payment_timeouts():
     # Find orders stuck in payment_pending or confirmed
     stuck_orders = Order.objects.filter(
         Q(status=OrderStatus.PAYMENT_PENDING),# | Q(status='confirmed'),
-        payment_initialized_at__lt=timeout_threshold,
-        payment_completed_at__isnull=True
+        sale__created_at__lt=timeout_threshold,
+        sale__status="pending",
     )
     
     cancelled_count = 0
@@ -444,22 +444,23 @@ def verify_payment_status(order_id): # this is broken needs fixing
     Verify payment status with Paystack (if webhook failed)
     """
     try:
-        from .models import Transaction
+        from payments.integrations.client import client
         
         order = Order.objects.get(id=order_id)
         
-        if not order.payment_reference:
+        if not order.sale_id:
             return "No payment reference"
         
         # Verify with Paystack
-        result = Transaction.verify(order.payment_reference)
+        result = client.verify_transaction(order.sale.paystack_reference)
         
         if result['status'] and result['data']['status'] == 'success':
             # Payment successful, update order
             if order.status in [OrderStatus.PAYMENT_PENDING]:
                 order.status = OrderStatus.PENDING
-                order.payment_completed_at = timezone.now()
-                order.save(update_fields=['status', 'payment_completed_at', 'last_modified_at'])
+                order.sale.status = "in_escrow"
+                order.sale.save(update_fields=["status", "updated_at"])
+                order.save(update_fields=['status', 'last_modified_at'])
                 
                 # Notify all parties
                 from .websocket_utils import notify_payment_completed

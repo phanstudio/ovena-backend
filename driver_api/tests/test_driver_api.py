@@ -5,9 +5,8 @@ import pytest
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import DriverBankAccount, DriverProfile, User
-from driver_api.models import DriverLedgerEntry, DriverWithdrawalRequest
 from driver_api.services import sync_wallet_from_ledger
-from payments.models import UserAccount
+from payments.models import Withdrawal
 from payments.payouts import services as payout_services
 from payments.services.split_calculator import _create_ledger_entry
 
@@ -37,7 +36,7 @@ def test_driver_profile_endpoint(client):
 
 
 @pytest.mark.django_db
-def test_withdrawal_idempotency_key_returns_existing_record(client):
+def test_withdrawal_idempotency_key_returns_existing_record(client, monkeypatch):
     """
     Driver withdrawal POST with the same Idempotency-Key should be idempotent:
     first call creates, second returns the same record instead of double-charging.
@@ -48,18 +47,14 @@ def test_withdrawal_idempotency_key_returns_existing_record(client):
         driver=profile,
         bank_code="058",
         bank_name="GTBank",
-        account_number="0123456789",
-        account_name="Driver Two",
+        bank_account_number="0123456789",
+        bank_account_name="Driver Two",
+        paystack_recipient_code="RCP_123",
         is_verified=True,
     )
-    DriverLedgerEntry.objects.create(
-        driver=profile,
-        entry_type=DriverLedgerEntry.TYPE_CREDIT,
-        amount="5000.00",
-        source_type="seed",
-        source_id="1",
-        status=DriverLedgerEntry.STATUS_POSTED,
-    )
+    monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
+    _create_ledger_entry(user=user, sale=None, role="driver", entry_type="credit", amount=500000, notes="seed")
+    monkeypatch.setattr("driver_api.views.process_withdrawal_request", lambda withdrawal: withdrawal)
     headers = {
         **auth_header_for(user),
         "HTTP_IDEMPOTENCY_KEY": "idem-123",
@@ -135,21 +130,23 @@ def test_withdrawal_creation_triggers_background_processing_for_approved_request
 
     def fake_create_withdrawal_request(*, driver, amount, idempotency_key):
         created_calls["args"] = {"driver": driver, "amount": amount, "idempotency_key": idempotency_key}
-        w = DriverWithdrawalRequest(
-            id=1,
-            driver=driver,
-            amount=amount,
+        w = Withdrawal(
+            id="00000000-0000-0000-0000-000000000001",
+            user=driver.user,
+            amount=15000,
             idempotency_key=idempotency_key,
-            status=DriverWithdrawalRequest.STATUS_APPROVED,
+            status="pending_batch",
+            strategy=Withdrawal.STRATEGY_REALTIME,
+            paystack_recipient_code="RCP",
         )
         return w, True
 
-    def fake_delay(withdrawal_id):
+    def fake_process(withdrawal):
         queued["count"] += 1
-        queued["last_id"] = withdrawal_id
+        queued["last_id"] = str(withdrawal.id)
 
     monkeypatch.setattr("driver_api.views.create_withdrawal_request", fake_create_withdrawal_request)
-    monkeypatch.setattr("driver_api.views.process_withdrawal.delay", fake_delay)
+    monkeypatch.setattr("driver_api.views.process_withdrawal_request", fake_process)
 
     headers = {
         **auth_header_for(user),
@@ -164,7 +161,7 @@ def test_withdrawal_creation_triggers_background_processing_for_approved_request
 
     assert response.status_code == 201
     assert queued["count"] == 1
-    assert queued["last_id"] == 1
+    assert queued["last_id"] == "00000000-0000-0000-0000-000000000001"
 
 
 @pytest.mark.django_db
@@ -172,15 +169,14 @@ def test_sync_wallet_prefers_payments_ledger_when_available(monkeypatch):
     monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt")
     user = User.objects.create(email="driver6@example.com", name="Driver Six")
     profile = DriverProfile.objects.create(user=user, first_name="Driver", last_name="Six")
-    UserAccount.objects.create(user=user, paystack_recipient_code="RCP_123")
-
-    DriverLedgerEntry.objects.create(
+    DriverBankAccount.objects.create(
         driver=profile,
-        entry_type=DriverLedgerEntry.TYPE_CREDIT,
-        amount="2000.00",
-        source_type="legacy_seed",
-        source_id="legacy-1",
-        status=DriverLedgerEntry.STATUS_POSTED,
+        bank_code="058",
+        bank_name="GTBank",
+        bank_account_number="0123456789",
+        bank_account_name="Driver Six",
+        paystack_recipient_code="RCP_123",
+        is_verified=True,
     )
     _create_ledger_entry(user=user, sale=None, role="driver", entry_type="credit", amount=500000, notes="seed")
 

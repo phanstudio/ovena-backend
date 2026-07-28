@@ -54,32 +54,6 @@ def _find_payment_withdrawal(reference: str, transfer_code: str) -> Withdrawal |
     return Withdrawal.objects.filter(paystack_transfer_ref=reference).first() or Withdrawal.objects.filter(paystack_transfer_code=transfer_code).first()
 
 
-def _reconcile_driver_withdrawal(transfer_reference: str, transfer_status: str, reason: str = "") -> None:
-    try:
-        from driver_api.tasks import reconcile_paystack_webhook
-    except Exception:
-        return
-    reconcile_paystack_webhook(transfer_reference=transfer_reference, transfer_status=transfer_status, reason=reason)
-
-
-def _sync_driver_withdrawal_from_linked_payment(payment_withdrawal: Withdrawal, transfer_status: str, reason: str = "") -> bool:
-    driver_withdrawal = getattr(payment_withdrawal, "driver_withdrawal", None)
-    if not driver_withdrawal:
-        return False
-
-    try:
-        from driver_api.services import mark_withdrawal_failed as driver_mark_failed
-        from driver_api.services import mark_withdrawal_paid as driver_mark_paid
-    except Exception:
-        return False
-
-    if transfer_status == "success":
-        driver_mark_paid(driver_withdrawal)
-    else:
-        driver_mark_failed(driver_withdrawal, reason=reason or "Paystack marked transfer as failed", manual=False)
-    return True
-
-
 def _record_webhook_lag(body: dict[str, Any], event_type: str) -> None:
     data = body.get("data", {})
     raw_time = data.get("paid_at") or data.get("createdAt") or data.get("created_at") or data.get("transferred_at")
@@ -272,26 +246,12 @@ def process_event(body: dict[str, Any]) -> None:
         reason = data.get("gateway_response") or data.get("failure_reason") or "Transfer failed"
 
         payment_withdrawal = _find_payment_withdrawal(reference=reference, transfer_code=transfer_code)
-        transfer_status = "success" if event == "transfer.success" else "failed"
-        driver_synced_via_link = False
 
         if payment_withdrawal:
             if event == "transfer.success":
                 mark_withdrawal_paid(payment_withdrawal)
             else:
                 mark_withdrawal_failed(payment_withdrawal, reason=reason)
-            driver_synced_via_link = _sync_driver_withdrawal_from_linked_payment(
-                payment_withdrawal=payment_withdrawal,
-                transfer_status=transfer_status,
-                reason=reason,
-            )
-
-        if not driver_synced_via_link:
-            _reconcile_driver_withdrawal(
-                transfer_reference=reference or transfer_code,
-                transfer_status=transfer_status,
-                reason=reason,
-            )
         return
 
     if event == "subscription.create":

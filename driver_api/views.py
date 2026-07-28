@@ -11,8 +11,6 @@ from accounts.models import DriverAvailability, DriverProfile
 from authflow.authentication import CustomDriverAuth
 from authflow.permissions import IsDriver
 from driver_api.models import (
-    DriverLedgerEntry,
-    DriverWithdrawalRequest,
     SupportFAQItem,
 )
 from driver_api.serializers import (
@@ -35,7 +33,8 @@ from driver_api.services import (
     performance_metrics,
     sync_wallet_from_ledger,
 )
-from driver_api.tasks import process_withdrawal, process_withdrawal_request
+from driver_api.tasks import process_withdrawal_request
+from payments.models import LedgerEntry, Withdrawal
 from support_center.services import get_driver_open_ticket_count
 from authflow.services.phone_number import get_phone_number
 from notifications.services import get_unread_count
@@ -209,7 +208,7 @@ class DriverEarningsHistoryView(BaseDriverAPIView):
 
     def get(self, request):
         driver = self.get_driver(request)
-        qs = DriverLedgerEntry.objects.filter(driver=driver).order_by("-created_at")
+        qs = LedgerEntry.objects.filter(user=driver.user, role="driver").order_by("-created_at")
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response({"detail": "Earnings history", "data": LedgerEntrySerializer(page, many=True).data})
@@ -234,7 +233,7 @@ class DriverWithdrawListCreateView(BaseDriverAPIView):
 
     def get(self, request):
         driver = self.get_driver(request)
-        qs = DriverWithdrawalRequest.objects.filter(driver=driver).order_by("-created_at")
+        qs = Withdrawal.objects.filter(user=driver.user).order_by("-requested_at")
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response({"detail": "Withdrawal requests", "data": WithdrawalRequestSerializer(page, many=True).data})
@@ -253,13 +252,8 @@ class DriverWithdrawListCreateView(BaseDriverAPIView):
             amount=serializer.validated_data["amount"],
             idempotency_key=idempotency_key,
         )
-        if created and withdrawal.status == DriverWithdrawalRequest.STATUS_APPROVED:
-            # process_withdrawal.delay(withdrawal.id)
-            withdrawal = DriverWithdrawalRequest.objects.filter(id=withdrawal.id).select_related("driver").first()
-            if not withdrawal:
-                print("missing")
+        if created and withdrawal.status in {"pending_batch", "processing"}:
             process_withdrawal_request(withdrawal)
-            print(withdrawal.status)
 
         status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
         return Response(
@@ -272,9 +266,9 @@ class DriverWithdrawListCreateView(BaseDriverAPIView):
 
 
 class DriverWithdrawDetailView(BaseDriverAPIView):
-    def get(self, request, withdrawal_id: int):
+    def get(self, request, withdrawal_id):
         driver = self.get_driver(request)
-        withdrawal = get_object_or_404(DriverWithdrawalRequest, id=withdrawal_id, driver=driver)
+        withdrawal = get_object_or_404(Withdrawal, id=withdrawal_id, user=driver.user)
         return Response({"detail": "Withdrawal detail", "data": WithdrawalRequestSerializer(withdrawal).data})
 
 

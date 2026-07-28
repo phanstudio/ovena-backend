@@ -217,11 +217,32 @@ class DriverWithdrawalEvaluator(WithdrawalEligibilityEvaluator):
         except Exception:
             return True
 
+    def _check_bank_verified(self) -> bool:
+        try:
+            return bool(self.user.driver_profile.bank_account.is_verified)
+        except Exception:
+            return False
+
+    def _check_no_blocking_ticket(self) -> bool:
+        try:
+            from support_center.models import SupportTicket
+
+            return not SupportTicket.objects.filter(
+                owner_id=self.user_id if hasattr(self, "user_id") else self.user.id,
+                owner_role=SupportTicket.OWNER_DRIVER,
+                status__in=[SupportTicket.STATUS_OPEN, SupportTicket.STATUS_IN_PROGRESS],
+                is_blocking=True,
+            ).exists()
+        except Exception:
+            return True
+
     def evaluate(self) -> WithdrawalDecision:
         decision = super().evaluate()
 
         extra = {
             "driver_active": self._check_driver_active(),
+            "bank_verified": self._check_bank_verified(),
+            "no_blocking_ticket": self._check_no_blocking_ticket(),
         }
 
         merged_checks = {**decision.checks, **extra}

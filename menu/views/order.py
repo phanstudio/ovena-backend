@@ -107,14 +107,10 @@ def create_payment(order):
     order.payment_retry_count = retry_attempts
     order.last_payment_attempt = timezone.now()
     
-    order.payment_reference = sale_result["reference"]
-    order.payment_initialized_at = timezone.now()
     order.status = OrderStatus.PAYMENT_PENDING
     order.sale_id = sale_result["sale_id"]
     order.save(
         update_fields=[
-            "payment_reference",
-            "payment_initialized_at",
             "status",
             "sale",
             "payment_retry_count", 
@@ -588,7 +584,7 @@ class ResturantOrderView(GenericAPIView):
         return Response( #:bug check later
             {
                 "message": "Order accepted successfully",
-                "payment_reference": order.payment_reference,
+                "payment_reference": order.sale.paystack_reference if order.sale_id else "",
             },
             status=status.HTTP_202_ACCEPTED,
         )

@@ -58,9 +58,25 @@ def _resolve_for_individual(user) -> "AbstractPayoutAccount | None":
         return None
 
 
+def _resolve_for_driver(user) -> "AbstractPayoutAccount | None":
+    """
+    Driver payout account lives on DriverProfile as DriverBankAccount.
+    This keeps driver withdrawals inside the payments pipeline without a
+    driver_api withdrawal bridge.
+    """
+    try:
+        return user.driver_profile.bank_account
+    except Exception:
+        logger.warning(
+            "payments.bridge.driver_account.missing",
+            extra={"user_id": str(user.id)},
+        )
+        return None
+
+
 _ACCOUNT_RESOLVER_MAP = {
     "business_owner": _resolve_for_business,
-    "driver": _resolve_for_individual,
+    "driver": _resolve_for_driver,
     "referral": _resolve_for_individual,
 }
 

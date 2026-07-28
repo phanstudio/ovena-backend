@@ -1,7 +1,5 @@
 import logging
 
-from django.utils import timezone
-
 from .models import Order, OrderEvent, OrderStatus
 from .websocket_utils import notify_payment_completed, broadcast_to_order_group
 
@@ -20,8 +18,8 @@ def order_update(data: dict) -> bool:
 
     order = (
         Order.objects
-        # .select_related("branch", "orderer")
-        .filter(payment_reference=reference)
+        .select_related("sale")
+        .filter(sale__paystack_reference=reference)
         .first()
     )
     if not order:
@@ -35,8 +33,7 @@ def order_update(data: dict) -> bool:
     if order.status == OrderStatus.PAYMENT_PENDING:
         old_status = order.status
         order.status = OrderStatus.PENDING
-        order.payment_completed_at = timezone.now()
-        order.save(update_fields=["status", "payment_completed_at", "last_modified_at"])
+        order.save(update_fields=["status", "last_modified_at"])
 
         OrderEvent.objects.create(
             order=order,
@@ -65,7 +62,7 @@ def order_fail(data: dict) -> bool:
 
     logger.warning("Payment failed: %s", reference)
 
-    order = Order.objects.filter(payment_reference=reference).first()
+    order = Order.objects.filter(sale__paystack_reference=reference).first()
     if not order:
         return False
 
