@@ -1,4 +1,4 @@
-## 1. Provider accounts – what and when
+## 1. Provider accounts - what and when
 
 ### 1.1 Concept
 
@@ -40,7 +40,7 @@ You **don’t** need this complexity yet because:
 
 ---
 
-## 2. Paystack as source of truth – data access limits
+## 2. Paystack as source of truth - data access limits
 
 ### 2.1 What Paystack exposes
 
@@ -57,7 +57,7 @@ Paystack’s API (for one merchant account) gives you:
 - **Customers**:
   - List customers by email, etc.
 
-It does **not** natively know your internal `user_id` / `driver_id` – you have to:
+It does **not** natively know your internal `user_id` / `driver_id` - you have to:
 
 - Put those IDs inside **metadata** on charges/transfers, and/or
 - Maintain your own mapping from `user_id` → `recipient_code`, `transfer_code`, `transaction_reference`.
@@ -70,7 +70,7 @@ You asked:
 
 Answer:
 
-- Directly: **no** – Paystack only sees “customers” and “recipients”, not your `accounts.User`.
+- Directly: **no** - Paystack only sees “customers” and “recipients”, not your `accounts.User`.
 - Practically:
   - You decide how to map your concept of “user” to Paystack:
     - **Option A**: Use `customer.email` as the join key (for incoming payments).
@@ -91,7 +91,7 @@ So Paystack is a **second source of truth** (provider‑level truth), while **yo
 
 ---
 
-## 3. Roles – legacy vs new system
+## 3. Roles - legacy vs new system
 
 You mentioned:
 
@@ -141,10 +141,10 @@ def get_payout_role(user: User) -> str:
 ### 4.1 Current setup
 
 - `menu.models.Order` has:
-  - `payment_reference` – the Paystack transaction reference for that specific order.
+  - `payment_reference` - the Paystack transaction reference for that specific order.
 - `payments.models.Sale` has:
-  - `reference` – internal sale reference.
-  - `paystack_reference` – Paystack’s transaction reference.
+  - `reference` - internal sale reference.
+  - `paystack_reference` - Paystack’s transaction reference.
 
 So you currently have **two ways** to find the Paystack transaction for an order:
 
@@ -185,7 +185,7 @@ class Order(models.Model):
 
 ### 4.3 Does centralizing on `Sale` cause issues?
 
-If done carefully, no – it’s an improvement:
+If done carefully, no - it’s an improvement:
 
 - **Pros:**
   - Single place (`Sale`) for:
@@ -276,7 +276,7 @@ All Paystack calls in these tests should:
 
 ---
 
-## 6. Simulating attacks and breaches – incident response sketch
+## 6. Simulating attacks and breaches - incident response sketch
 
 Here’s a **practical incident response outline** tailored to your architecture.
 
@@ -351,7 +351,7 @@ You can dry‑run many of these steps in a staging environment by **simulating**
 
 Goal: make `Order` rely on the **unified `payments.Sale` + escrow** design, and route all Paystack events through `payments.webhooks.paystack` instead of `menu.payment_views.paystack_webhook`.
 
-### 7.1 Phase 0 – housekeeping
+### 7.1 Phase 0 - housekeeping
 
 1. **Add a deprecation note** around:
    - `menu.payment_views.paystack_webhook` (order‑local webhook).
@@ -360,7 +360,7 @@ Goal: make `Order` rely on the **unified `payments.Sale` + escrow** design, and 
    - `payments/tests`,
    - `driver_api/tests`.
 
-### 7.2 Phase 1 – Link `Order` to `Sale`
+### 7.2 Phase 1 - Link `Order` to `Sale`
 
 1. **Add FK on `Order`** (plus migration):
 
@@ -390,7 +390,7 @@ class Order(models.Model):
 3. **Keep `menu.payment_services.initialize_paystack_transaction` as a thin wrapper**:
    - Or better, call `sale_service.initialize_sale` directly from the order flow.
 
-### 7.3 Phase 2 – Route order payment status via `payments.webhooks.paystack`
+### 7.3 Phase 2 - Route order payment status via `payments.webhooks.paystack`
 
 1. **Stop using `menu.payment_views.paystack_webhook` as the primary driver**:
    - Keep it only as a compatibility layer temporarily.
@@ -405,7 +405,7 @@ class Order(models.Model):
 3. **Mark `menu.payment_views.paystack_webhook` as deprecated** and:
    - In staging, ensure **only** `payments.webhooks.paystack` is called from Paystack.
 
-### 7.4 Phase 3 – Split & ledger fully driven from `Sale`
+### 7.4 Phase 3 - Split & ledger fully driven from `Sale`
 
 1. Ensure that wherever a service is “completed”:
    - You call `payments.views.complete_service_view` or `sale_service.complete_service(sale_id)`.
@@ -416,7 +416,7 @@ class Order(models.Model):
 2. Optionally:
    - Store a link from `LedgerEntry` back to `Order` (via metadata) for easier reporting, but keep the canonical accounting in `Sale`/`LedgerEntry`.
 
-### 7.5 Phase 4 – Remove legacy bits
+### 7.5 Phase 4 - Remove legacy bits
 
 Once your tests and real traffic in production confirm things are stable:
 
@@ -436,4 +436,3 @@ At the end of this migration, your picture becomes:
 - `Sale` and `LedgerEntry` are the only places that know about amounts, splits, or Paystack references.
 - Drivers and businesses get withdrawals only via the unified `Withdrawal` → Paystack flow.
 - All Paystack webhooks enter through `payments.webhooks.paystack` and fan out to `Sale`, `Withdrawal`, and then to `Order`/driver as needed.
-

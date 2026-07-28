@@ -1,6 +1,6 @@
 ## Payments & Driver Payments Dependency Graph
 
-This document maps out how **every payment‑related piece** of the system depends on the others – from HTTP entrypoints, through service layers, to Paystack and back via webhooks and reconciliation.
+This document maps out how **every payment‑related piece** of the system depends on the others - from HTTP entrypoints, through service layers, to Paystack and back via webhooks and reconciliation.
 
 ---
 
@@ -11,31 +11,31 @@ This document maps out how **every payment‑related piece** of the system depen
   - `accounts.models.DriverProfile` / `DriverBankAccount`
 - **Payments domain (`payments/`)**
   - `payments.models`:
-    - `UserAccount` – per‑user payment profile (Paystack recipient + bank snapshot).
-    - `Sale` – incoming payment (Paystack charge) with split snapshot.
-    - `LedgerEntry` – immutable accounting entries.
-    - `Withdrawal` – outgoing payout to a user.
-    - `PaymentIdempotencyKey` – generic idempotency tracker.
-    - `PaystackWebhookLog` – Paystack webhook storage + dedup.
-    - `ReconciliationLog` – daily reconciliation summary.
-  - `payments.integrations.paystack.client.PaystackClient` – wraps `paystackapi` SDK.
-  - `payments.services.sale_service` – initialize sale, complete service, refund.
-  - `payments.services.split_calculator` – compute splits + create ledger entries.
-  - `payments.idempotency` – generic begin/save idempotency helpers.
-  - `payments.payouts.services` – unified wallet/withdrawal engine.
-  - `payments.payouts.tasks` – Celery workers for payouts (compat with `files.views`).
-  - `payments.webhooks.paystack` – single Paystack webhook handler.
-  - `payments.reconciliation.service` – daily reconciliation against Paystack.
-  - `payments.views` – DRF API façade for wallet + sales + webhooks.
+    - `UserAccount` - per‑user payment profile (Paystack recipient + bank snapshot).
+    - `Sale` - incoming payment (Paystack charge) with split snapshot.
+    - `LedgerEntry` - immutable accounting entries.
+    - `Withdrawal` - outgoing payout to a user.
+    - `PaymentIdempotencyKey` - generic idempotency tracker.
+    - `PaystackWebhookLog` - Paystack webhook storage + dedup.
+    - `ReconciliationLog` - daily reconciliation summary.
+  - `payments.integrations.paystack.client.PaystackClient` - wraps `paystackapi` SDK.
+  - `payments.services.sale_service` - initialize sale, complete service, refund.
+  - `payments.services.split_calculator` - compute splits + create ledger entries.
+  - `payments.idempotency` - generic begin/save idempotency helpers.
+  - `payments.payouts.services` - unified wallet/withdrawal engine.
+  - `payments.payouts.tasks` - Celery workers for payouts (compat with `files.views`).
+  - `payments.webhooks.paystack` - single Paystack webhook handler.
+  - `payments.reconciliation.service` - daily reconciliation against Paystack.
+  - `payments.views` - DRF API façade for wallet + sales + webhooks.
 - **Driver API (`driver_api/`)**
-  - `driver_api.models.DriverWithdrawalRequest` – driver‑side withdrawal record.
-  - `driver_api.services` – driver wallet/ledger + withdrawal rules.
-  - `driver_api.unified_bridge` – bridge `DriverWithdrawalRequest` → `payments.Withdrawal`.
-  - `driver_api.tasks` – driver Celery tasks (process + retry + webhook reconcile).
-  - `driver_api.views` – driver HTTP API, including driver webhook endpoint.
+  - `driver_api.models.DriverWithdrawalRequest` - driver‑side withdrawal record.
+  - `driver_api.services` - driver wallet/ledger + withdrawal rules.
+  - `driver_api.unified_bridge` - bridge `DriverWithdrawalRequest` → `payments.Withdrawal`.
+  - `driver_api.tasks` - driver Celery tasks (process + retry + webhook reconcile).
+  - `driver_api.views` - driver HTTP API, including driver webhook endpoint.
 - **Ordering (`menu/`)**
-  - `menu.payment_services` – initializes Paystack transactions using `PaystackClient`.
-  - `menu.payment_views.paystack_webhook` – legacy order‑level webhook (for order status only).
+  - `menu.payment_services` - initializes Paystack transactions using `PaystackClient`.
+  - `menu.payment_views.paystack_webhook` - legacy order‑level webhook (for order status only).
 
 ---
 
@@ -139,7 +139,7 @@ This document maps out how **every payment‑related piece** of the system depen
 
 **HTTP entrypoints**:
 
-1. `payments.views.balance_view` – `GET /api/wallet/balance/`
+1. `payments.views.balance_view` - `GET /api/wallet/balance/`
    - Calls:
      - `payments.payouts.services.get_balance_summary(user_id)`
    - `get_balance_summary`:
@@ -151,7 +151,7 @@ This document maps out how **every payment‑related piece** of the system depen
        - `minimum_withdrawal_kobo` (based on user role),
        - convenience NGN values and flags (`can_withdraw`, `needed_to_withdraw_kobo`).
 
-2. `payments.views.request_withdrawal_view` – `POST /api/wallet/withdraw/`
+2. `payments.views.request_withdrawal_view` - `POST /api/wallet/withdraw/`
    - Enforces **headers**:
      - `Idempotency-Key` (required).
      - `X-Request-ID` (optional, for tracing).
@@ -235,14 +235,14 @@ This document maps out how **every payment‑related piece** of the system depen
 
 **Entrypoints**:
 
-1. `driver_api.views.DriverWithdrawEligibilityView` – `GET /api/driver/withdrawals/eligibility/`
+1. `driver_api.views.DriverWithdrawEligibilityView` - `GET /api/driver/withdrawals/eligibility/`
    - Calls:
      - `driver_api.services.evaluate_withdrawal_eligibility(driver)`.
    - Returns a summarized `WithdrawalDecision` in driver currency (Decimal instead of kobo).
 
 2. `driver_api.views.DriverWithdrawListCreateView`:
-   - `GET /api/driver/withdrawals/` – list `DriverWithdrawalRequest` for current driver.
-   - `POST /api/driver/withdrawals/` – **driver withdrawal initiation**:
+   - `GET /api/driver/withdrawals/` - list `DriverWithdrawalRequest` for current driver.
+   - `POST /api/driver/withdrawals/` - **driver withdrawal initiation**:
      - Requires `Idempotency-Key` header.
      - Validates payload via `WithdrawalRequestCreateSerializer`.
      - Calls:
@@ -301,7 +301,7 @@ This document maps out how **every payment‑related piece** of the system depen
 
 ### 4.3 Driver reconciliation from Paystack events
 
-**Primary path** – via payment linkage:
+**Primary path** - via payment linkage:
 
 - When `payments.webhooks.paystack.process_event` sees a transfer event:
   - Finds `Withdrawal` (payments).
@@ -310,7 +310,7 @@ This document maps out how **every payment‑related piece** of the system depen
     - If `withdrawal.driver_withdrawal` exists:
       - Calls `driver_api.services.mark_withdrawal_paid` / `.mark_withdrawal_failed`.
 
-**Fallback path** – via reference reconciliation:
+**Fallback path** - via reference reconciliation:
 
 - If there is no linked driver withdrawal:
   - `_reconcile_driver_withdrawal` calls `driver_api.tasks.reconcile_paystack_webhook(transfer_reference, transfer_status, reason)`.
@@ -350,8 +350,8 @@ This document maps out how **every payment‑related piece** of the system depen
 
 - **Payments metrics**
   - Payouts:
-    - `payments.payout.success_total{strategy}` – in `mark_withdrawal_paid`.
-    - `payments.payout.failed_total{strategy}` – in `mark_withdrawal_failed`.
+    - `payments.payout.success_total{strategy}` - in `mark_withdrawal_paid`.
+    - `payments.payout.failed_total{strategy}` - in `mark_withdrawal_failed`.
   - Webhooks:
     - `payments.webhook.received_total{event}`.
     - `payments.webhook.processed_total{event}`.
@@ -361,8 +361,8 @@ This document maps out how **every payment‑related piece** of the system depen
     - `payments.webhook.processing_lag_ms{event}` (histogram/summary).
 
 - **Driver metrics**
-  - `driver.withdrawal.retry_total` – each retry attempt from the driver unified bridge.
-  - `driver.withdrawal.manual_review_total` – when automated processing gives up and flags a withdrawal.
+  - `driver.withdrawal.retry_total` - each retry attempt from the driver unified bridge.
+  - `driver.withdrawal.manual_review_total` - when automated processing gives up and flags a withdrawal.
 
 These metrics are emitted from:
 
@@ -410,4 +410,3 @@ These metrics are emitted from:
 This graph means you can reason about any payment‑related behaviour by following:
 
 > **HTTP entrypoint → idempotency (if any) → domain service (`sale_service` / `payouts.services` / `driver_api.services`) → `PaystackClient` → webhook back in → `webhooks.paystack` → domain state updates → reconciliation (optional).**
-
