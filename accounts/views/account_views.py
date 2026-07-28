@@ -37,7 +37,7 @@ from accounts.services.profiles import (
     PROFILE_APP_ADMIN,
     retieve_profile,
 )
-
+from accounts.models import record_primary_agent_history
 
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -153,8 +153,6 @@ class LinkRequestCreateView(GenericAPIView):
 
 
 # might add password
-# check if the user is not revocked
-# add delete linked user
 @extend_schema(
     responses=OpS.RegisterBAdminResponseSerializer,
     auth=[],
@@ -178,12 +176,6 @@ class LinkApproveView(GenericAPIView):
 
         phone_number, branch_id = identifier.split(";")
 
-        # if phone_number == vd["phone_number"]:
-        #     return Response(
-        #         {"detail": "Invalid phone number: the number has been used for the business admin."},
-        #         status=status.HTTP_400_BAD_REQUEST,
-        #     )
-
         # 🔒 Step 2: Atomic block with row locking
         with transaction.atomic():
             branch = (
@@ -201,6 +193,28 @@ class LinkApproveView(GenericAPIView):
 
             business_admin = branch.business.admin
 
+            # 🔎 Step 3: Resolve identity for the *new* phone number up front.
+            # This number may already belong to a customer, a driver, an
+            # active agent elsewhere, or a revoked agent elsewhere — we need
+            # to know which before touching any rows.
+            target_user = (
+                User.objects.select_for_update()
+                .filter(phone_number=vd["phone_number"])
+                .first()
+            )
+            target_agent = getattr(target_user, "primary_agent", None) if target_user else None
+
+            # Policy: number already tied to an ACTIVE agent on another branch -> reject.
+            if (
+                target_agent is not None
+                and not target_agent.revoked
+                and target_agent.branch_id != branch.id
+            ):
+                return Response(
+                    {"detail": "This phone number is already in use by an active agent on another branch."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             existing_agent = (
                 PrimaryAgent.objects
                 .select_for_update()
@@ -209,59 +223,119 @@ class LinkApproveView(GenericAPIView):
                     has_conflict=Exists(
                         PrimaryAgent.objects.filter(
                             device_name=device_id,
-                            revoked=False
+                            revoked=False,
                         ).exclude(id=OuterRef("id"))
                     )
                 )
                 .first()
             )
 
-            if existing_agent:
-                if existing_agent.has_conflict:
-                    return Response(
-                        {"detail": "This device is already in use"},
-                        status=status.HTTP_400_BAD_REQUEST
+            if existing_agent and existing_agent.has_conflict:
+                return Response(
+                    {"detail": "This device is already in use"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if existing_agent and not existing_agent.revoked:
+                return Response(
+                    {"detail": "Branch already has an active primary agent"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            user = target_user or User.objects.create(phone_number=vd["phone_number"])
+
+            same_row = (
+                existing_agent is not None
+                and target_agent is not None
+                and existing_agent.id == target_agent.id
+            )
+
+            try:
+                if target_agent is not None and not same_row:
+                    # ♻️ Reclaim: this phone number belongs to someone who
+                    # already has their OWN (revoked) agent row elsewhere.
+                    # A user can only ever hold one PrimaryAgent row, so we
+                    # repurpose theirs for this branch and drop this
+                    # branch's own stale row (if any) since it's disposable
+                    # as a *live* row — its story is preserved in history
+                    # below before it's deleted.
+                    if existing_agent is not None:
+                        record_primary_agent_history(
+                            branch=existing_agent.branch,
+                            user=existing_agent.user,
+                            primary_agent=existing_agent,
+                            device_name=existing_agent.device_name,
+                            name=existing_agent.name,
+                            action=PrimaryAgentAction.REVOKED,
+                            created_by=business_admin,
+                        )
+                        existing_agent.delete()
+
+                    target_agent.branch = branch
+                    target_agent.device_name = device_id
+                    target_agent.revoked = False
+                    target_agent.revoked_at = None
+                    target_agent.created_by = business_admin
+                    target_agent.name = vd["username"]
+                    target_agent.save()
+                    sub_user = target_agent
+
+                    record_primary_agent_history(
+                        branch=branch,
+                        user=user,
+                        primary_agent=target_agent,
+                        device_name=device_id,
+                        name=vd["username"],
+                        action=PrimaryAgentAction.RECLAIMED,
+                        created_by=business_admin,
                     )
 
-                if not existing_agent.revoked:
-                    return Response(
-                        {"detail": "Branch already has an active primary agent"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-
-                # ♻️ reuse
-                user = existing_agent.user 
-                # i think we need get or create here because we don't want 
-                # to change the phone number of the person involved;
-                user.phone_number = vd["phone_number"]
-                user.save()
-
-                try:
+                elif existing_agent is not None: #why?? not mergewith else
+                    # Same branch slot, either the same person returning
+                    # with the same number, or a brand-new number that
+                    # doesn't collide with anyone else.
+                    existing_agent.user = user
                     existing_agent.device_name = device_id
                     existing_agent.revoked = False
                     existing_agent.revoked_at = None
                     existing_agent.created_by = business_admin
-                    existing_agent.name=vd["username"]
+                    existing_agent.name = vd["username"]
                     existing_agent.save()
-                except IntegrityError:
-                    return Response(
-                        {"detail": "Device already in use (race condition)"},
-                        status=status.HTTP_409_CONFLICT
+                    sub_user = existing_agent
+
+                    record_primary_agent_history(
+                        branch=branch,
+                        user=user,
+                        primary_agent=existing_agent,
+                        device_name=device_id,
+                        name=vd["username"],
+                        action=PrimaryAgentAction.ASSIGNED,
+                        created_by=business_admin,
                     )
-                sub_user = existing_agent
 
-            else:
-                # ✅ NOW SAFE — no existing row
-                user, _ = User.objects.get_or_create(
-                    phone_number=vd["phone_number"],
-                )
+                else:
+                    # ✅ Brand new agent for this branch.
+                    sub_user = PrimaryAgent.objects.create(
+                        created_by=business_admin,
+                        device_name=device_id,
+                        branch=branch,
+                        user=user,
+                        name=vd["username"],
+                    )
 
-                sub_user = PrimaryAgent.objects.create(
-                    created_by=business_admin,
-                    device_name=device_id,
-                    branch=branch,
-                    user=user,
-                    name=vd["username"]
+                    record_primary_agent_history(
+                        branch=branch,
+                        user=user,
+                        primary_agent=sub_user,
+                        device_name=device_id,
+                        name=vd["username"],
+                        action=PrimaryAgentAction.ASSIGNED,
+                        created_by=business_admin,
+                    )
+            except IntegrityError:
+                return Response(
+                    {"detail": "Device already in use (race condition)"},
+                    status=status.HTTP_409_CONFLICT,
                 )
 
         # 🔑 Step 5: Issue token
@@ -272,7 +346,7 @@ class LinkApproveView(GenericAPIView):
                 "message": "Account registered successfully",
                 "refresh": token["refresh"],
                 "access": token["access"],
-                "user": {"id": sub_user.id, "name": sub_user.name,},
+                "user": {"id": sub_user.id, "name": sub_user.name},
             }
         )
 

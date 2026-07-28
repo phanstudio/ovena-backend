@@ -56,6 +56,7 @@ import msgpack
 import zlib
 from datetime import datetime, timedelta
 from drf_spectacular.utils import extend_schema  # type: ignore
+from accounts.models import record_primary_agent_history
 
 
 def _decimal_sum(field_name: str):
@@ -301,6 +302,23 @@ class BranchListView(BaseBuisAdminAPIView):
         )
 
 
+# @extend_schema(
+#     responses={200: OpS.BuisnessResponse},
+# )
+# class StaffRevokeView(BaseBuisAdminAPIView):
+#     serializer_class = InS.StaffRevokedSerializer
+
+#     def post(self, request):
+#         serializer = self.get_serializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         vd = serializer.validated_data
+#         PrimaryAgent.objects.filter(id=vd["agent_id"]).update(
+#             revoked=vd["revoked"], revoked_at=timezone.now() if vd["revoked"] else None
+#         )  # after a while we want to delete it. also add a revoked at
+#         action = "revoked" if vd["revoked"] else "unrevoked"
+#         return Response({"detail": f"agent {action}"})
+
+
 @extend_schema(
     responses={200: OpS.BuisnessResponse},
 )
@@ -311,11 +329,45 @@ class StaffRevokeView(BaseBuisAdminAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
-        PrimaryAgent.objects.filter(id=vd["agent_id"]).update(
-            revoked=vd["revoked"], revoked_at=timezone.now() if vd["revoked"] else None
-        )  # after a while we want to delete it. also add a revoked at
-        action = "revoked" if vd["revoked"] else "unrevoked"
-        return Response({"detail": f"agent {action}"})
+
+        with transaction.atomic():
+            agent = (
+                PrimaryAgent.objects
+                .select_for_update()
+                .filter(id=vd["agent_id"])
+                .first()
+            )
+
+            if not agent:
+                return Response(
+                    {"detail": "Agent not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # NOTE: adjust this to however BaseBuisAdminAPIView exposes the
+            # admin performing the action (e.g. request.user.business_admin,
+            # or a property already set on the base view). Placeholder below.
+            business_admin = request.business_admin
+
+            agent.revoked = vd["revoked"]
+            agent.revoked_at = timezone.now() if vd["revoked"] else None
+            agent.save(update_fields=["revoked", "revoked_at"])
+
+            action = (
+                PrimaryAgentAction.REVOKED if vd["revoked"] else PrimaryAgentAction.UNREVOKED
+            )
+            record_primary_agent_history(
+                branch=agent.branch,
+                user=agent.user,
+                primary_agent=agent,
+                device_name=agent.device_name,
+                name=agent.name,
+                action=action,
+                created_by=business_admin,
+            )
+
+        action_label = "revoked" if vd["revoked"] else "unrevoked"
+        return Response({"detail": f"agent {action_label}"})
 
 
 @extend_schema(responses=OpS.PrimaryAgentBranchSerializer)
