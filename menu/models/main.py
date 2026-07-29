@@ -135,10 +135,15 @@ class MenuItemAddon(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2)
 
     objects = MenuItemAddonManager()  # attach custom manager
+    # image = models.URLField(max_length=500, null=True, blank=True)
+    
+    # @property
+    # def effective_image(self):
+    #     return self.image if self.image is not None else self.base_item.image
 
     def __str__(self):
         return self.base_item.name
-# should be per menu items
+
 class BaseItemAvailability(models.Model):
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name="branch_availabilities")
     base_item = models.ForeignKey(BaseItem, on_delete=models.CASCADE, related_name="item_availabilities")
@@ -153,8 +158,6 @@ class BaseItemAvailability(models.Model):
     def __str__(self):
         return f"{self.base_item.name} @ {self.branch.name} - {'Available' if self.is_available else 'Out'}"
 
-    #def main_price(self): # a way to calculate once with signals # but use a lession to teach me don't write the code for me
     @property
     def effective_price(self):
         return self.override_price if self.override_price is not None else self.base_item.default_price
-# we need a websocket for the availiability

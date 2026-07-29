@@ -24,7 +24,7 @@ def get_user_business(buisness_admin: BusinessAdmin):
     return buisness_admin.business
 
 
-def _cleanup_orphaned_base_items(business, base_item_ids: list, delete_base:bool = True):
+def _cleanup_orphaned_base_items(business, base_item_ids: list):
     """
     For each base_item_id in the list, check if it is still referenced by
     any MenuItem or MenuItemAddon within this business. If not, delete its
@@ -66,9 +66,8 @@ def _cleanup_orphaned_base_items(business, base_item_ids: list, delete_base:bool
         if image_urls:
             BulkS3StorageService.batch_delete_urls(image_urls)
 
-        if delete_base:
-            # Delete from DB (ON DELETE CASCADE handles BaseItemAvailability automatically)
-            qs.delete()
+        # Delete from DB (ON DELETE CASCADE handles BaseItemAvailability automatically)
+        qs.delete()
 
     return deleted_base_ids
 
@@ -186,7 +185,7 @@ class BulkDeleteMenuView(BaseBuisAdminAPIView):
             if item_ids:
                 qs = MenuItem.objects.filter(id__in=item_ids, category__menu__business=business)
                 counts["items"] = qs.count()
-                BulkS3StorageService.batch_delete_urls(list(qs.values_list("image")))
+                BulkS3StorageService.batch_delete_urls(list(qs.values_list("image", flat=True)))
                 qs.delete()
 
             if addon_ids:
@@ -246,6 +245,7 @@ class BulkDeleteMenuImagesView(BaseBuisAdminAPIView):
             "addons":     ["<addon_id>", ...]
         }
     All fields are optional; omit or pass [] to skip that type.
+    Delete shared image
     """
     serializer_class = delete_selerizers.BulkDeleteImageRequestSerializer
 
@@ -264,29 +264,13 @@ class BulkDeleteMenuImagesView(BaseBuisAdminAPIView):
         item_ids     = data["items"]
         addon_ids    = data["addons"]
 
-        # ── 1. Build dynamic Q filters for MenuItems ──────────────────────────
-        item_filters = Q()
-        if item_ids:
-            item_filters |= Q(id__in=item_ids)
-
         # ── 2. Build dynamic Q filters for MenuItemAddons ─────────────────────
         addon_filters = Q()
-        if item_ids:
-            addon_filters |= Q(groups__item__id__in=item_ids)
         if addon_ids:
             addon_filters |= Q(id__in=addon_ids)
 
         # ── 3. Execute 2 targeted queries ─────────────────────────────────────
         affected_base_ids = set()
-
-        if item_filters:
-            affected_base_ids.update(
-                MenuItem.objects.filter(
-                    item_filters,
-                    category__menu__business=business,
-                    base_item_id__isnull=False,
-                ).values_list("base_item_id", flat=True)
-            )
 
         if addon_filters:
             affected_base_ids.update(
@@ -298,29 +282,39 @@ class BulkDeleteMenuImagesView(BaseBuisAdminAPIView):
             )
 
         counts = {"items": 0, "addons": 0}
+        images_url = set()
 
         with transaction.atomic():
-            # Order matters: delete from top of tree downwards so FK cascades
-            # don't cause double-count surprises. Django cascade handles children,
-            # but we delete parents explicitly to count them.
 
             if item_ids:
                 qs = MenuItem.objects.filter(id__in=item_ids, category__menu__business=business)
                 counts["items"] = qs.count()
-                BulkS3StorageService.batch_delete_urls(list(qs.values_list("image")))
+                images_url.update(
+                    qs.exclude(image__isnull=True)
+                          .exclude(image="")
+                          .values_list("image", flat=True)
+                )
+                qs.update(image=None)
+                
 
             if addon_ids:
-                qs = MenuItemAddon.objects.filter(
-                    id__in=addon_ids,
-                    groups__item__category__menu__business=business,
+                qs = BaseItem.objects.filter(
+                    id__in=affected_base_ids,
+                    as_addon__groups__item__category__menu__business=business,
                 )
                 counts["addons"] = qs.count()
+                image_urls.update(
+                    qs.exclude(image__isnull=True)
+                        .exclude(image="")
+                        .values_list("image", flat=True)
+                )
+                qs.update(image=None)
 
-            # ── Cleanup orphaned BaseItems once ───────────────────────────────
-            deleted_base_ids = _cleanup_orphaned_base_items(business, list(affected_base_ids), delete_base=False)
+            transaction.on_commit(
+                lambda: BulkS3StorageService.batch_delete_urls(list(images_url))
+            )
 
         return Response({
-            "message": "Bulk delete completed.",
-            "deleted": counts,
-            "base_items_deleted": [str(bid) for bid in deleted_base_ids],
+            "message": "Bulk Image delete completed.",
+            "Images deleted": counts,
         }, status=200)
