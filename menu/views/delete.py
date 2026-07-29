@@ -192,7 +192,8 @@ class BulkDeleteMenuView(BaseBuisAdminAPIView):
                     groups__item__category__menu__business=business,
                 )
                 counts["addons"] = qs.count()
-                qs.delete()    
+                qs.delete()
+                # add delete if the addons are empty
 
             if varity_ids:
                 qs = VariantOption.objects.filter(

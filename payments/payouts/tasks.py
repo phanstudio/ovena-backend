@@ -6,7 +6,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from payments.integrations.paystack.client import PaystackClient
-from payments.models import Withdrawal
+from payments.models import Withdrawal, UserAccount
 from payments.payouts.services import execute_batch, execute_realtime, mark_withdrawal_failed, mark_withdrawal_paid
 
 logger = logging.getLogger(__name__)
@@ -125,6 +125,7 @@ def ensure_paystack_recipient_for_driver(driver_id: int):
     driver = DriverProfile.objects.filter(id=driver_id).select_related("user").first()
     if not driver:
         return "missing-driver"
+    
     bank = DriverBankAccount.objects.filter(driver=driver).first()
     if not bank or not bank.is_verified:
         return "bank-not-verified"
@@ -156,17 +157,19 @@ def ensure_paystack_recipient_for_business_admin(business_admin_id: int):
     except Exception:
         return "missing-models"
 
+    
     admin = BusinessAdmin.objects.filter(id=business_admin_id).select_related("user", "business").first()
     if not admin or not admin.business_id:
         return "missing-business-admin"
 
     payout = BusinessPayoutAccount.objects.filter(business=admin.business).first()
 
-    if payout.paystack_recipient_code:
-        return "already-set"
-
     if not payout:
         return "missing-payout-account"
+
+    if payout.paystack_recipient_code:
+        return "already-set"
+    
     if not payout.bank_code or not payout.bank_account_number or not payout.bank_account_name:
         return "incomplete-payout-account"
 
@@ -185,4 +188,36 @@ def ensure_paystack_recipient_for_business_admin(business_admin_id: int):
 
     payout.paystack_recipient_code = code
     payout.save(update_fields=["paystack_recipient_code", "updated_at"])
+    return "success"
+
+
+@shared_task(name="payments.payouts.ensure_paystack_recipient_for_user_accounts")
+def ensure_paystack_recipient_for_user_accounts(user_account_id: int):
+    account = UserAccount.objects.filter(id=user_account_id).first()
+
+    if not account:
+        return "missing-payout-account"
+    
+    if account.paystack_recipient_code:
+        return "already-set"
+
+    if not account.bank_code or not account.bank_account_number or not account.bank_account_name:
+        return "incomplete-payout-account"
+
+    payload = {
+        "type": "nuban",
+        "name": account.bank_account_name,
+        "account_number": account.bank_account_number,
+        "bank_code": account.bank_code,
+        "currency": "NGN",
+    }
+
+    client = PaystackClient()
+    recipient = client.create_transfer_recipient(payload).get("data", {})
+    code = recipient.get("recipient_code", "")
+    if not code:
+        return "missing-recipient-code"
+
+    account.paystack_recipient_code = code
+    account.save(update_fields=["paystack_recipient_code", "updated_at"])
     return "success"

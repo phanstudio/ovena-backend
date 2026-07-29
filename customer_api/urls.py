@@ -24,5 +24,9 @@ urlpatterns = [
     path("favorite/remove/", views.FavoriteRemoveView.as_view(), name="favorite-remove"),
     path("favorite/list/", views.FavoriteListView.as_view(), name="favorite-list"),
     path("staff/detail/<int:id>/", views.StoreDetailsView.as_view(), name="staff-detail"),
+    path("account/", views.UserAccountRetrieveView.as_view(), name="account"),
+    path("account/create/", views.UserAccountCreateView.as_view(), name="account"),
+    path("account/change/request/", views.UserAccountChangeRequestView.as_view(), name="account-request"),
+    path("account/change/confirm/", views.UserAccountChangeConfirmView.as_view(), name="account-confirm"),
     path("points/", include("points.external_urls.customer")),
 ]

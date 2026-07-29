@@ -4,6 +4,7 @@ from accounts.models import BranchOperatingHours
 from .models import FavoriteMenuItem, MenuItem
 from addresses.serializers import LocationGetSerializer
 from phonenumber_field.serializerfields import PhoneNumberField  # type: ignore
+from payments.models import UserAccount
 
 
 class OrderHistorySerializer(serializers.ModelSerializer):
@@ -289,3 +290,39 @@ class StoreDetailsSerializer(serializers.ModelSerializer):
     
     def get_how_we_calculate_ratings(self, obj):
         return "We calculate our ratngs through, user feedback plus how popular the business is."
+
+
+class AccountChangeRequestSerializer(serializers.Serializer):
+    transaction_pin = serializers.CharField()
+
+
+class AccountCreateSerializer(serializers.Serializer):
+    transaction_pin = serializers.CharField()
+    bank_name = serializers.CharField()
+    bank_code = serializers.CharField()
+    bank_account_number = serializers.CharField()
+    bank_account_name = serializers.CharField()
+
+
+class AccountChangeConfirmSerializer(serializers.Serializer):
+    otp_code = serializers.CharField()
+    bank_name = serializers.CharField()
+    bank_code = serializers.CharField()
+    bank_account_number = serializers.CharField()
+    bank_account_name = serializers.CharField()
+
+
+class AccountDetailSerializer(serializers.ModelSerializer):
+    bank_account_number = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = UserAccount
+        fields = ["bank_code", "bank_name", "bank_account_number", "bank_account_name"]
+
+    def get_bank_account_number(self, obj):
+        if not obj.bank_account_number:
+            return ""
+
+        last4 = obj.bank_account_number[-4:]
+        return f"******{last4}"
+            

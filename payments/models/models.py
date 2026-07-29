@@ -6,6 +6,7 @@ from django.db import models
 from accounts.models import User
 from authflow.services.model import ULIDField
 from .accounts import AbstractPayoutAccount
+from django.contrib.auth.hashers import check_password, make_password
 
 class UserAccount(AbstractPayoutAccount):
     """
@@ -19,9 +20,25 @@ class UserAccount(AbstractPayoutAccount):
         related_name="payment_account",
     )
 
+    transaction_pin_hash = models.CharField(max_length=128, blank=True, default="")
+    bank_name = models.CharField(max_length=120)
+    last_bank_change_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         db_table = "payments_user_account"
 
+    @property
+    def has_transaction_pin(self) -> bool:
+        return bool(self.transaction_pin_hash)
+
+    def set_transaction_pin(self, raw_pin: str) -> None:
+        self.transaction_pin_hash = make_password(raw_pin)
+
+    def check_transaction_pin(self, raw_pin: str) -> bool:
+        if not self.transaction_pin_hash:
+            return False
+        return check_password(raw_pin, self.transaction_pin_hash)
+    
     def get_recipient_code(self) -> str:
         return self.paystack_recipient_code or ""
 
