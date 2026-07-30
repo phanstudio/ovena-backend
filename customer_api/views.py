@@ -253,7 +253,7 @@ class SendVerifyMixin():
 
         return identified_id, None
 
-    def get_secert_code(validator, identifier):
+    def get_secert_code(self, validator, identifier):
         return f"{validator};{identifier}"
 
 
