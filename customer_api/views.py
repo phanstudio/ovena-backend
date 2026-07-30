@@ -279,8 +279,8 @@ class UserAccountCreateView(BaseCustomerAPIView):
                 user=user,
                 bank_name=payment_data["bank_name"],
                 bank_code=payment_data["bank_code"],
-                bank_account_number=payment_data["account_number"],
-                bank_account_name=payment_data["account_name"],
+                bank_account_number=payment_data["bank_account_number"],
+                bank_account_name=payment_data["bank_account_name"],
             )
 
             account.set_transaction_pin(payment_data["transaction_pin"])
@@ -358,8 +358,8 @@ class UserAccountChangeConfirmView(BaseCustomerAPIView, SendVerifyMixin):
 
             account.bank_name = payment_data["bank_name"]
             account.bank_code = payment_data["bank_code"]
-            account.bank_account_number = payment_data["account_number"]
-            account.bank_account_name = payment_data["account_name"]
+            account.bank_account_number = payment_data["bank_account_number"]
+            account.bank_account_name = payment_data["bank_account_name"]
             account.last_bank_change_at = timezone.now()
 
             # Important
