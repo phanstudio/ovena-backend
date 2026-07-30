@@ -277,7 +277,7 @@ class UserAccountCreateView(BaseCustomerAPIView):
         try:
             account = UserAccount(
                 user=user,
-                bank_name=payment_data["bank"],
+                bank_name=payment_data["bank_name"],
                 bank_code=payment_data["bank_code"],
                 bank_account_number=payment_data["account_number"],
                 bank_account_name=payment_data["account_name"],
@@ -356,7 +356,7 @@ class UserAccountChangeConfirmView(BaseCustomerAPIView, SendVerifyMixin):
         with transaction.atomic():
             account = UserAccount.objects.select_for_update().get(user=user)
 
-            account.bank_name = payment_data["bank"]
+            account.bank_name = payment_data["bank_name"]
             account.bank_code = payment_data["bank_code"]
             account.bank_account_number = payment_data["account_number"]
             account.bank_account_name = payment_data["account_name"]
