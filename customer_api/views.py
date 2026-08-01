@@ -15,6 +15,7 @@ from .models import FavoriteMenuItem
 from django.db import transaction
 from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from menu.serializers import OrderCreateSerializer
 from menu.views import log_created_order, create_payment
 from addresses.utils import make_point, get_cached_distance_km_from_2points
