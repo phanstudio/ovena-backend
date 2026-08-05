@@ -6,13 +6,13 @@ import uuid
 from django.db import transaction
 from django.utils import timezone
 from payments.models import Sale, User
-from payments.services.split_calculator import calculate_split, credit_all_parties, load_split_config, reverse_ledger_entries
+from payments.services.split_calculator import calculate_split, credit_all_parties, load_split_config
 from payments.integrations.paystack.client import PaystackClient
 from referrals.services import referred_by
+from payments.services.sale_extention import *
 
 
 paystack_client = PaystackClient()
-
 
 @transaction.atomic
 def initialize_sale(payer_id, driver_id, business_owner_id, amount_kobo, metadata=None):
@@ -105,40 +105,3 @@ def complete_service(sale_id, picked_up: bool= False):
         "sale_reference": sale.reference,
         "credits_issued": {k: v / 100 for k, v in split["amounts"].items()},
     }
-
-
-@transaction.atomic
-def process_refund(sale_id, reason):
-    """
-    STEP 3 (if needed): Refund the user.
-    Reverses ledger entries and calls Paystack refund API.
-    """
-    sale = Sale.objects.select_for_update().get(id=sale_id)
-
-    if sale.status == "refunded":
-        raise ValueError("Already refunded")
-    if sale.status not in ("in_escrow", "completed"):
-        raise ValueError(f"Cannot refund sale with status: {sale.status}")
-
-    if sale.status == "completed":
-        reverse_ledger_entries(sale, reason)
-
-    refund_data = paystack_client.refund(
-        {
-            "transaction": sale.paystack_reference,
-            "amount": sale.total_amount,
-            "merchant_note": reason,
-        }
-    ).get("data", {})
-
-    sale.status = "refunded"
-    sale.refunded_at = timezone.now()
-    sale.refund_reason = reason
-    sale.save()
-
-    return {
-        "success": True,
-        "refund_reference": refund_data.get("reference"),
-        "amount_refunded": sale.total_amount / 100,
-    }
-

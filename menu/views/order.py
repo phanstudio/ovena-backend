@@ -47,6 +47,7 @@ from support_center.task import create_system_ticket
 from common.mail.services import send_email, EmailMessage
 from points.tasks import award_referred_first_order_task
 from payments.integrations.errors import TemporaryPaymentError, PermanentPaymentError
+from menu.services.order_cancel import cancel_order, ACTORS
 
 logger = logging.getLogger(__name__)
 # add atomcity #:priority
@@ -227,53 +228,6 @@ class OrderView(BaseCustomerAPIView):
         )
         return Response(list(orders))
 
-    # def post(self, request):
-    #     user = request.user
-    #     customer = self.get_customer_profile(request)
-
-    #     serializer = LocationGetSerializer(data=request.data)
-    #     serializer.is_valid(raise_exception=True)
-    #     vd = serializer.validated_data
-        
-    #     # user_location = customer.default_address.location
-    #     user_location = make_point(vd["long"], vd["lat"])
-
-    #     serializer = OrderCreateSerializer(
-    #         data=request.data,
-    #         context={
-    #             "request": request,
-    #             "user": user,
-    #             "customer": customer,
-    #             "user_location": user_location
-    #         },
-    #     )
-    #     serializer.is_valid(raise_exception=True)
-
-    #     with transaction.atomic():
-    #         order, phrase = serializer.save()
-    #         # Initialize payment via Sale (unified payments)
-        
-    #     # on failure
-    #     # order.status = OrderStatus.PAYMENT_INITIALIZATION_FAILED
-
-        
-        
-    #     payment_url = create_payment(order)
-
-    #     log_created_order(order, user, payment_url)
-
-    #     return Response(
-    #         {
-    #             "order_id": order.id,
-    #             "order_number": order.order_number,
-    #             "delivery_passphrase": phrase,
-    #             "payment_url": payment_url,
-    #             "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
-    #             "message": "Order created successfully. Waiting for restaurant confirmation.",
-    #         },
-    #         status=status.HTTP_201_CREATED,
-    #     )
-
     def post(self, request):
         user = request.user
         customer = self.get_customer_profile(request)
@@ -423,34 +377,18 @@ class OrderCancelView(BaseCustomerAPIView):
                 {"error": "Invalid customer account"}, status=status.HTTP_403_FORBIDDEN
             )
 
-        # Can only cancel before driver picks up
+        # Can only cancel before driver picks up, add serilizer
         if order.status not in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PAYMENT_PENDING]:
             return Response(
                 {"error": "Cannot cancel order at this stage"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        old_status = order.status
-        order.status = OrderStatus.CANCELLED
-        order.save(update_fields=["status", "last_modified_at"])
-
-        # Log event
-        OrderEvent.objects.create(
-            order=order,
-            event_type="cancelled",
-            actor_type="customer",
-            actor_id=customer.id,
-            old_status=old_status,
-            new_status=order.status,
-            metadata={"reason": "customer_cancelled"},
-        )
-
-        # 🔥 Broadcast cancellation to all parties
-        notify_order_cancelled(
-            order, reason="Cancelled by customer", cancelled_by="customer"
-        )
-
-        logger.info(f"Order {order.id} cancelled by customer")
+        ## add a reason to the cancel.
+        try:
+            cancel_order(order, ACTORS.CUSTOMER, "bad service")
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response(
             {"message": "Order cancelled successfully"}, status=status.HTTP_200_OK
@@ -749,27 +687,10 @@ class ResturantOrderView(GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        old_status = order.status
-        order.status = OrderStatus.CANCELLED
-        order.save(update_fields=["status", "last_modified_at"])
-
-        # Log event
-        OrderEvent.objects.create(
-            order=order,
-            event_type="cancelled",
-            actor_type="branch",
-            actor_id=order.branch_id,
-            old_status=old_status,
-            new_status= order.status,
-            metadata={"reason": "branch_cancelled"},
-        )
-
-        # 🔥 Notify all parties
-        notify_order_cancelled(
-            order, reason="Restaurant cancelled the order", cancelled_by="branch"
-        )
-
-        logger.info(f"Order {order.id} cancelled by branch")
+        try:
+            cancel_order(order, ACTORS.BRANCH, "Restaurant cancelled the order")
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response(
             {"message": "Order cancelled successfully"},

@@ -131,6 +131,18 @@ class Sale(models.Model):
     refunded_at = models.DateTimeField(null=True, blank=True)
     refund_reason = models.TextField(blank=True)
 
+    RESPONSIBLE_BUSINESS = "business"
+    RESPONSIBLE_DRIVER = "driver"
+    RESPONSIBLE_PLATFORM = "platform", "Platform"
+
+    RESPONSIBLE_PARTY_CHOICES = [
+        (RESPONSIBLE_BUSINESS, "Business"),
+        (RESPONSIBLE_DRIVER, "Driver"),
+        (RESPONSIBLE_PLATFORM, "Platform"),
+    ]
+    responsible_party = models.CharField(max_length=30, choices=RESPONSIBLE_PARTY_CHOICES, blank=True)
+    responsible_party_reason = models.TextField(blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

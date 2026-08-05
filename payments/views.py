@@ -79,7 +79,18 @@ def refund_sale_view(request, sale_id):
         return Response({"error": "Idempotency-Key header is required"}, status=status.HTTP_400_BAD_REQUEST)
 
     reason = request.data.get("reason", "Refund requested")
-    payload = {"sale_id": str(sale_id), "reason": reason}
+    responsible_party = request.data.get("responsible_party", "business")
+    responsible_party_reason = request.data.get("responsible_party_reason", "")
+
+    if responsible_party not in ["business", "driver", "platform"]:
+        return Response({"error": "Invalid responsible_party. Must be 'business', 'driver', or 'platform'."}, status=status.HTTP_400_BAD_REQUEST)
+
+    payload = {
+        "sale_id": str(sale_id),
+        "reason": reason,
+        "responsible_party": responsible_party,
+        "responsible_party_reason": responsible_party_reason,
+    }
 
     try:
         row, has_response = begin_idempotent_request(
@@ -91,7 +102,12 @@ def refund_sale_view(request, sale_id):
         if has_response:
             return Response(row.response_snapshot, status=status.HTTP_200_OK)
 
-        result = process_refund(sale_id, reason)
+        result = process_refund(
+            sale_id,
+            reason,
+            responsible_party=responsible_party,
+            responsible_party_reason=responsible_party_reason,
+        )
         save_idempotent_response(row, result)
         return Response(result)
     except IdempotencyConflictError as exc:

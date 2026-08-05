@@ -1,5 +1,5 @@
 from rest_framework_simplejwt.tokens import RefreshToken
-from accounts.models import User
+from accounts.models import User, Suspension
 from accounts.services.roles import get_user_roles
 from payments.models.subscription import Subscription
 
@@ -20,3 +20,6 @@ def issue_jwt_for_user_with_plan(user: User, *, active_profile: str | None = Non
     if sub:
         plan_id = sub.plan.id
     return issue_jwt_for_user(user, active_profile=active_profile, plan_id=plan_id)
+
+def check_suspension(user: User) -> Suspension:
+    Suspension.objects.filter(user=user, )
