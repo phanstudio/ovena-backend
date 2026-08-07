@@ -70,6 +70,7 @@ def initialize_sale(payer_id, driver_id, business_owner_id, amount_kobo, metadat
         status="pending",
         split_snapshot=split,
         metadata=metadata_snapshot,
+        payment_source=Sale.SOURCE_PAYSTACK,
     )
 
     return {
@@ -79,6 +80,51 @@ def initialize_sale(payer_id, driver_id, business_owner_id, amount_kobo, metadat
         "amount_ngn": amount_kobo / 100,
         "split_preview": {k: f"NGN {v/100:.2f}" for k, v in split["amounts"].items()},
     }
+
+@transaction.atomic
+def initialize_points_sale(payer_id, driver_id, business_owner_id, amount_kobo, metadata=None):
+    """
+    Same split logic and Sale shape as initialize_sale. Diverges only in
+    that there's no Paystack round trip -- points are debited synchronously
+    by the caller, so this Sale is created already captured (status="paid")
+    instead of "pending" awaiting a webhook.
+    """
+    payer = User.objects.get(id=payer_id)
+    driver = User.objects.get(id=driver_id) if driver_id else None
+    business_owner = User.objects.get(id=business_owner_id)
+    referral = referred_by(payer)
+    referral_user = referral.referrer_profile.user if referral else None
+
+    config = load_split_config()
+    split = calculate_split(amount_kobo, bool(referral_user), config, metadata=metadata or {})
+
+    sale_ref = f"PTS_{uuid.uuid4().hex[:12].upper()}" #SALE_
+
+    metadata_snapshot = {
+        **(metadata or {}),
+        "payment_source": "points",
+        "split_inputs": split.get("inputs", {}),
+        "split_policy": split.get("policy", {}),
+        "split_amounts": split.get("amounts", {}),
+        "split_total_kobo": split.get("total"),
+        "split_has_referral": split.get("has_referral"),
+        "split_mismatch_kobo": split.get("mismatch_kobo", 0),
+    }
+
+    sale = Sale.objects.create(
+        reference=sale_ref,
+        payer=payer,
+        driver=driver,
+        business_owner=business_owner,
+        referral_user=referral_user,
+        total_amount=amount_kobo,
+        status="in_escrow",
+        split_snapshot=split,
+        metadata=metadata_snapshot,
+        payment_source=Sale.SOURCE_POINTS,
+    )
+
+    return {"sale_id": str(sale.id), "reference": sale_ref}
 
 def assign_driver(order, driver_id):
     Sale.objects.filter(id=order.sale_id).update(driver_id=driver_id)

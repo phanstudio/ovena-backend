@@ -29,6 +29,7 @@ class PointsLedgerEntry(models.Model):
     EVENT_REDEMPTION = "redemption"
     EVENT_ADJUSTMENT = "adjustment"
     EVENT_REFUND_COMPENSATION = "refund_compensation"
+    EVENT_ORDER_PAYMENT = "order_payment"
 
     EVENT_CHOICES = [
         (EVENT_REFERRAL_SUCCESS, "Successful referral"),
@@ -36,6 +37,7 @@ class PointsLedgerEntry(models.Model):
         (EVENT_ORDER_STREAK_5, "5-order streak"),
         (EVENT_ORDER_MILESTONE_5, "5th order milestone (scratch card)"),
         (EVENT_ORDER_RATED, "Order rated"),
+        (EVENT_ORDER_PAYMENT, "Order paid with points"),
         (EVENT_REDEMPTION, "Points redeemed / withdrawn"),
         (EVENT_ADJUSTMENT, "Manual adjustment / reversal"),
         (EVENT_REFUND_COMPENSATION, "Refund compensation points"),

@@ -1,6 +1,6 @@
 from common.customer.view import BaseCustomerAPIView
 from rest_framework.response import Response
-from menu.models import Order
+from menu.models import Order, OrderEvent
 from common.customer.paginations import StandardResultsSetPagination
 # from rest_framework.mixins import ListModelMixin
 from rest_framework.generics import ListAPIView, RetrieveAPIView
@@ -16,7 +16,7 @@ from django.db import transaction
 from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from menu.serializers import OrderCreateSerializer
-from menu.views import log_created_order, create_payment
+from menu.views import notify_order_created
 from addresses.utils import make_point, get_cached_distance_km_from_2points
 from addresses.serializers import LocationGetSerializer
 from accounts.models import Branch
@@ -65,7 +65,7 @@ class ReorderView(BaseCustomerAPIView): # location to the body #:attention
     serializer_class = LocationGetSerializer
 
     @transaction.atomic
-    def post(self, request, order_id):
+    def post(self, request):
         customer = self.get_customer_profile(request)
 
         serializer = self.get_serializer(data=request.data)
@@ -115,19 +115,30 @@ class ReorderView(BaseCustomerAPIView): # location to the body #:attention
 
         with transaction.atomic():
             order, phrase = serializer.save()
-            # Initialize payment via Sale (unified payments)
-            payment_url = create_payment(order)
+            order.status = OrderStatus.AWAITING_PAYMENT_METHOD
+            order.save(update_fields=["status"])
 
-        log_created_order(order, request.user, payment_url)
+        OrderEvent.objects.create(
+            order=order,
+            event_type="created",
+            actor_type="customer",
+            actor_id=user.customer_profile.id,
+            new_status=order.status,
+            metadata={"items_count": order.items.count()},
+        )
+        notify_order_created(order)
 
-        return Response({
-            "message": "Order recreated successfully",
-            "order_id": order.id,
-            "order_number": order.order_number,
-            "delivery_passphrase": phrase,
-            "payment_url": payment_url,
-            "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
-        }, status=201)
+        return Response(
+            {
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "status": order.status,
+                "delivery_passphrase": phrase,
+                "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
+                "message": "Order created. Choose a payment method to continue.",
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class FavoriteCreateView(BaseCustomerAPIView):

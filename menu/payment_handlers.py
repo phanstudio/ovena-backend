@@ -49,7 +49,7 @@ def order_update(data: dict) -> bool:
         )
 
         notify_payment_completed(order)
-        logger.info("Order %s (ref: %s) marked as preparing", order.id, reference)
+        logger.info("Order %s (ref: %s) marked as payed for", order.id, reference)
         return True
 
     return False

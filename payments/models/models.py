@@ -111,11 +111,30 @@ class Sale(models.Model):
         ("disputed", "Disputed"),
     ]
 
+    RESPONSIBLE_BUSINESS = "business"
+    RESPONSIBLE_DRIVER = "driver"
+    RESPONSIBLE_PLATFORM = "platform"
+
+    RESPONSIBLE_PARTY_CHOICES = [
+        (RESPONSIBLE_BUSINESS, "Business"),
+        (RESPONSIBLE_DRIVER, "Driver"),
+        (RESPONSIBLE_PLATFORM, "Platform"),
+    ]
+
+    SOURCE_POINTS = "points"
+    SOURCE_PAYSTACK = "paystack"
+    
+    PAYMENT_SOURCE_CHOICES = [
+        (SOURCE_POINTS, "Points"),
+        (SOURCE_PAYSTACK, "Paystack"),
+    ]
+
     # id = ULIDField(primary_key=True, editable=False)
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     reference = models.CharField(max_length=100, unique=True)
     paystack_reference = models.CharField(max_length=100, unique=True, null=True, blank=True)
     paystack_access_code = models.CharField(max_length=100, blank=True)
+    payment_source = models.CharField(max_length=100, choices=PAYMENT_SOURCE_CHOICES, default=SOURCE_PAYSTACK)
 
     payer = models.ForeignKey(User, on_delete=models.PROTECT, related_name="purchases")
     driver = models.ForeignKey(User, on_delete=models.PROTECT, related_name="driven_sales", null=True, blank=True)
@@ -131,15 +150,6 @@ class Sale(models.Model):
     refunded_at = models.DateTimeField(null=True, blank=True)
     refund_reason = models.TextField(blank=True)
 
-    RESPONSIBLE_BUSINESS = "business"
-    RESPONSIBLE_DRIVER = "driver"
-    RESPONSIBLE_PLATFORM = "platform", "Platform"
-
-    RESPONSIBLE_PARTY_CHOICES = [
-        (RESPONSIBLE_BUSINESS, "Business"),
-        (RESPONSIBLE_DRIVER, "Driver"),
-        (RESPONSIBLE_PLATFORM, "Platform"),
-    ]
     responsible_party = models.CharField(max_length=30, choices=RESPONSIBLE_PARTY_CHOICES, blank=True)
     responsible_party_reason = models.TextField(blank=True)
 
