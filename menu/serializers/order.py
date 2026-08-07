@@ -27,6 +27,10 @@ class PaymentRetrySerializer(serializers.Serializer):
     order_id = serializers.IntegerField()
 
 
+class PaymentMethodSerializer(serializers.Serializer):
+    method = serializers.ChoiceField(choices=["points", "paystack"])
+
+
 class OrderItemCreateSerializer(serializers.Serializer):
     menu_item_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)

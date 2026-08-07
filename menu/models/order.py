@@ -33,7 +33,7 @@ class Order(models.Model): # do we add a coupon snap shot or not also a discount
     grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     
     # Payment
-    sale = models.OneToOneField(Sale, on_delete=models.CASCADE, related_name="sale", null=True, blank=True)
+    sale = models.OneToOneField(Sale, on_delete=models.CASCADE, related_name="order", null=True, blank=True)
     
     # Delivery verification
     delivery_secret_hash = models.CharField(max_length=200)

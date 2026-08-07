@@ -9,7 +9,7 @@ from drf_spectacular.utils import extend_schema # type: ignore
 
 from accounts.models import DriverAvailability, DriverProfile
 from authflow.authentication import CustomDriverAuth
-from authflow.permissions import IsDriver
+from authflow.permissions import IsDriver, IsNotSuspended
 from driver_api.models import (
     SupportFAQItem,
 )
@@ -42,7 +42,7 @@ from notifications.services import get_unread_count
 
 class BaseDriverAPIView(APIView):
     authentication_classes = [CustomDriverAuth]
-    permission_classes = [IsDriver]
+    permission_classes = [IsDriver, IsNotSuspended]
 
     def get_driver(self, request) -> DriverProfile:
         profile = request.user.driver_profile#getattr(request.user, "driver_profile", None)

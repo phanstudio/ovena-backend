@@ -39,6 +39,7 @@ _DEFAULT_FLAT_POINTS = {
     PointsLedgerEntry.EVENT_REFERRED_FIRST_ORDER: 1000,
     PointsLedgerEntry.EVENT_ORDER_STREAK_5: 250,
     PointsLedgerEntry.EVENT_ORDER_RATED: 20,
+    PointsLedgerEntry.EVENT_REFUND_COMPENSATION: 150,
 }
 _DEFAULT_RANGE_POINTS = {
     PointsLedgerEntry.EVENT_ORDER_MILESTONE_5: (50, 500),
@@ -179,6 +180,17 @@ def award_order_rated(*, user, rating, idempotency_key: str):
         points=_flat_points_for(PointsLedgerEntry.EVENT_ORDER_RATED),
         proof=rating,
         idempotency_key=idempotency_key,
+    )
+
+
+def award_refund_compensation(*, user, sale, idempotency_key: str, points:int):
+    return _award_points(
+        user=user,
+        event_type=PointsLedgerEntry.EVENT_REFUND_COMPENSATION,
+        points=points,
+        proof=sale,
+        idempotency_key=idempotency_key,
+        notes="Compensation points for refunded order",
     )
 
 

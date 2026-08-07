@@ -1,6 +1,7 @@
 from django.db import models
 
 class OrderStatus(models.TextChoices):
+    AWAITING_PAYMENT_METHOD = "awaiting_payment_method", "Awaiting Payment Method"  # NEW
     PAYMENT_PENDING = "payment_pending", "Payment Pending"
     PENDING = "pending", "Pending"
     CONFIRMED = "confirmed", "Confirmed"

@@ -8,6 +8,7 @@ from accounts.services.roles import (
     PROFILE_APP_ADMIN,
 )
 from .subscritpion import get_all_features
+from accounts.services.suspensions import is_suspended
 
 
 class NeedsApprovalPermission(permissions.BasePermission):
@@ -20,6 +21,14 @@ class NeedsApprovalPermission(permissions.BasePermission):
         #     self.message = "User not approved"
         # return approved
         return True
+
+
+class IsNotSuspended(permissions.BasePermission):
+    message = "Your account has been suspended."
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(user and user.is_authenticated and not is_suspended(user.id))
 
 
 class IsCustomer(permissions.BasePermission):
@@ -83,7 +92,7 @@ def validate_staff(request):  # can i return revoked
     )
 
 # might add role based restriction like admin, support.
-class HasFeature(permissions.BasePermission): 
+class HasFeature(permissions.BasePermission): # chck this
     """
     Checks whether the token includes the required scope(s).\n
     Usage:\n

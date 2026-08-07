@@ -5,7 +5,7 @@ from django.dispatch import receiver
 
 from accounts.models.business import BusinessPayoutAccount
 from accounts.models.driver import DriverBankAccount
-from payments.models import UserAccount
+from accounts.models import Suspension, Penalty
 from payments.payouts.tasks import ensure_paystack_recipient_for_driver
 from payments.payouts.tasks import ensure_paystack_recipient_for_business_admin
 
@@ -39,3 +39,27 @@ def _sync_business_admin_paystack_recipient(sender, instance: BusinessPayoutAcco
         return
     if not instance.paystack_recipient_code:
         ensure_paystack_recipient_for_business_admin.delay(admin.id)
+
+
+@receiver(post_save, sender=Penalty)
+def check_penalty_threshold(sender, instance, created, **kwargs):
+    if not created:
+        return  # a strike, once issued, doesn't get re-evaluated on edits
+
+    total_strikes = Penalty.objects.filter(user=instance.user, role=instance.role).count()
+
+    if total_strikes == 6:
+        target_level = "permanent"
+    elif total_strikes == 3:
+        target_level = "temporary"
+    else:
+        return
+
+    # idempotency: don't re-suspend if this exact threshold already fired
+    already_actioned = Suspension.objects.filter(
+        user=instance.user, role=instance.role, level=target_level
+    ).exists()
+    if already_actioned:
+        return
+
+    Suspension.objects.create(user=instance.user, role=instance.role, level=target_level)
