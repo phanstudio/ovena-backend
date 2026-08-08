@@ -139,18 +139,45 @@ def credit_all_parties(sale, split: dict, picked_up: bool= False):
 
 
 @transaction.atomic
-def reverse_ledger_entries(sale, reason: str):
-    """Reverse all credits for a sale. Inserts reversals -- never deletes originals."""
+def reverse_ledger_entries(sale, reason: str, responsible_party: str = "business"):
+    """
+    Reverse ledger entries depending on the responsible party:
+    - 'business': Business fault -> reverse business owner credit (restaurant doesn't get paid).
+    - 'driver': Driver fault -> driver credit is reversed/penalized, BUT business owner keeps their food earnings!
+    - 'platform': Platform fault -> both business and driver keep their earnings (no credit reversal, platform absorbs cost).
+    """
     from payments.models import LedgerEntry
-    for entry in LedgerEntry.objects.filter(sale=sale, type="credit"):
-        _create_ledger_entry(
-            user=entry.user,
-            sale=sale,
-            role=entry.role,
-            entry_type="reversal",
-            amount=-abs(entry.amount),
-            notes=f"Reversal: {reason}",
-        )
+    
+    credits = LedgerEntry.objects.filter(sale=sale, type="credit")
+    
+    for entry in credits:
+        # Determine if this specific role's credit should be reversed based on responsible party
+        should_reverse = False
+        
+        if responsible_party == "business":
+            # Reverse business owner and optionally driver if business caused it
+            if entry.role in ("business_owner", "driver"):
+                should_reverse = True
+        elif responsible_party == "driver":
+            # Driver is at fault: driver credit is reversed/penalized, but business_owner keeps earnings!
+            if entry.role == "driver":
+                should_reverse = True
+        elif responsible_party == "platform":
+            # Platform fault: nobody is penalized, no credits reversed (platform absorbs loss)
+            should_reverse = False
+        else:
+            # Default fallback: reverse all credits
+            should_reverse = True
+            
+        if should_reverse:
+            _create_ledger_entry(
+                user=entry.user,
+                sale=sale,
+                role=entry.role,
+                entry_type="reversal",
+                amount=-abs(entry.amount),
+                notes=f"Reversal ({responsible_party} fault): {reason}",
+            )
 
 
 def _create_ledger_entry(user, sale, role, entry_type, amount, notes=""):

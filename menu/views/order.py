@@ -16,7 +16,6 @@ from authflow.services import verify_delivery_phrase, mint_driver_pin
 from menu.models import Order, OrderEvent, OrderItem, DriverProfile, OrderStatus
 from menu.pagifications import StandardResultsSetPagination
 from menu.websocket_utils import (
-    notify_order_cancelled,
     notify_order_created,
     notify_order_ready,
     notify_order_confirmed,
@@ -24,6 +23,7 @@ from menu.websocket_utils import (
     notify_order_picked_up,
     notify_on_the_way,
     notify_order_pickup_ready,
+    notify_payment_completed,
 )
 from menu.tasks import (
     # check_branch_confirmation_timeout, #:old
@@ -33,7 +33,7 @@ from menu.tasks import (
 import logging
 from menu.payment_services import initialize_order_sale
 from django.db import transaction
-from menu.serializers import OrderCreateSerializer, PaymentRetrySerializer
+from menu.serializers import OrderCreateSerializer, PaymentRetrySerializer, PaymentMethodSerializer
 from django.db.models import Prefetch
 from referrals.services import convert_referral_once
 from payments.services.sale_service import complete_service, assign_driver
@@ -47,6 +47,9 @@ from support_center.task import create_system_ticket
 from common.mail.services import send_email, EmailMessage
 from points.tasks import award_referred_first_order_task
 from payments.integrations.errors import TemporaryPaymentError, PermanentPaymentError
+from menu.services.order_cancel import cancel_order, ACTORS
+from points.services import pay_order_with_points, InsufficientPoints
+
 
 logger = logging.getLogger(__name__)
 # add atomcity #:priority
@@ -227,53 +230,6 @@ class OrderView(BaseCustomerAPIView):
         )
         return Response(list(orders))
 
-    # def post(self, request):
-    #     user = request.user
-    #     customer = self.get_customer_profile(request)
-
-    #     serializer = LocationGetSerializer(data=request.data)
-    #     serializer.is_valid(raise_exception=True)
-    #     vd = serializer.validated_data
-        
-    #     # user_location = customer.default_address.location
-    #     user_location = make_point(vd["long"], vd["lat"])
-
-    #     serializer = OrderCreateSerializer(
-    #         data=request.data,
-    #         context={
-    #             "request": request,
-    #             "user": user,
-    #             "customer": customer,
-    #             "user_location": user_location
-    #         },
-    #     )
-    #     serializer.is_valid(raise_exception=True)
-
-    #     with transaction.atomic():
-    #         order, phrase = serializer.save()
-    #         # Initialize payment via Sale (unified payments)
-        
-    #     # on failure
-    #     # order.status = OrderStatus.PAYMENT_INITIALIZATION_FAILED
-
-        
-        
-    #     payment_url = create_payment(order)
-
-    #     log_created_order(order, user, payment_url)
-
-    #     return Response(
-    #         {
-    #             "order_id": order.id,
-    #             "order_number": order.order_number,
-    #             "delivery_passphrase": phrase,
-    #             "payment_url": payment_url,
-    #             "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
-    #             "message": "Order created successfully. Waiting for restaurant confirmation.",
-    #         },
-    #         status=status.HTTP_201_CREATED,
-    #     )
-
     def post(self, request):
         user = request.user
         customer = self.get_customer_profile(request)
@@ -296,29 +252,18 @@ class OrderView(BaseCustomerAPIView):
 
         with transaction.atomic():
             order, phrase = serializer.save()
+            order.status = OrderStatus.AWAITING_PAYMENT_METHOD
+            order.save(update_fields=["status"])
 
-        try:
-            payment_url = create_payment(order)
-        except Exception as exc:
-            order.status = OrderStatus.PAYMENT_INITIALIZATION_FAILED
-            order.next_retry_at = timezone.now() + timedelta(minutes=1)
-            order.save(update_fields=["status", "next_retry_at"])
-
-            logger.error("Payment init failed for order %s: %s", order.id, exc)
-
-            return Response(
-                {
-                    "order_id": order.id,
-                    "order_number": order.order_number,
-                    "delivery_passphrase": phrase,
-                    "status": order.status,
-                    "message": "Order created, but payment initialization failed. You can retry shortly.",
-                    "retry_after": order.next_retry_at,
-                },
-                status=status.HTTP_202_ACCEPTED,
-            )
-
-        log_created_order(order, user, payment_url)
+        OrderEvent.objects.create(
+            order=order,
+            event_type="created",
+            actor_type="customer",
+            actor_id=user.customer_profile.id,
+            new_status=order.status,
+            metadata={"items_count": order.items.count()},
+        )
+        notify_order_created(order)
 
         return Response(
             {
@@ -326,9 +271,109 @@ class OrderView(BaseCustomerAPIView):
                 "order_number": order.order_number,
                 "status": order.status,
                 "delivery_passphrase": phrase,
+                "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
+                "message": "Order created. Choose a payment method to continue.",
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class OrderPaymentView(BaseCustomerAPIView):
+    """
+    Single entrypoint for choosing how an order gets paid.
+    Replaces the old implicit 'always Paystack at creation' behavior
+    and the standalone OrderPointsPaymentView.
+    """
+    serializer_class = PaymentMethodSerializer
+
+    def post(self, request, order_id):
+        customer = self.get_customer_profile(request)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        method = serializer.validated_data["method"]
+
+        with transaction.atomic():
+            order = get_object_or_404(
+                Order.objects.select_for_update().filter(orderer=customer),
+                id=order_id,
+            )
+
+            if order.status != OrderStatus.AWAITING_PAYMENT_METHOD:
+                return Response(
+                    {"message": f"Order is not awaiting a payment method (status: {order.status})."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if order.sale_id is not None:
+                # Shouldn't happen given the status guard above, but belt & suspenders
+                # against a double-submit racing inside the same transaction.
+                return Response(
+                    {"message": "A payment has already been initiated for this order."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            if method == "points":
+                try:
+                    pay_order_with_points(customer, order)
+                except InsufficientPoints:
+                    return Response(
+                        {"message": "Insufficient points balance for this order."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                old_status = order.status
+                order.status = OrderStatus.PENDING
+                order.save(update_fields=["status", "last_modified_at"])
+
+                OrderEvent.objects.create(
+                    order=order,
+                    event_type="payment_completed",
+                    actor_type="customer",
+                    actor_id=customer.id,
+                    old_status=old_status,
+                    new_status=order.status,
+                    metadata={"amount": order.grand_total, "payment_method": "paid_with_points"},
+                )
+                notify_payment_completed(order)
+
+                return Response(
+                    {
+                        "order_id": order.id,
+                        "order_number": order.order_number,
+                        "status": order.status,
+                        "message": "Order paid with points successfully.",
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+        # method == "paystack" — do the external call outside the DB transaction
+        try:
+            payment_url = create_payment(order)
+        except Exception as exc:
+            order.status = OrderStatus.PAYMENT_INITIALIZATION_FAILED
+            order.next_retry_at = timezone.now() + timedelta(minutes=1)
+            order.save(update_fields=["status", "next_retry_at"])
+            logger.error("Payment init failed for order %s: %s", order.id, exc)
+            return Response(
+                {
+                    "order_id": order.id,
+                    "status": order.status,
+                    "message": "Payment initialization failed. You can retry shortly.",
+                    "retry_after": order.next_retry_at,
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        log_created_order(order, request.user, payment_url)
+
+        return Response(
+            {
+                "order_id": order.id,
+                "order_number": order.order_number,
+                "status": order.status,
                 "payment_url": payment_url,
                 "websocket_url": f"{settings.WEBSOCKET_URL}/ws/orders/{order.id}/",
-                "message": "Order created successfully. Waiting for restaurant confirmation.",
+                "message": "Payment initialized. Please complete payment.",
             },
             status=status.HTTP_201_CREATED,
         )
@@ -423,34 +468,18 @@ class OrderCancelView(BaseCustomerAPIView):
                 {"error": "Invalid customer account"}, status=status.HTTP_403_FORBIDDEN
             )
 
-        # Can only cancel before driver picks up
+        # Can only cancel before driver picks up, add serilizer
         if order.status not in [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PAYMENT_PENDING]:
             return Response(
                 {"error": "Cannot cancel order at this stage"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        old_status = order.status
-        order.status = OrderStatus.CANCELLED
-        order.save(update_fields=["status", "last_modified_at"])
-
-        # Log event
-        OrderEvent.objects.create(
-            order=order,
-            event_type="cancelled",
-            actor_type="customer",
-            actor_id=customer.id,
-            old_status=old_status,
-            new_status=order.status,
-            metadata={"reason": "customer_cancelled"},
-        )
-
-        # 🔥 Broadcast cancellation to all parties
-        notify_order_cancelled(
-            order, reason="Cancelled by customer", cancelled_by="customer"
-        )
-
-        logger.info(f"Order {order.id} cancelled by customer")
+        ## add a reason to the cancel.
+        try:
+            cancel_order(order, ACTORS.CUSTOMER, "bad service")
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response(
             {"message": "Order cancelled successfully"}, status=status.HTTP_200_OK
@@ -749,27 +778,10 @@ class ResturantOrderView(GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        old_status = order.status
-        order.status = OrderStatus.CANCELLED
-        order.save(update_fields=["status", "last_modified_at"])
-
-        # Log event
-        OrderEvent.objects.create(
-            order=order,
-            event_type="cancelled",
-            actor_type="branch",
-            actor_id=order.branch_id,
-            old_status=old_status,
-            new_status= order.status,
-            metadata={"reason": "branch_cancelled"},
-        )
-
-        # 🔥 Notify all parties
-        notify_order_cancelled(
-            order, reason="Restaurant cancelled the order", cancelled_by="branch"
-        )
-
-        logger.info(f"Order {order.id} cancelled by branch")
+        try:
+            cancel_order(order, ACTORS.BRANCH, "Restaurant cancelled the order")
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response(
             {"message": "Order cancelled successfully"},

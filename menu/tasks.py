@@ -12,6 +12,7 @@ from .websocket_utils import (
     broadcast_to_specific_drivers,
     broadcast_order_info_to_specific_drivers
 )
+from menu.services.order_cancel import cancel_order, ACTORS
 # from addresses.events import *
 from .events import ORDER_DRIVER_NOT_FOUND, ORDER_DRIVER_ASSIGNED
 from addresses.utils.calculation_utils import find_nearest_available_drivers
@@ -41,26 +42,12 @@ def check_branch_confirmation_timeout(order_id):
         # If still pending, cancel it
         if old_status == OrderStatus.PENDING:
             logger.info(f"Order {order.id} timed out - branch did not confirm")
-            
-            order.status = OrderStatus.CANCELLED
-            order.save(update_fields=['status', 'last_modified_at'])
-            
-            # Log event
-            OrderEvent.objects.create(
-                order=order,
-                event_type=OrderStatus.CANCELLED,
-                actor_type='system',
-                old_status= old_status,
-                new_status=OrderStatus.CANCELLED,
-                metadata={'reason': 'branch_timeout'}
-            )
-            
-            # Notify customer and branch
-            notify_order_cancelled(
-                order,
-                reason="Restaurant did not respond in time",
-                cancelled_by="system"
-            )
+
+            try: # add retry logic
+                # cancelled_by="system"
+                cancel_order(order, ACTORS.BRANCH, "Restaurant did not respond in time")
+            except Exception as exc:
+                return f"Failed to cancle {order.id}, from branch timeout"
             
             return f"Order {order.id} cancelled due to branch timeout"
         
@@ -84,26 +71,12 @@ def check_payment_timeout(order_id):
         # If still waiting for payment, cancel it
         if old_status in [OrderStatus.PAYMENT_PENDING]:
             logger.info(f"Order {order.id} timed out - payment not completed")
-            
-            order.status = 'cancelled'
-            order.save(update_fields=['status', 'last_modified_at'])
-            
-            # Log event
-            OrderEvent.objects.create(
-                order=order,
-                event_type='cancelled',
-                actor_type='system',
-                old_status=old_status,
-                new_status='cancelled',
-                metadata={'reason': 'payment_timeout'}
-            )
-            
-            # Notify all parties
-            notify_order_cancelled(
-                order,
-                reason="Payment not completed in time",
-                cancelled_by="system"
-            )
+
+            try: # add retry logic
+                # cancelled_by="system"
+                cancel_order(order, ACTORS.BRANCH, "Payment not completed in time")
+            except Exception as exc:
+                return f"Failed to cancle {order.id}, from payment timeout"
             
             return f"Order {order.id} cancelled due to payment timeout"
         
@@ -409,26 +382,12 @@ def check_all_payment_timeouts():
     cancelled_count = 0
     for order in stuck_orders:
         # Cancel the order
-        old_status = order.status
-        order.status = OrderStatus.CANCELLED
-        order.save(update_fields=['status', 'last_modified_at'])
-        
-        # Log event
-        OrderEvent.objects.create(
-            order=order,
-            event_type='cancelled',
-            actor_type='system',
-            old_status=old_status,
-            new_status=order.status,
-            metadata={'reason': 'payment_timeout_batch'}
-        )
-        
-        # Notify
-        notify_order_cancelled(
-            order,
-            reason="Payment not completed in time",
-            cancelled_by="system"
-        )
+        try: # add retry logic
+            # cancelled_by="system"
+            cancel_order(order, ACTORS.BRANCH, "Payment not completed in time")
+        except Exception as exc:
+            logger.info(f"Failed to cancle {order.id}, from payment timeout", ":", str(exc))
+            continue
         
         cancelled_count += 1
     

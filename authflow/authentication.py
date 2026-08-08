@@ -181,15 +181,6 @@ class CustomBusinessAgentsAuth(CustomJWtAuth):
 
     def authenticate(self, request):
         result = super().custom_auth(request)
-        # if result is None:
-        #     return None
-        # user, token, profile_type = result
-        # if not profile_type:
-        #     raise AuthenticationFailed(
-        #         _("Business agents profile not found"), code="business_agents_missing"
-        #     )
-        # token["active_profile"] = profile_type
-        # return (user, token)
         return self.get_auth(result, "Business agents")
 
 
@@ -199,15 +190,6 @@ class CustomBStaffAuth(CustomJWtAuth):
 
     def authenticate(self, request):
         result = super().custom_auth(request)
-        # if result is None:
-        #     return None
-        # user, token, profile_type = result
-        # if not profile_type:
-        #     raise AuthenticationFailed(
-        #         _("Business staff profile not found"), code="business_staff_missing"
-        #     )
-        # token["active_profile"] = profile_type
-        # return (user, token)
         return self.get_auth(result, "Business staff")
 
 
@@ -217,12 +199,6 @@ class CustomDriverAuth(CustomJWtAuth):
 
     def authenticate(self, request):
         result = super().custom_auth(request)
-        # if result is None:
-        #     return None
-        # user, token, profile_type = result
-        # if profile_type:
-        #     token["active_profile"] = profile_type
-        # return (user, token)
         return self.get_auth(result, "Driver")
         
 
@@ -232,12 +208,6 @@ class CustomCustomerAuth(CustomJWtAuth):
 
     def authenticate(self, request):
         result = super().custom_auth(request)
-        # if result is None:
-        #     return None
-        # user, token, profile_type = result
-        # if profile_type:
-        #     token["active_profile"] = profile_type
-        # return (user, token)
         return self.get_auth(result, "Customer")
 
 
@@ -247,15 +217,6 @@ class CustomBAdminAuth(CustomJWtAuth):
 
     def authenticate(self, request):
         result = super().custom_auth(request)
-        # if result is None:
-        #     return None
-        # user, token, profile_type = result
-        # if not profile_type:
-        #     raise AuthenticationFailed(
-        #         _("Business admin profile not found"), code="business_admin_missing"
-        #     )
-        # token["active_profile"] = profile_type
-        # return (user, token)
         return self.get_auth(result, "Business Admin")
 
 
@@ -265,13 +226,4 @@ class CustomAppAdminAuth(CustomJWtAuth):
 
     def authenticate(self, request):
         result = super().custom_auth(request)
-        # if result is None:
-        #     return None
-        # user, token, profile_type = result
-        # if not profile_type:
-        #     raise AuthenticationFailed(
-        #         _("App admin profile not found"), code="app_admin_missing"
-        #     )
-        # token["active_profile"] = profile_type
-        # return (user, token)
         return self.get_auth(result, "App Admin")
