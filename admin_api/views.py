@@ -336,6 +336,8 @@ class AdminUserDetailView(BaseAppAdminAPIView):
         if not user:
             raise NotFound("User not found")
 
+        user_context = {"user": user}
+
         payload = {
             "user": AdminUserListSerializer(user).data,
             "profiles": {
@@ -359,7 +361,8 @@ class AdminUserDetailView(BaseAppAdminAPIView):
             ).data
         if getattr(user, "customer_profile", None):
             payload["customer_profile"] = main_serial.CustomerProfileSerializer(
-                user.customer_profile
+                user.customer_profile,
+                context=user_context
             ).data
         if getattr(user, "app_admin", None):
             payload["app_admin"] = AppAdminProfileSerializer(
