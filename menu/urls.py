@@ -57,7 +57,7 @@ urlpatterns = [
     path("driver-order/", views.DriverOrderView.as_view(), name="driver-order"),
     path("order/", views.OrderView.as_view(), name="order"),
     path("orders/<int:order_id>/", views.OrderView.as_view(), name="order-detail"),
-    path("order/payment/", views.OrderPaymentView.as_view(), name="order-payment"),
+    path("order/payment/<int:order_id>/", views.OrderPaymentView.as_view(), name="order-payment"),
     path(
         "orders/retry-payment/", 
         views.PaymentRetryView.as_view(), 
