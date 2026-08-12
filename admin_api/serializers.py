@@ -52,7 +52,7 @@ class AppAdminProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AppAdmin
-        fields = ["id"]
+        fields = ["id", "role", "name"]
 
 class UpdateAppAdminSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True)
