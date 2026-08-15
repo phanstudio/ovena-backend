@@ -18,6 +18,7 @@ from referrals.services import apply_referral_code
 from phonenumber_field.serializerfields import PhoneNumberField  # type: ignore
 from points.tasks import award_referral_success_task
 from points import service
+from menu.services import has_20_orders_this_month
 
 
 class AddressSerializer(serializers.ModelSerializer):
@@ -45,6 +46,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
     default_address = AddressSerializer(read_only=True)
     addresses = AddressSerializer(many=True, read_only=True)
     points = serializers.SerializerMethodField()
+    orders_20_this_month = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomerProfile
@@ -57,12 +59,16 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
             "referral_code",
             "name",
             "pickup_food",
-            "points"
+            "points",
+            "orders_20_this_month"
         ]
 
     def get_points(self, obj):
         user = self.context["user"]
         return service.get_points_balance(user)
+
+    def get_orders_20_this_month(self, obj):
+        has_20_orders_this_month(obj)
 
 
 class DriverProfileSerializer(serializers.ModelSerializer):
