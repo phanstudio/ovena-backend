@@ -29,7 +29,7 @@ from ..models import (
 from ..serializers.menu import (
     BusinessListSerializer,
     BusinessWithMenuNamesSerializer,
-    BusinessDetailSerializer, BusinessSearchListSerializer
+    BusinessDetailSerializer, #BusinessSearchListSerializer
 )
 
 from common.customer.view import BaseCustomerAPIView
