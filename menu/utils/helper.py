@@ -4,13 +4,16 @@ from django.db.models import (
     OuterRef, Subquery, Prefetch, Q, Count,
     F, FloatField, ExpressionWrapper, Case, When, Value, Exists
 )
-from accounts.models import BranchOperatingHours, Branch
+from accounts.models import BranchOperatingHours, Branch, Business
 from payments.models.subscription import Subscription
 from django.utils import timezone
 from datetime import timedelta
 from authflow.features import TOP3_FEATURE_CODE, HIGH_RANK_FEATURE_CODE, HIGH_RANK_BOOST
 import hashlib
 from datetime import date
+from collections import defaultdict
+
+MENU_MATCH_LIMIT = 3
 
 # ============================================================================
 # SHARED HELPERS
@@ -205,3 +208,67 @@ class DailyRotationMixin:
             
         # Order by random() - because setseed() was called, this order is fixed for the day
         return queryset.order_by("?")
+
+def get_menu_matches_for_businesses(businesses, query, limit=MENU_MATCH_LIMIT):
+    """
+    Return menu-item search matches grouped by business.
+
+    Result:
+
+    {
+        business_id: {
+            "matches": [
+                {"id": 123, "name": "Cheese Burger"},
+                {"id": 124, "name": "Ham Burger"},
+            ],
+            "total_matches": 18,
+        }
+    }
+
+    Only the first `limit` matches are returned per business.
+    """
+
+    business_ids = [business.id for business in businesses]
+
+    if not business_ids or not query:
+        return {}
+
+    rows = (
+        Business.objects
+        .filter(
+            id__in=business_ids,
+            menus__categories__items__custom_name__icontains=query,
+        )
+        .values(
+            "id",
+            "menus__categories__items__id",
+            "menus__categories__items__custom_name",
+        )
+        .distinct()
+        .order_by(
+            "id",
+            "menus__categories__items__id",
+        )
+    )
+
+    grouped = defaultdict(lambda: {
+        "matches": [],
+        "total_matches": 0,
+    })
+
+    for row in rows:
+        business_id = row["id"]
+
+        item_id = row["menus__categories__items__id"]
+        item_name = row["menus__categories__items__custom_name"]
+
+        grouped[business_id]["total_matches"] += 1
+
+        # Only return the first N items.
+        if len(grouped[business_id]["matches"]) < limit:
+            grouped[business_id]["matches"].append({
+                "id": item_id,
+                "name": item_name,
+            })
+
+    return dict(grouped)
