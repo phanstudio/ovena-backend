@@ -20,6 +20,7 @@ from .services import WheelService, eligible_coupon_q, eligible_coupon_for_wheel
 from common.pagination import StandardResultsSetPagination
 from common.customer.view import BaseCustomerAPIView
 from admin_api.views import BaseAppAdminAPIView
+from menu.services import has_20_orders_this_month
 
 
 # Admin coupons functions
@@ -210,6 +211,15 @@ class CouponWheelSpinView(BaseCustomerAPIView):
     """
 
     def post(self, request):
+        customer = self.get_customer_profile(request)
+        eligable_for_wheel = has_20_orders_this_month(customer)
+
+        if not eligable_for_wheel:
+            return Response(
+                {"detail": "User not eligable for the coupon wheel"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
         wheel = (
             CouponWheel.objects
             .filter(is_active=True)

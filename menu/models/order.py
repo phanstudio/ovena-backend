@@ -75,6 +75,7 @@ class Order(models.Model): # do we add a coupon snap shot or not also a discount
             models.Index(fields=['status', 'created_at']),
             models.Index(fields=['driver', 'status']),
             models.Index(fields=['branch', 'status']),
+            models.Index(fields=['orderer', 'status', 'delivered_at']),
         ]
     
     def __str__(self):
