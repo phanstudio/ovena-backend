@@ -68,7 +68,7 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
         return service.get_points_balance(user)
 
     def get_orders_20_this_month(self, obj):
-        has_20_orders_this_month(obj)
+        return has_20_orders_this_month(obj)
 
 
 class DriverProfileSerializer(serializers.ModelSerializer):
