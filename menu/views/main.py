@@ -535,7 +535,7 @@ class BusinessSearchView(LocationDependantMixin, GenericAPIView):
         # ==============================================================
 
         results = []
-
+        print(menu_matches)
         for business, serialized_business in zip(
             page,
             business_data,
