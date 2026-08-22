@@ -19,17 +19,6 @@ class TagGroupSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "slug", "images", "tags", "tags_count"]
         read_only_fields = ["id", "slug", "tags_count"]
 
-    def to_internal_value(self, data):
-        data = data.copy()
-
-        if "tags" in data and isinstance(data["tags"], str):
-            try:
-                data["tags"] = json.loads(data["tags"])
-            except json.JSONDecodeError:
-                pass
-
-        return super().to_internal_value(data)
-
     def update(self, instance, validated_data):
         tags = validated_data.pop("tags", None)
         instance = super().update(instance, validated_data)
