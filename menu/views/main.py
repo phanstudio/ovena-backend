@@ -74,10 +74,19 @@ class LocationProviderMixin(ABC):
 
 class LocationDependantMixin(LocationProviderMixin):
     def get_user_point(self, request):
-        lat = request.query_params.get('lat')
-        lng = request.query_params.get('lng')
-        if not lat or not lng:
+        lat = request.query_params.get("lat")
+        lng = request.query_params.get("lng")
+
+        # Fall back to request body
+        if lat is None:
+            lat = request.data.get("lat")
+
+        if lng is None:
+            lng = request.data.get("lng")
+        
+        if lat is None or lng is None:
             return None
+
         return Point(float(lng), float(lat), srid=4326)
     
     def get_point_error(self):

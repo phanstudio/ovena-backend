@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from menu.models.categories import TagGroup, GlobalTag
-import json
 
 class CategoryTagsUpdateSerializer(serializers.Serializer):
     tag_ids = serializers.ListField(child=serializers.IntegerField())
@@ -50,5 +49,5 @@ class GlobalTagSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "slug", "group_name"]
 
-class CategorySearchInputSerializer(serializers.Serializer):
+class CategorySearchInputSerializer(LocationGetSerializer):
     category_id = serializers.IntegerField()  # TagGroup id
