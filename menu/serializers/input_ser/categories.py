@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from menu.models.categories import TagGroup, GlobalTag
+import json
 
 class CategoryTagsUpdateSerializer(serializers.Serializer):
     tag_ids = serializers.ListField(child=serializers.IntegerField())
@@ -17,6 +18,17 @@ class TagGroupSerializer(serializers.ModelSerializer):
         model = TagGroup
         fields = ["id", "name", "slug", "images", "tags", "tags_count"]
         read_only_fields = ["id", "slug", "tags_count"]
+
+    def to_internal_value(self, data):
+        data = data.copy()
+
+        if "tags" in data and isinstance(data["tags"], str):
+            try:
+                data["tags"] = json.loads(data["tags"])
+            except json.JSONDecodeError:
+                pass
+
+        return super().to_internal_value(data)
 
     def update(self, instance, validated_data):
         tags = validated_data.pop("tags", None)
