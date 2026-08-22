@@ -28,6 +28,7 @@ from menu.utils.helper import (
     is_branch_hours_open,
 )
 
+MAX_DISTANCE = 10
 
 class BusinessTagSuggestionsView(BaseAppAdminAPIView):
     """
@@ -162,7 +163,6 @@ class CategorySearchView(LocationDependantMixin, BaseCustomerAPIView):
         vd = serializer.validated_data
 
         category_id = vd["category_id"]
-        max_distance = vd["max_distance"]
 
         # 1. Businesses that are in range AND have at least one category
         #    matching the requested tag group. Exists() avoids the row
@@ -178,7 +178,7 @@ class CategorySearchView(LocationDependantMixin, BaseCustomerAPIView):
         base_qs = annotate_with_nearest_branch(
             Business.objects.filter(is_active=True),
             user_point,
-            max_km=max_distance,
+            max_km=MAX_DISTANCE,
         ).filter(
             nearest_branch_id__isnull=False,
         ).filter(
