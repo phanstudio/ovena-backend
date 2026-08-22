@@ -146,7 +146,7 @@ class GlobalTagDeleteView(BaseAppAdminAPIView, DestroyAPIView):
 
 
 class TagGroupListView(BaseCustomerAPIView, ListAPIView):
-    queryset = GlobalTag.objects.select_related("group").all()
+    queryset = TagGroup.objects.select_related("group").all()
     serializer_class = TagGroupSerializer
 
 
