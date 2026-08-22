@@ -2,6 +2,7 @@ from django.db import models
 from accounts.models import (
     Business, Branch, CustomerProfile
 )
+from menu.models.categories import GlobalTag
 
 # for the name and the price where we have the base price and menu system we want ot uae the check for poverrid
 #  if no override than we and to get the base or lower level, second same for price the system needs revaming
@@ -54,6 +55,8 @@ class MenuCategory(models.Model):
     menu = models.ForeignKey(Menu, on_delete=models.CASCADE, related_name="categories")
     name = models.CharField(max_length=255)  # e.g., "Burgers", "Drinks", "Desserts"
     sort_order = models.PositiveIntegerField(default=0) # auto add
+
+    global_tags = models.ManyToManyField(GlobalTag, related_name="menu_categories", blank=True)
 
     class Meta:
         ordering = ["sort_order"]

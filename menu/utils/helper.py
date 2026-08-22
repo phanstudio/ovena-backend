@@ -12,6 +12,7 @@ from authflow.features import TOP3_FEATURE_CODE, HIGH_RANK_FEATURE_CODE, HIGH_RA
 import hashlib
 from datetime import date
 from collections import defaultdict
+from menu.models import MenuItem
 
 MENU_MATCH_LIMIT = 3
 
@@ -41,22 +42,6 @@ def annotate_with_nearest_branch(qs, user_point, max_km=15):
         nearest_branch_id=Subquery(branch_qs.values("id")[:1]),
         nearest_branch_distance=Subquery(branch_qs.values("dist")[:1]),
     )
-
-
-# def bulk_load_branches(businesses):
-#     branch_ids = [
-#         b.nearest_branch_id for b in businesses
-#         if getattr(b, "nearest_branch_id", None)
-#     ]
-
-#     if not branch_ids:
-#         return {}
-
-#     return {
-#         b.id: b
-#         for b in Branch.objects.filter(id__in=branch_ids)
-#     }
-
 
 def bulk_load_branches(businesses):
     branch_ids = [
@@ -209,9 +194,37 @@ class DailyRotationMixin:
         # Order by random() - because setseed() was called, this order is fixed for the day
         return queryset.order_by("?")
 
-def get_menu_matches_for_businesses(businesses, query, limit=MENU_MATCH_LIMIT):
+def in_stock_menu_item_exists(query):
     """
-    Return menu-item search matches grouped by business.
+    Exists(...) condition for a Business queryset that already has
+    `nearest_branch_id` annotated (see annotate_with_nearest_branch).
+    Combine with other Q() conditions using `|` / `&` as normal.
+
+    True when the business has at least one menu item whose name
+    matches `query` and is in stock (no explicit is_available=False
+    row) at the business's nearest branch. No row => in stock.
+    """
+    return Exists(
+        MenuItem.objects.filter(
+            category__menu__business_id=OuterRef("pk"),
+            custom_name__icontains=query,
+        ).exclude(
+            base_item__item_availabilities__branch_id=OuterRef("nearest_branch_id"),
+            base_item__item_availabilities__is_available=False,
+        )
+    )
+
+
+def get_menu_matches_for_businesses(businesses, query, user_point, max_km=15, limit=MENU_MATCH_LIMIT):
+    """
+    Return in-stock menu-item search matches grouped by business.
+
+    An item only counts as a match if it's in stock at the business's
+    nearest branch -- the same rule that decides whether the business
+    matched the search at all (see in_stock_menu_item_exists), so
+    total_matches here is always real: total_matches == 0 for a given
+    business can't happen for a business that reached this function via
+    a menu-item match.
 
     Result:
 
@@ -221,54 +234,61 @@ def get_menu_matches_for_businesses(businesses, query, limit=MENU_MATCH_LIMIT):
                 {"id": 123, "name": "Cheese Burger"},
                 {"id": 124, "name": "Ham Burger"},
             ],
-            "total_matches": 18,
+            "total_matches": 15,   # total valid (in-stock) matches
         }
     }
 
     Only the first `limit` matches are returned per business.
     """
-
     business_ids = [business.id for business in businesses]
 
     if not business_ids or not query:
         return {}
 
-    rows = (
-        Business.objects
+    nearest_branch_for_item = (
+        Branch.objects
         .filter(
-            id__in=business_ids,
-            menus__categories__items__custom_name__icontains=query,
+            business_id=OuterRef("category__menu__business_id"),
+            is_active=True,
+            is_accepting_orders=True,
+            location__isnull=False,
+            location__distance_lte=(user_point, D(km=max_km)),
         )
-        .values(
-            "id",
-            "menus__categories__items__id",
-            "menus__categories__items__custom_name",
-        )
-        .distinct()
-        .order_by(
-            "id",
-            "menus__categories__items__id",
-        )
+        .annotate(dist=Distance("location", user_point))
+        .order_by("dist")
+        .values("id")[:1]
     )
 
-    grouped = defaultdict(lambda: {
-        "matches": [],
-        "total_matches": 0,
-    })
+    rows = (
+        MenuItem.objects
+        .filter(
+            category__menu__business_id__in=business_ids,
+            custom_name__icontains=query,
+        )
+        .annotate(nearest_branch_id=Subquery(nearest_branch_for_item))
+        .exclude(
+            base_item__item_availabilities__branch_id=F("nearest_branch_id"),
+            base_item__item_availabilities__is_available=False,
+        )
+        .values(
+            "category__menu__business_id",
+            "id",
+            "custom_name",
+        )
+        .order_by("category__menu__business_id", "id")
+    )
+
+    grouped = defaultdict(lambda: {"matches": [], "total_matches": 0})
 
     for row in rows:
-        business_id = row["id"]
-
-        item_id = row["menus__categories__items__id"]
-        item_name = row["menus__categories__items__custom_name"]
+        business_id = row["category__menu__business_id"]
 
         grouped[business_id]["total_matches"] += 1
 
-        # Only return the first N items.
         if len(grouped[business_id]["matches"]) < limit:
             grouped[business_id]["matches"].append({
-                "id": item_id,
-                "name": item_name,
+                "id": row["id"],
+                "name": row["custom_name"],
             })
 
     return dict(grouped)

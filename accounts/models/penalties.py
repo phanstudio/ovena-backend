@@ -19,7 +19,6 @@ class Penalty(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 # we need penalties images and images for deliveries
-
 # when we appeal what happens to the suspenstion???, we need it in the jwt portion.
 class Suspension(models.Model):
     LEVEL_CHOICES = [("temporary", "Temporary"), ("permanent", "Permanent")]

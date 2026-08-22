@@ -416,9 +416,17 @@ ANYMAIL = {
     # "BREVO_API_KEY": env("BREVO_API_KEY"),
 }
 
+## emails
 PRODUCT_NAME = "ovena-delivery"
 WEBSITE_URL = "https://ovena-delivery.com/"
 EMAIL_LOGO_URL = "https://pub-db5f714a040140489df7a6fc1372c2ab.r2.dev/ovena/images/logo%204.png" 
+
+EMAIL_BRANDING = {
+    "PRODUCT_NAME":  "ovena-delivery",
+    "WEBSITE_URL": "https://ovena-delivery.com/",
+    "LOGO_URL": "https://pub-db5f714a040140489df7a6fc1372c2ab.r2.dev/ovena/images/logo%204.png"
+    # "SUPPORT_EMAIL"
+}
 
 # Phone number settings
 PHONENUMBER_DEFAULT_REGION = "NG"

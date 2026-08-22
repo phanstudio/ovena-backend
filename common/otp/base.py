@@ -8,8 +8,8 @@ from django.core.cache import cache
 from django.core.mail import EmailMultiAlternatives
 from django.utils import timezone
 from datetime import timedelta
-from common.mail.services import send_email
-from common.mail.template import maling_temp
+from common.mail.services import send_email, send_otp_email
+# from common.mail.template import maling_temp
 from common.phone.services import send_regular_sms, OTP_EXPIRY_MINUTES, send_otp_sms, verify_otp
 from .exceptions import *
 
@@ -186,46 +186,10 @@ class OTPManager:
     # ── Delivery ──────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _deliver_email(email: str, code: str, minutes_valid: int = 60) -> None:
-        expires_at = timezone.now() + timedelta(minutes=minutes_valid)
-        expires_str = expires_at.strftime("%b %d, %Y %H:%M")
-        tz_str = expires_at.strftime("GMT%z")
-        tz_str = tz_str[:-2] + ":" + tz_str[-2:]  # +0100 → +01:00
-
-        product_name = getattr(settings, "PRODUCT_NAME", "Support Team")
-        website_url = getattr(settings, "WEBSITE_URL", "")
-        logo_url = getattr(settings, "EMAIL_LOGO_URL", "")
-        support_email = settings.SERVER_EMAIL
-
-        # Plain‑text version (keep consistent)
-        text_body = (
-            f"Help us protect your account\n\n"
-            f"Before you sign in, we need to verify your identity. "
-            f"Enter the following code on the sign‑in page.\n\n"
-            f"{code}\n\n"
-            f"If you have not recently tried to sign into {product_name}, "
-            f"we recommend changing your password and setting up Two‑Factor Authentication "
-            f"to keep your account safe. Your verification code expires after "
-            f"{minutes_valid} minutes (until {expires_str} {tz_str}).\n\n"
-            f"---\n"
-            f"You're receiving this email because of your account on {website_url}.\n"
-            f"Manage all notifications: {website_url}/-/profile/notifications\n"
-            f"Help: {website_url}/help"
-        )
-        html_body = maling_temp(
-            product_name, website_url, logo_url, support_email, minutes_valid, code
-        )
-
-        msg = EmailMultiAlternatives(
-            subject="Your verification code",
-            body=text_body,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[email],
-        )
-        msg.attach_alternative(html_body, "text/html")
+    def _deliver_email(email: str, code: str) -> None:
 
         try:
-            send_email(msg)
+            send_otp_email(email, code, round(settings.OTP_EXPIRY/60))
         except Exception as exc:
             raise OTPDeliveryError(f"Failed to send OTP email to {email}: {exc}") from exc
 

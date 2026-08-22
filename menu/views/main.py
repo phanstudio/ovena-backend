@@ -29,14 +29,15 @@ from ..models import (
 from ..serializers.menu import (
     BusinessListSerializer,
     BusinessWithMenuNamesSerializer,
-    BusinessDetailSerializer, #BusinessSearchListSerializer
+    BusinessDetailSerializer,
 )
 
 from common.customer.view import BaseCustomerAPIView
 from abc import ABC, abstractmethod
 from menu.utils.helper import (
     annotate_with_nearest_branch, 
-    bulk_load_branches, annotate_business_metrics, get_menu_matches_for_businesses
+    bulk_load_branches, annotate_business_metrics, 
+    get_menu_matches_for_businesses, in_stock_menu_item_exists
 )
 from accounts.models import BranchOperatingHours
 from django.utils import timezone
@@ -257,17 +258,14 @@ class BusinessSearchView(LocationDependantMixin, GenericAPIView):
         # ==============================================================
 
         if query:
-            base_qs = base_qs.filter(
-                Q(business_name__icontains=query)
-                |
-                Q(
-                    menus__categories__items__custom_name__icontains=query
-                )
-                |
-                Q(
-                    menus__categories__name__icontains=query
-                )
-            ).distinct()
+            if query:
+                base_qs = base_qs.filter(
+                    Q(business_name__icontains=query)
+                    |
+                    Q(menus__categories__name__icontains=query)
+                    |
+                    in_stock_menu_item_exists(query)
+                ).distinct()
 
         # ==============================================================
         # 3. OTHER FILTERS
@@ -394,6 +392,8 @@ class BusinessSearchView(LocationDependantMixin, GenericAPIView):
             menu_matches = get_menu_matches_for_businesses(
                 page,
                 query,
+                user_point,
+                max_km=max_distance,
             )
 
         # ==============================================================
@@ -401,38 +401,17 @@ class BusinessSearchView(LocationDependantMixin, GenericAPIView):
         # ==============================================================
 
         results = []
-        print(menu_matches)
-        for business, serialized_business in zip(
-            page,
-            business_data,
-        ):
-            business_match = menu_matches.get(
-                business.id
-            )
+        for business, serialized_business in zip(page, business_data):
+            business_match = menu_matches.get(business.id)
 
             if business_match:
-                # ------------------------------------------------------
-                # This business matched because of menu items.
-                # ------------------------------------------------------
-
                 results.append({
                     "business": serialized_business,
                     "match_type": "menu_item",
                     "matches": business_match["matches"],
                     "total_matches": business_match["total_matches"],
                 })
-
             else:
-                # ------------------------------------------------------
-                # No menu-item match.
-                #
-                # The business may have matched by:
-                #   - business name
-                #   - category name
-                #
-                # For now keep it as a normal business result.
-                # ------------------------------------------------------
-
                 results.append({
                     "business": serialized_business,
                     "match_type": "business",

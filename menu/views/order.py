@@ -44,7 +44,7 @@ from addresses.serializers import LocationGetSerializer
 from addresses.utils import make_point
 from support_center.services import Role
 from support_center.task import create_system_ticket
-from common.mail.services import send_email, EmailMessage
+from common.mail.services import send_order_thankyou_email
 from points.tasks import award_referred_first_order_task
 from payments.integrations.errors import TemporaryPaymentError, PermanentPaymentError
 from menu.services.order_cancel import cancel_order, ACTORS
@@ -129,7 +129,7 @@ def create_payment(order):
     return sale_result["payment_url"]
 
 
-def send_thank_you_email(order):
+def send_thank_you_email(order:Order):
     profile = (
             CustomerProfile.objects
             .select_related("user")
@@ -138,14 +138,8 @@ def send_thank_you_email(order):
         )
 
     if profile:
-        try: # change this to a queue email sevice.
-            email = profile.user.email
-            message = EmailMessage(
-                subject= "Your order completed",
-                body="Thank you for your patronage",
-                to=[email],
-            )
-            send_email(message)
+        try:
+            send_order_thankyou_email(profile.user.email, order.pk, order.grand_total, profile.name)
         except Exception as e:
             logger.error("Error occured while sending email: " + str(e))
 
