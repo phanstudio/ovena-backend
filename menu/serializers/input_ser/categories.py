@@ -49,5 +49,5 @@ class GlobalTagSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "slug", "group_name"]
 
-class CategorySearchInputSerializer(LocationGetSerializer):
+class CategorySearchInputSerializer(serializers.Serializer):
     category_id = serializers.IntegerField()  # TagGroup id
