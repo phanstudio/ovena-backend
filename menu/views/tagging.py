@@ -176,7 +176,7 @@ class CategorySearchView(LocationDependantMixin, BaseCustomerAPIView):
         )
 
         base_qs = annotate_with_nearest_branch(
-            Business.objects.filter(is_active=True),
+            Business.objects.all(),
             user_point,
             max_km=MAX_DISTANCE,
         ).filter(
