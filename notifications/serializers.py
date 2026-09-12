@@ -1,8 +1,5 @@
-# notifications/serializers.py
-
 from rest_framework import serializers
 from notifications.models import Notification
-
 
 class NotificationSerializer(serializers.ModelSerializer):
 
@@ -19,3 +16,8 @@ class NotificationSerializer(serializers.ModelSerializer):
             "read_at",
             "created_at",
         ]
+
+
+class BaseRegisterDeviceTokenSerialzer(serializers.Serializer):
+    token = serializers.CharField()
+    platform = serializers.CharField()

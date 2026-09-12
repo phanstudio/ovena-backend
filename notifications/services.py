@@ -2,6 +2,7 @@ from django.utils import timezone
 from django.shortcuts import get_object_or_404
 
 from notifications.models import Notification
+from notifications.firebase_service import send_push_to_user, send_push_to_users
 
 
 def create_notification(
@@ -34,6 +35,70 @@ def create_bulk_notifications(users, title, body, notification_type="generic", p
     ]
 
     return Notification.objects.bulk_create(notifications)
+
+
+def notify_user(
+    *,
+    user,
+    title: str,
+    body: str,
+    notification_type: str = Notification.TYPE_GENERIC,
+    payload: dict | None = None,
+    push: bool = True,
+):
+    """
+    Single entry point: creates the in-app Notification row (so it shows up
+    in the notifications list / unread count, same as before) AND, if the
+    user has any registered device tokens, sends a push through Firebase.
+
+    Push failures never raise or roll back the DB notification — the
+    in-app notification is the source of truth, the push is best-effort.
+    """
+    notification = create_notification(
+        user=user,
+        title=title,
+        body=body,
+        notification_type=notification_type,
+        payload=payload,
+    )
+
+    if push:
+        push_data = {
+            "notification_id": str(notification.id),
+            "notification_type": notification_type,
+            **(payload or {}),
+        }
+        send_push_to_user(user, title, body, data=push_data)
+
+    return notification
+
+
+def notify_users_bulk(
+    users,
+    title,
+    body,
+    notification_type="generic",
+    payload=None,
+    push: bool = True,
+):
+    """
+    Bulk variant of notify_user. `users` should be a concrete list/queryset
+    (it's iterated twice: once for bulk_create, once to collect tokens).
+    """
+    users = list(users)
+
+    notifications = create_bulk_notifications(
+        users, title, body, notification_type=notification_type, payload=payload
+    )
+
+    if push:
+        push_data = {
+            "notification_type": notification_type,
+            **(payload or {}),
+        }
+        send_push_to_users(users, title, body, data=push_data)
+
+    return notifications
 
 
 def get_user_notifications_queryset(user):

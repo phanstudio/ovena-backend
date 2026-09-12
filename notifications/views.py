@@ -1,5 +1,6 @@
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.viewsets import GenericViewSet
+from rest_framework.generics import GenericAPIView
 from rest_framework.mixins import ListModelMixin
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -7,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from authflow.authentication import CustomDriverAuth, CustomBusinessAgentsAuth, CustomCustomerAuth
 from authflow.permissions import IsDriver, IsBusinessAgent, IsCustomer, IsNotSuspended
 
-from notifications.serializers import NotificationSerializer
+from notifications.serializers import NotificationSerializer, BaseRegisterDeviceTokenSerialzer
 from notifications.services import (
     get_user_notifications_queryset,
     get_unread_count,
@@ -15,6 +16,7 @@ from notifications.services import (
     mark_notification_read,
     mark_all_notifications_read,
 )
+from .models import DeviceToken
 
 
 class NotificationPagination(LimitOffsetPagination):
@@ -92,3 +94,40 @@ class BuisnessNotificationViewSet(BaseNotificationViewSet):
 class CustomerNotificationViewSet(BaseNotificationViewSet):
     authentication_classes = [CustomCustomerAuth]
     permission_classes = [IsCustomer]
+
+
+class BaseRegisterDeviceTokenView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = BaseRegisterDeviceTokenSerialzer
+
+    def post(self, request):
+        serializer = self.get_serializer(
+            data=request.data, context={"user": request.user}
+        )
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        token = vd.get("token")
+        platform = vd.get("platform")
+        if not token:
+            return Response({"error": "token required"}, status=400)
+
+        DeviceToken.objects.update_or_create(
+            token=token,
+            defaults={"user": request.user, "platform": platform},
+        )
+        return Response({"status": "ok"})
+
+
+class CustomerRegisterDeviceTokenView(BaseRegisterDeviceTokenView):
+    authentication_classes = [CustomCustomerAuth]
+    permission_classes = [IsCustomer]
+
+
+class BusinessRegisterDeviceTokenView(BaseRegisterDeviceTokenView):
+    authentication_classes = [CustomBusinessAgentsAuth]
+    permission_classes = [IsBusinessAgent]
+
+
+class DriverRegisterDeviceTokenView(BaseRegisterDeviceTokenView):
+    authentication_classes = [CustomDriverAuth]
+    permission_classes = [IsDriver, IsNotSuspended]

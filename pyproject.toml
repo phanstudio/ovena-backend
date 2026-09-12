@@ -31,6 +31,7 @@ dependencies = [
     "drf-spectacular>=0.29.0",
     "drf-spectacular-sidecar>=2026.4.14",
     "factory-boy>=3.3.3",
+    "firebase-admin>=7.5.0",
     "geopy>=2.3.0",
     "google-auth>=2.49.2",
     "gunicorn>=25.3.0",

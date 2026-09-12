@@ -11,5 +11,4 @@ urlpatterns = [
     path("customer/", include("customer_api.urls")),
     path("", include("payments.urls")),
     path("verify/", include("verification.urls")),
-    # path("points/", include("points.urls")),
 ]

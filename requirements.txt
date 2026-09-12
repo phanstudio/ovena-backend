@@ -63,3 +63,4 @@ django-prometheus
 # formating
 # phonenumbers
 django-phonenumber-field[phonenumbers]
+firebase-admin

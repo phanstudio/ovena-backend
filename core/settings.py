@@ -164,6 +164,10 @@ DRIVER_ACCEPTANCE_TIMEOUT = MINUTE # 60 seconds
 DRIVER_RETRY_DELAY = MINUTE/2 #* 2 # (2 minutes)
 MAX_RETRIES = 10
 
+# notifications
+FIREBASE_CREDENTIALS_PATH = env("FIREBASE_CREDENTIALS_PATH", default=None)
+FIREBASE_CREDENTIALS_JSON = env("FIREBASE_CREDENTIALS_JSON", default=None)
+
 # OAuth provider config placeholders
 OAUTH_PROVIDERS = {
     "google": {
