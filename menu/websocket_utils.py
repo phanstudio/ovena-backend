@@ -22,6 +22,11 @@ def get_driver_pool_group_name():
     return "drivers_pool"
 
 
+def get_admin_group_name():
+    """Global group name for connected admin/ops dashboards"""
+    return "admin_monitoring"
+
+
 def get_chat_group_name(order_id, sender_type=None, recipient_type=None):
     """Get chat group name shared by all participants on an order"""
     return f"order_{order_id}_chat"
@@ -55,6 +60,24 @@ def broadcast_to_branch(branch_id, event_data):
         group_name,
         {
             "type": "branch_notification",
+            "data": event_data
+        }
+    )
+
+
+def broadcast_to_admins(event_data):
+    """
+    Broadcast event to every connected admin/ops dashboard
+    (AdminConsumer). Used for anything that might need a human to step
+    in: new orders, cancellations, driver-matching exhaustion, etc.
+    """
+    channel_layer = get_channel_layer()
+    group_name = get_admin_group_name()
+
+    async_to_sync(channel_layer.group_send)(
+        group_name,
+        {
+            "type": "admin_notification",
             "data": event_data
         }
     )
@@ -122,13 +145,11 @@ def send_private_message(order_id, sender_type, recipient_type, message_data):
 # ===== CONVENIENCE WRAPPERS =====
 
 def notify_order_created(order):
-    """Notify branch when new order is created"""
+    """Notify admins when a new order is created"""
     from .events import ORDER_CREATED
     
     event_data = build_order_event(ORDER_CREATED, order)
-    # broadcast_to_branch(order.branch_id, event_data)
-    #:old 
-    # will hook up to the app admins
+    broadcast_to_admins(event_data)
     
     # Also create the order group for future updates
     # (users will join when they connect)
@@ -314,6 +335,7 @@ def notify_order_delivered(order):
     )
     # Customer gets it via order group
     broadcast_to_order_group(order.id, event_data)
+    broadcast_to_admins(event_data)
     # Branch needs to know for their dashboard
     # broadcast_to_branch(order.branch_id, event_data)
     # Driver gets confirmation on their personal group
@@ -326,7 +348,7 @@ def notify_order_delivered(order):
 
 
 def notify_order_cancelled(order, reason=None, cancelled_by=None):
-    """Notify all parties: customer (order group), branch, and driver if assigned"""
+    """Notify all parties: customer (order group), branch, driver if assigned, and admins"""
     from .events import ORDER_CANCELLED
 
     event_data = build_order_event(
@@ -338,6 +360,7 @@ def notify_order_cancelled(order, reason=None, cancelled_by=None):
     )
     broadcast_to_order_group(order.id, event_data)
     broadcast_to_branch(order.branch_id, event_data)
+    broadcast_to_admins(event_data)
 
     # If a driver was already assigned, tell them too
     if order.driver_id:

@@ -250,8 +250,6 @@ class AdminBusinessReviewUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessOnboardStatus
         fields = [
-            # "onboarding_step",
-            # "is_onboarding_complete",
             "needs_manual_review",
             "checked",
             "verifications",
@@ -267,6 +265,10 @@ class AdminBusinessReviewUpdateSerializer(serializers.ModelSerializer):
         instance.save()
 
         business = instance.admin.business
+
+        needs_review = validated_data.get("needs_manual_review", True)
+        business.onboarding_complete = not needs_review
+        business.save()
 
         if not business:
             return instance

@@ -32,4 +32,9 @@ websocket_urlpatterns = [
         r'ws/orders/(?P<order_id>\d+)/chat/$', 
         consumers.ChatConsumer.as_asgi()
     ),
+ 
+    re_path(
+        r'ws/admin/orders/$', 
+        consumers.AdminConsumer.as_asgi()
+    ),
 ]

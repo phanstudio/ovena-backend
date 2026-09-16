@@ -73,6 +73,7 @@ CANCELLABLE_STAGES = {
 class ACTORS(Enum):
     CUSTOMER = "customer"
     BRANCH = "branch"
+    ADMIN = "admin"
 
 @transaction.atomic
 def cancel_order(order: "Order", actor_type: str, reason: str, responsible_party: str = None):
@@ -82,11 +83,13 @@ def cancel_order(order: "Order", actor_type: str, reason: str, responsible_party
         (e.g. a branch-initiated cancel is naturally "business"). Defaults
         to "platform" -- full refund, no one penalized -- when not given.
     """
-    allowed_actors = CANCELLABLE_STAGES.get(order.status)
-    if allowed_actors is None:
-        raise ValueError(f"Order cannot be cancelled at stage: {order.status}")
-    if actor_type not in allowed_actors:
-        raise ValueError(f"'{actor_type}' cannot cancel an order at stage: {order.status}")
+    if actor_type != ACTORS.ADMIN:
+        allowed_actors = CANCELLABLE_STAGES.get(order.status)
+        if allowed_actors is None:
+            raise ValueError(f"Order cannot be cancelled at stage: {order.status}")
+    
+        if actor_type not in allowed_actors:
+            raise ValueError(f"'{actor_type}' cannot cancel an order at stage: {order.status}")
 
     responsible_party = responsible_party or "platform"
 

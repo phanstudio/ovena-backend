@@ -15,6 +15,7 @@ from accounts.services.profiles import (
     PROFILE_DRIVER,
     PROFILE_BUSINESS_STAFF,
     get_profile,
+    PROFILE_APP_ADMIN
 )
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,13 @@ PONG_TIMEOUT    = 10   # seconds to wait for client pong
 
 class BaseConsumer(AsyncJsonWebsocketConsumer):
     """Base consumer with authentication utilities"""
+
+    @database_sync_to_async
+    def check_is_admin(self, user):
+        """Check if user is a driver"""
+        if not isinstance(user, User):
+            return False
+        return get_profile(user, PROFILE_APP_ADMIN) is not None
 
     @database_sync_to_async
     def check_is_driver(self, user):
@@ -54,6 +62,12 @@ class BaseConsumer(AsyncJsonWebsocketConsumer):
         if not isinstance(user, User):
             return False
         return get_profile(user, PROFILE_CUSTOMER) is not None
+
+    @database_sync_to_async
+    def get_admin_profile(self, user):
+        if not isinstance(user, User):
+            return None
+        return get_profile(user, PROFILE_APP_ADMIN)
 
     @database_sync_to_async
     def get_driver_profile(self, user):

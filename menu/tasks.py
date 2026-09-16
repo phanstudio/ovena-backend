@@ -7,6 +7,7 @@ from addresses.models import DriverLocation
 from .websocket_utils import (
     broadcast_to_order_group, 
     broadcast_to_branch,
+    broadcast_to_admins,
     notify_order_cancelled,
     notify_order_ready,
     broadcast_to_specific_drivers,
@@ -24,8 +25,30 @@ from addresses.models import Address
 logger = logging.getLogger(__name__)
 
 def mark_order_failed(order_id):
-    # create a notification that tells the admins about the fail;
-    ...
+    """Alert admins that driver matching exhausted all retries — needs manual assignment."""
+    try:
+        order = Order.objects.select_related('branch').get(id=order_id)
+    except Order.DoesNotExist:
+        logger.error(f"Order {order_id} not found for mark_order_failed")
+        return
+
+    OrderEvent.objects.create(
+        order=order,
+        event_type='driver_matching_failed',
+        actor_type='system',
+        metadata={'reason': 'no_drivers_after_max_retries'},
+    )
+
+    broadcast_to_admins({
+        'event': 'driver_matching_exhausted',
+        'order_id': order.id,
+        'order_number': order.order_number,
+        'branch_id': order.branch_id,
+        'message': (
+            f"No drivers found for order #{order.order_number} "
+            "after max retries — needs manual assignment."
+        ),
+    })
 
 # ===== TIMEOUT TASKS =====
 
@@ -123,6 +146,17 @@ def check_driver_acceptance_timeout(order_id, driver_id):
             
             # Try to find another driver
             find_and_assign_driver.delay(order_id, excluded_driver_ids=[driver_id])
+
+            broadcast_to_admins({
+                'event': 'driver_acceptance_timeout',
+                'order_id': order.id,
+                'order_number': order.order_number,
+                'driver_id': driver_id,
+                'message': (
+                    f"Driver {driver_id} did not accept order #{order.order_number} "
+                    "in time — searching for another driver."
+                ),
+            })
             
             return f"Driver {driver_id} timed out, finding alternative"
         
@@ -150,6 +184,22 @@ def check_driver_pickup_timeout(order_id):
             broadcast_to_order_group(order.id, {
                 'type': 'order.warning',
                 'message': 'Driver is taking longer than expected. We are monitoring the situation.'
+            })
+
+            OrderEvent.objects.create(
+                order=order,
+                event_type='pickup_delayed',
+                actor_type='system',
+                metadata={'driver_id': order.driver_id, 'status': order.status},
+            )
+
+            broadcast_to_admins({
+                'event': 'driver_pickup_delayed',
+                'order_id': order.id,
+                'order_number': order.order_number,
+                'driver_id': order.driver_id,
+                'status': order.status,
+                'message': f"Order #{order.order_number} pickup is taking longer than expected.",
             })
             
             return f"Pickup delay warning sent for order {order.id}"
@@ -392,6 +442,17 @@ def check_all_payment_timeouts():
         cancelled_count += 1
     
     logger.info(f"Cancelled {cancelled_count} orders due to payment timeout")
+
+    if cancelled_count:
+        broadcast_to_admins({
+            'event': 'payment_timeout_sweep',
+            'cancelled_count': cancelled_count,
+            'message': (
+                f"{cancelled_count} order(s) cancelled this sweep due to payment timeout — "
+                "repeated spikes here may indicate a payment provider issue."
+            ),
+        })
+
     return f"Cancelled {cancelled_count} orders"
 
 

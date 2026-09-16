@@ -147,10 +147,13 @@ class OrderEvent(models.Model):
         ('driver_searching', 'Searching for Driver'),
         ('driver_assigned', 'Driver Assigned'),
         ('driver_rejected', 'Driver Rejected'),
+        ('driver_matching_failed', 'Driver Matching Failed'),  # NEW — tasks.mark_order_failed
+        ('pickup_delayed', 'Pickup Delayed'),                  # NEW — tasks.check_driver_pickup_timeout
         ('picked_up', 'Order Picked Up'),
         ('in_transit', 'In Transit'),
         ('delivered', 'Delivered'),
         ('cancelled', 'Cancelled'),
+        ('admin_override', 'Admin Override'),                  # NEW — AdminForceStatusView / force_status
     ]
     
     ACTOR_TYPES = [
@@ -158,6 +161,7 @@ class OrderEvent(models.Model):
         ('driver', 'Driver'),
         ('branch', 'Branch'),
         ('system', 'System'),
+        ('admin', 'Admin')
     ]
     
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='events')

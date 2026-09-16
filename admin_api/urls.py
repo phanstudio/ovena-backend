@@ -5,6 +5,7 @@ from accounts.views import (
     PasswordResetView, PassWordResetSendView, ChangePasswordView
 )
 import payments.views as pay_views
+from .admin_urls import order_endpoints
 
 token_urls = [
     path("rotate-token/", jwt_views.RotateTokenView.as_view(), name="rotate-token"),
@@ -54,4 +55,5 @@ urlpatterns = [
     path("", include("support_center.urls.admin")),
     path("referrals/", include("referrals.admin_urls")),
     path("", include("payments.subscriptions.urls.admin")),
+    path("", include(order_endpoints)),
 ]
