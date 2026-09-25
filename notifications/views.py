@@ -36,6 +36,7 @@ class BaseNotificationViewSet(
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
+        print(response.data)
 
         return Response({
             "detail": "Notifications",
