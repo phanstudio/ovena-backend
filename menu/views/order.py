@@ -5,6 +5,8 @@ from django.shortcuts import get_object_or_404
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
+from django.db.models import Prefetch
+from payments.services.sale_service import complete_service, assign_driver
 
 from accounts.models import User, CustomerProfile
 from authflow.authentication import (
@@ -729,7 +731,7 @@ class ResturantOrderView(GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if convert_referral_once(referee_profile=order.orderer):
+        if convert_referral_for_customer(user=order.orderer.user, order=order):
             idempotency_key = f"referred-order:{order.id}:{order.orderer.id}"
             award_referred_first_order_task.delay(
                 referred_id= order.orderer.id, sale_id= order.sale.id, idempotency_key=idempotency_key
