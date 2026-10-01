@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from referrals.models import ProfileReferral, ReferralPayout, MODE_CHOICES
+from referrals.constants import REFERRAL_ROLE_CHOICES, ROLE_CUSTOMER, ROLE_DRIVER
 
 
 class ApplyReferralCodeSerializer(serializers.Serializer):
@@ -9,6 +10,8 @@ class ApplyReferralCodeSerializer(serializers.Serializer):
         required=False,
         default="customer",
     )
+    device_id = serializers.CharField(max_length=128, required=False, allow_blank=True, default="")
+
 
 class MyReferralStatusSerializer(serializers.Serializer):
     referral_code = serializers.CharField()
@@ -16,29 +19,40 @@ class MyReferralStatusSerializer(serializers.Serializer):
     successful_referrals = serializers.IntegerField()
     pending_referrals = serializers.IntegerField()
 
+
 class ReferralItemSerializer(serializers.ModelSerializer):
     referee_user_id = serializers.IntegerField(
-        source="referee_profile.user.id",
+        source="referee_user.id",
         read_only=True,
     )
     referee_user_name = serializers.SerializerMethodField()
+    role = serializers.CharField(source="referee_role", read_only=True)
 
     class Meta:
         model = ProfileReferral
-        fields = ["id", "created_at", "converted_at", "is_consumed", "referee_user_id", "referee_user_name"]
-    
-    def get_referee_user_name(self, obj):
-        profile = obj.referee_profile
-        
-        if hasattr(profile, "customer_profile"):
-            return profile.customer_profile.name
+        fields = [
+            "id",
+            "created_at",
+            "converted_at",
+            "is_consumed",
+            "referee_user_id",
+            "referee_user_name",
+            "role",
+            "fraud_status",
+        ]
 
-        if hasattr(profile, "driver_profile"):
-            return profile.driver_profile.full_name
-        # if hasattr(refeered, "name"):
-        #     return refeered.name
-        # return getattr(refeered, "fullname", None)
-        return None
+    def get_referee_user_name(self, obj):
+        user = obj.referee_user
+        if not user:
+            return None
+        if obj.referee_role == ROLE_CUSTOMER:
+            cp = getattr(user, "customer_profile", None)
+            return getattr(cp, "name", None) or str(user)
+        elif obj.referee_role == ROLE_DRIVER:
+            dp = getattr(user, "driver_profile", None)
+            return getattr(dp, "full_name", None) or str(user)
+        return str(user)
+
 
 class ReferralPayoutSerializer(serializers.ModelSerializer):
     referrals_used = serializers.IntegerField(read_only=True)
@@ -55,7 +69,7 @@ class ReferralPayoutSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
+
 class AdminReferralPaymentSerializer(serializers.Serializer):
     user_id = serializers.CharField()
     units = serializers.IntegerField(required=False, allow_null=True)
-    mode = serializers.ChoiceField(choices=MODE_CHOICES)

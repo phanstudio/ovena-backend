@@ -3,20 +3,16 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F, Q
 from authflow.services.model import AbstractBaseModel
+from referrals.constants import (
+    REFERRAL_ROLE_CHOICES,
+    ROLE_CUSTOMER,
+    FRAUD_STATUS_CHOICES,
+    FRAUD_STATUS_CLEAN,
+)
 
 MODE_CHOICES = ["partial", "all"]
 
 class ProfileReferral(AbstractBaseModel):
-    referrer_profile = models.ForeignKey(
-        "accounts.ProfileBase",
-        on_delete=models.CASCADE,
-        related_name="referrals_made",
-    )
-    referee_profile = models.OneToOneField(
-        "accounts.ProfileBase",
-        on_delete=models.CASCADE,
-        related_name="referral_received",
-    )
 
     referrer_user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -27,6 +23,44 @@ class ProfileReferral(AbstractBaseModel):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="profile_referral_received",
+    )
+
+    # Role attribution (Customer or Driver)
+    referrer_role = models.CharField(
+        max_length=20,
+        choices=REFERRAL_ROLE_CHOICES,
+        default=ROLE_CUSTOMER,
+        db_index=True,
+    )
+    referee_role = models.CharField(
+        max_length=20,
+        choices=REFERRAL_ROLE_CHOICES,
+        default=ROLE_CUSTOMER,
+        db_index=True,
+    )
+
+    # Anti-cheat audit fields
+    referee_device_id = models.CharField(
+        max_length=128,
+        blank=True,
+        null=True,
+        db_index=True,
+    )
+    referee_ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+    fraud_status = models.CharField(
+        max_length=20,
+        choices=FRAUD_STATUS_CHOICES,
+        default=FRAUD_STATUS_CLEAN,
+        db_index=True,
+    )
+    fraud_reason = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
     )
 
     converted_at = models.DateTimeField(null=True, blank=True)
@@ -41,23 +75,17 @@ class ProfileReferral(AbstractBaseModel):
                 check=~Q(referrer_user=F("referee_user")),
                 name="chk_profile_referral_no_self_user",
             ),
-            models.CheckConstraint(
-                check=~Q(referrer_profile=F("referee_profile")),
-                name="chk_profile_referral_no_same_profile",
-            ),
         ]
         indexes = [
             models.Index(fields=["referrer_user", "converted_at"]),
             models.Index(fields=["is_consumed"]),
+            models.Index(fields=["fraud_status"]),
         ]
     
     def clean(self):
-        if self.referrer_profile_id and self.referrer_user_id:
-            if self.referrer_profile.user_id != self.referrer_user_id:
-                raise ValidationError("Referrer profile and referrer user mismatch.")
-        if self.referee_profile_id and self.referee_user_id:
-            if self.referee_profile.user_id != self.referee_user_id:
-                raise ValidationError("Referee profile and referee user mismatch.")
+        if self.referrer_user_id and self.referee_user_id:
+            if self.referrer_user_id == self.referee_user_id:
+                raise ValidationError("Self-referrals are not permitted.")
 
 class ReferralPayout(AbstractBaseModel):
 

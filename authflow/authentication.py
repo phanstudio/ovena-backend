@@ -16,43 +16,25 @@ from accounts.services.profiles import (
 )
 
 
-def _prime_profile_cache_from_prefetch(user):
-    """
-    Requires: user queryset had .prefetch_related("profile_bases__customer_profile", "profile_bases__driver_profile")
-    """
-    from accounts.services.profiles import _profile_cache
-
-    cache = _profile_cache(user)
-
-    for base in user.profile_bases.all():  # hits prefetch cache, no query
-        pt = base.profile_type
-        if pt == PROFILE_CUSTOMER:
-            cache[pt] = getattr(base, "customer_profile", None)
-        elif pt == PROFILE_DRIVER:
-            cache[pt] = getattr(base, "driver_profile", None)
-
-    # business_admin and primary_agent still come from select_related
-    try:
-        cache[PROFILE_BUSINESS_ADMIN] = user.business_admin
-    except Exception:
-        cache[PROFILE_BUSINESS_ADMIN] = None
-
-    try:
-        cache[PROFILE_BUSINESS_STAFF] = user.primary_agent
-    except Exception:
-        cache[PROFILE_BUSINESS_STAFF] = None
-
-
 def _prime_profile_cache(user):
     """
-    After select_related has already loaded related objects,
+    After select_related has loaded related profile objects,
     populate the profile cache so permissions never hit the DB.
     """
     from accounts.services.profiles import _profile_cache
 
     cache = _profile_cache(user)
 
-    # These were loaded via select_related — no extra query
+    try:
+        cache[PROFILE_CUSTOMER] = user.customer_profile
+    except Exception:
+        cache[PROFILE_CUSTOMER] = None
+
+    try:
+        cache[PROFILE_DRIVER] = user.driver_profile
+    except Exception:
+        cache[PROFILE_DRIVER] = None
+
     try:
         cache[PROFILE_BUSINESS_ADMIN] = user.business_admin
     except Exception:
@@ -63,11 +45,15 @@ def _prime_profile_cache(user):
     except Exception:
         cache[PROFILE_BUSINESS_STAFF] = None
 
-    _prime_profile_cache_from_prefetch(user)
+    try:
+        cache[PROFILE_APP_ADMIN] = user.app_admin
+    except Exception:
+        cache[PROFILE_APP_ADMIN] = None
 
-    # Customer/Driver need ProfileBase queries — only pre-warm if you
-    # did a prefetch_related("profilebase_set") on the queryset.
-    # Otherwise leave them uncached; they'll lazy-load once and cache.
+
+def _prime_profile_cache_from_prefetch(user):
+    """Backward compatibility alias for _prime_profile_cache."""
+    _prime_profile_cache(user)
 
 
 # add login mechanics also consider when to perfom the login on evry reuest or on every session and whta is a sesion considered

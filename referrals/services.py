@@ -4,62 +4,107 @@ from django.utils import timezone
 import hashlib
 import json
 
-from accounts.models import ProfileBase
+from accounts.models import CustomerProfile, DriverProfile
 from referrals.models import ProfileReferral, ReferralPayout
+from referrals.constants import (
+    ROLE_CUSTOMER,
+    ROLE_DRIVER,
+    FRAUD_STATUS_CLEAN,
+    REFERRALS_PER_UNIT,
+)
+from referrals.anticheat import (
+    validate_referral_application,
+    validate_order_for_conversion,
+)
 from django.db.models import Count, Q
 
-REFERRALS_PER_UNIT = 10
 
 def _normalized_code(code: str) -> str:
     return (code or "").strip().upper()
 
 
 @transaction.atomic
-def apply_referral_code(profile, code: str) -> ProfileReferral:
+def apply_referral_code(
+    *,
+    code: str,
+    user=None,
+    profile=None,
+    role: str = ROLE_CUSTOMER,
+    device_id: str | None = None,
+    ip_address: str | None = None,
+) -> ProfileReferral:
+    """
+    Applies a referral code for a referee user.
+    Accepts either `user` (preferred) or legacy `profile`.
+    Ensures active accounts and anti-cheat validation.
+    """
     code = _normalized_code(code)
     if not code:
         raise ValidationError("Referral code is required.")
 
-    if ProfileReferral.objects.filter(referee_user=profile.user).exists():
-        raise ValidationError("You already applied a referral code.")
+    # Resolve referee user
+    if profile is not None:
+        referee_user = profile.user
+        role = getattr(profile, "profile_type", role)
+    elif user is not None:
+        referee_user = user
+    else:
+        raise ValidationError("User or profile is required to apply a referral code.")
 
-    referrer_profile = (
-        ProfileBase.objects.select_related("user")
-        .filter(referral_code=code)
-        .first()
-    )
-    referred_profile = (
-        ProfileBase.objects.select_related("user")
-        .filter(user=profile.user)
-        .first()
-    )
-    if not referrer_profile:
-        raise ValidationError("Invalid referral code.")
+    if ProfileReferral.objects.filter(referee_user=referee_user).exists():
+        raise ValidationError("You have already applied a referral code.")
 
-    if referrer_profile.user_id == referred_profile.user_id:
-        raise ValidationError("You cannot use your own referral code.")
+    # Find referrer user and role across supported standalone profile models
+    referrer_customer = CustomerProfile.objects.select_related("user").filter(referral_code=code).first()
+    if referrer_customer:
+        referrer_user = referrer_customer.user
+        referrer_role = ROLE_CUSTOMER
+    else:
+        referrer_driver = DriverProfile.objects.select_related("user").filter(referral_code=code).first()
+        if referrer_driver:
+            referrer_user = referrer_driver.user
+            referrer_role = ROLE_DRIVER
+        else:
+            raise ValidationError("Invalid referral code.")
+
+    # Anti-Cheat & Role Validation
+    fraud_status, fraud_reason = validate_referral_application(
+        referrer_user=referrer_user,
+        referee_user=referee_user,
+        referrer_role=referrer_role,
+        referee_role=role,
+        device_id=device_id,
+        ip_address=ip_address,
+    )
 
     return ProfileReferral.objects.create(
-        referrer_profile=referrer_profile,
-        referee_profile=referred_profile,
-        referrer_user=referrer_profile.user,
-        referee_user=referred_profile.user,
+        referrer_user=referrer_user,
+        referee_user=referee_user,
+        referrer_role=referrer_role,
+        referee_role=role,
+        referee_device_id=device_id,
+        referee_ip_address=ip_address,
+        fraud_status=fraud_status,
+        fraud_reason=fraud_reason,
     )
 
 
-def referral_count(profile) -> int:
-    return ProfileReferral.objects.filter(referrer_user=profile.user).count()
+def referral_count(user_or_profile) -> int:
+    user = getattr(user_or_profile, "user", user_or_profile)
+    return ProfileReferral.objects.filter(referrer_user=user).count()
 
 
-def successful_referrals(profile) -> int:
+def successful_referrals(user_or_profile) -> int:
+    user = getattr(user_or_profile, "user", user_or_profile)
     return ProfileReferral.objects.filter(
-        referrer_user=profile.user,
+        referrer_user=user,
         converted_at__isnull=False,
     ).count()
 
 
-def referral_stats(profile):
-    qs = ProfileReferral.objects.filter(referrer_user=profile.user)
+def referral_stats(user_or_profile):
+    user = getattr(user_or_profile, "user", user_or_profile)
+    qs = ProfileReferral.objects.filter(referrer_user=user)
 
     stats = qs.aggregate(
         total=Count("id"),
@@ -73,16 +118,52 @@ def referral_stats(profile):
     }
 
 
-def referred_by(user):
+def referred_by(user_or_profile):
+    user = getattr(user_or_profile, "user", user_or_profile)
     return ProfileReferral.objects.filter(
         referee_user=user,
-    ).select_related("referrer_profile__user").first()
+    ).select_related("referrer_user").first()
+
+
+# 🎯 CONVERSION ENGINES
+
+@transaction.atomic
+def convert_referral_for_customer(*, user, order) -> bool:
+    """
+    Converts a customer referral upon their qualifying delivered order.
+    Evaluates anti-cheat fraud criteria (min basket size, card collision).
+    """
+    try:
+        referral = ProfileReferral.objects.select_for_update().get(
+            referee_user=user,
+            referee_role=ROLE_CUSTOMER,
+        )
+    except ProfileReferral.DoesNotExist:
+        return False
+
+    if referral.converted_at is not None:
+        return False
+
+    # Anti-cheat evaluation
+    is_valid, reason = validate_order_for_conversion(referral=referral, order=order)
+    if not is_valid:
+        return False
+
+    referral.converted_at = timezone.now()
+    referral.save(update_fields=["converted_at", "fraud_status", "fraud_reason"])
+    return True
 
 
 @transaction.atomic
-def convert_referral_once(*, referee_profile) -> bool:
+def convert_referral_for_driver(*, user, driver_profile=None) -> bool:
+    """
+    Converts a driver referral upon their first completed delivery.
+    """
     try:
-        referral = ProfileReferral.objects.select_for_update().get(referee_user=referee_profile.user)
+        referral = ProfileReferral.objects.select_for_update().get(
+            referee_user=user,
+            referee_role=ROLE_DRIVER,
+        )
     except ProfileReferral.DoesNotExist:
         return False
 
@@ -93,6 +174,26 @@ def convert_referral_once(*, referee_profile) -> bool:
     referral.save(update_fields=["converted_at"])
     return True
 
+
+@transaction.atomic
+def convert_referral_once(*, referee_profile=None, referee_user=None, order=None) -> bool:
+    """
+    Backward-compatible conversion dispatcher.
+    """
+    user = referee_user
+    if user is None and referee_profile is not None:
+        user = getattr(referee_profile, "user", None)
+
+    if not user:
+        return False
+
+    profile_type = getattr(referee_profile, "profile_type", None)
+    if profile_type == ROLE_DRIVER:
+        return convert_referral_for_driver(user=user, driver_profile=referee_profile)
+
+    return convert_referral_for_customer(user=user, order=order)
+
+
 ## Admin section
 # 🔐 HASHING
 
@@ -100,33 +201,19 @@ def generate_snapshot_hash(snapshot: list) -> str:
     payload = json.dumps(snapshot, sort_keys=True)
     return hashlib.sha256(payload.encode()).hexdigest()
 
+
 def verify_snapshot_integrity(payout: ReferralPayout) -> bool:
     expected = generate_snapshot_hash(payout.referral_snapshot)
     return expected == payout.snapshot_hash
-
-
-# 🎯 CONVERSION
-
-def convert_referred_user_once(*, referee_user):
-    try:
-        referral = ProfileReferral.objects.select_for_update().get(
-            referee_user=referee_user
-        )
-    except ProfileReferral.DoesNotExist:
-        return False
-
-    if referral.converted_at:
-        return False
-
-    referral.converted_at = timezone.now()
-    referral.save(update_fields=["converted_at"])
-    return True
 
 
 # 💰 PAYOUT
 
 @transaction.atomic
 def process_referral_payout(*, user, units=None, mode="partial"):
+    """
+    Processes referral payouts for clean, converted, unconsumed referrals.
+    """
     qs = (
         ProfileReferral.objects
         .select_for_update()
@@ -134,7 +221,8 @@ def process_referral_payout(*, user, units=None, mode="partial"):
         .filter(
             referrer_user=user,
             converted_at__isnull=False,
-            is_consumed=False
+            is_consumed=False,
+            fraud_status=FRAUD_STATUS_CLEAN,  # Anti-cheat: Only unflagged referrals are paid
         )
         .order_by("converted_at", "id")
     )
@@ -150,7 +238,7 @@ def process_referral_payout(*, user, units=None, mode="partial"):
 
         use_count = units * REFERRALS_PER_UNIT
         if total_available < use_count:
-            raise ValueError("Not enough referrals")
+            raise ValueError("Not enough clean referrals available for payout")
 
         units_paid = units
 

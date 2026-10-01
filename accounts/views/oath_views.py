@@ -101,7 +101,7 @@ class OAuthExchangeView(GenericAPIView):
                     "detail": "provider should be google or apple", "error": "provider invalid"},
                       status=status.HTTP_400_BAD_REQUEST)
 
-        needs_registration = not bool(user.customer_profile)
+        needs_registration = not bool(getattr(user, "customer_profile", None))
         if needs_registration:
             token = issue_jwt_for_user(user)
         else:

@@ -167,19 +167,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     def identifier(self):
         return self.email or str(self.phone_number)
 
-    @property
-    def customer_profile(self):
-        base = self.get_profile_base(profile_type="customer")
-        return getattr(base, "customer_profile", None)
-
-    @property
-    def driver_profile(self):
-        base = self.get_profile_base(profile_type="driver")
-        return getattr(base, "driver_profile", None)
-    
-    def get_profile_base(self, profile_type):
-        # self.profile_bases.filter(profile_type=profile_type).first()
-        return self.profile_bases.filter(profile_type=profile_type).select_related().first()
 
 
 class SocialAccount(models.Model):

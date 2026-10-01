@@ -61,12 +61,19 @@ def award_referred_first_order_task(self, referred_id: str, sale_id: str, idempo
     from payments.models import Sale  # local import avoids a hard app-loading-order dependency
     from referrals.models import ProfileReferral
 
+    from django.db.models import Q
+
     try:
-        # referrer = User.objects.get(id=referrer_id)
-        referral = ProfileReferral.objects.select_related("referrer_user").get(referee_profile_id=referred_id)
-        referrer = referral.referrer_user#User.objects.get(id=referral.referrer_user.id)
+        referral = (
+            ProfileReferral.objects.select_related("referrer_user")
+            .filter(Q(referee_user_id=referred_id) | Q(referee_profile_id=referred_id))
+            .first()
+        )
+        if not referral:
+            return
+        referrer = referral.referrer_user
         sale = Sale.objects.get(id=sale_id)
-    except (User.DoesNotExist, Sale.DoesNotExist, ProfileReferral.DoesNotExist) as e:
+    except (User.DoesNotExist, Sale.DoesNotExist) as e:
         print("Award error:", str(e))
         return
     try:

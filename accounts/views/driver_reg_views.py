@@ -212,7 +212,16 @@ class OnboardingPhase1View(GenericAPIView):
         referre_code = data.get("referre_code", "")
         if referre_code:
             try:
-                apply_referral_code(profile=profile, code=referre_code)
+                device_id = request.headers.get("X-Device-ID")
+                ip_address = request.META.get("REMOTE_ADDR")
+                apply_referral_code(
+                    user=profile.user,
+                    profile=profile,
+                    code=referre_code,
+                    role="driver",
+                    device_id=device_id,
+                    ip_address=ip_address,
+                )
             except DjangoValidationError as exc:
                 msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
                 return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)

@@ -35,6 +35,9 @@ from notifications.services import notify_user
 class GenerateLinkView(BaseCustomerAPIView):
     def get(self, request):
         customer = self.get_customer_profile(request)
+        if not customer.referral_code:
+            customer.generate_referral_code()
+            customer.save()
         return Response({
                 "generated_link": customer.referral_code, 
                 "referral_code": customer.referral_code

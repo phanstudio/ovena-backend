@@ -7,28 +7,25 @@ from ratings.models import DriverRating, BranchRating
 
 
 class Command(BaseCommand):
-    help = "Report MTI-cutover readiness for ProfileBase-dependent models."
+    help = "Report standalone profile integrity and foreign key dependents."
 
     def handle(self, *args, **options):
-        missing_customer = CustomerProfile.objects.filter(base_profile__isnull=True).count()
-        missing_driver = DriverProfile.objects.filter(base_profile__isnull=True).count()
-        bad_customer_type = CustomerProfile.objects.exclude(base_profile__profile_type="customer").count()
-        bad_driver_type = DriverProfile.objects.exclude(base_profile__profile_type="driver").count()
-        bad_customer_user = CustomerProfile.objects.exclude(base_profile__user_id=models.F("user_id")).count()
-        bad_driver_user = DriverProfile.objects.exclude(base_profile__user_id=models.F("user_id")).count()
+        total_customers = CustomerProfile.objects.count()
+        total_drivers = DriverProfile.objects.count()
+        customers_without_user = CustomerProfile.objects.filter(user__isnull=True).count()
+        drivers_without_user = DriverProfile.objects.filter(user__isnull=True).count()
+        customers_without_code = CustomerProfile.objects.filter(referral_code__isnull=True).count()
+        drivers_without_code = DriverProfile.objects.filter(referral_code__isnull=True).count()
 
-        self.stdout.write("ProfileBase Link Integrity")
-        self.stdout.write(f"- customer missing base_profile: {missing_customer}")
-        self.stdout.write(f"- driver missing base_profile: {missing_driver}")
-        self.stdout.write(f"- customer wrong profile_type: {bad_customer_type}")
-        self.stdout.write(f"- driver wrong profile_type: {bad_driver_type}")
-        self.stdout.write(f"- customer base_profile user mismatch: {bad_customer_user}")
-        self.stdout.write(f"- driver base_profile user mismatch: {bad_driver_user}")
+        self.stdout.write("Standalone Profile Integrity (ProfileBase MTI Eliminated)")
+        self.stdout.write(f"- total customers: {total_customers} (missing user: {customers_without_user}, missing code: {customers_without_code})")
+        self.stdout.write(f"- total drivers: {total_drivers} (missing user: {drivers_without_user}, missing code: {drivers_without_code})")
 
         self.stdout.write("")
-        self.stdout.write("FK Dependents (high-impact)")
+        self.stdout.write("FK Dependents (Preserved)")
         self.stdout.write(f"- menu.Order -> orderer(CustomerProfile): {Order.objects.exclude(orderer__isnull=True).count()}")
         self.stdout.write(f"- menu.Order -> driver(DriverProfile): {Order.objects.exclude(driver__isnull=True).count()}")
         self.stdout.write(f"- ratings.DriverRating -> rater(CustomerProfile): {DriverRating.objects.exclude(rater__isnull=True).count()}")
         self.stdout.write(f"- ratings.DriverRating -> driver(DriverProfile): {DriverRating.objects.exclude(driver__isnull=True).count()}")
         self.stdout.write(f"- ratings.BranchRating -> rater(CustomerProfile): {BranchRating.objects.exclude(rater__isnull=True).count()}")
+

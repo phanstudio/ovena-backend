@@ -6,6 +6,7 @@ from rest_framework.generics import ListAPIView
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 from referrals.models import ProfileReferral
+from referrals.constants import SUPPORTED_REFEREE_ROLES, ROLE_CUSTOMER
 from referrals.serializers import (
     ApplyReferralCodeSerializer,
     MyReferralStatusSerializer,
@@ -13,7 +14,7 @@ from referrals.serializers import (
 )
 from referrals.services import (
     apply_referral_code,
-    referral_stats
+    referral_stats,
 )
 from common.customer.view import BaseCustomerAPIView
 from rest_framework.exceptions import NotFound
@@ -26,9 +27,15 @@ class ApplyReferralCodeView(APIView):
         s = ApplyReferralCodeSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         vd = s.validated_data
-        profile_type = vd.get("profile_type", "customer")
+        profile_type = vd.get("profile_type", ROLE_CUSTOMER)
 
-        if profile_type == "customer":
+        if profile_type not in SUPPORTED_REFEREE_ROLES:
+            return Response(
+                {"detail": "The referral program is currently only open to customers and drivers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if profile_type == ROLE_CUSTOMER:
             profile = getattr(request.user, "customer_profile", None)
         else:
             profile = getattr(request.user, "driver_profile", None)
@@ -39,10 +46,19 @@ class ApplyReferralCodeView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        device_id = request.headers.get("X-Device-ID") or vd.get("device_id") or None
+        ip_address = request.META.get("REMOTE_ADDR") or None
+
         try:
-            referral = apply_referral_code(profile=profile, code=vd["code"])
+            referral = apply_referral_code(
+                user=request.user,
+                profile=profile,
+                code=vd["code"],
+                role=profile_type,
+                device_id=device_id,
+                ip_address=ip_address,
+            )
         except DjangoValidationError as e:
-            # e.message may be a string; e.messages may be list
             msg = e.messages[0] if getattr(e, "messages", None) else str(e)
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -51,6 +67,7 @@ class ApplyReferralCodeView(APIView):
                 "detail": "Referral code applied.",
                 "referral_id": referral.id,
                 "referrer_user_id": referral.referrer_user_id,
+                "fraud_status": referral.fraud_status,
             },
             status=status.HTTP_201_CREATED,
         )
@@ -60,8 +77,8 @@ class MyReferralStatusView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_profile(self, request):
-        profile_type = request.query_params.get("profile_type", "customer")
-        if profile_type == "customer":
+        profile_type = request.query_params.get("profile_type", ROLE_CUSTOMER)
+        if profile_type == ROLE_CUSTOMER:
             profile = getattr(request.user, "customer_profile", None)
         else:
             profile = getattr(request.user, "driver_profile", None)
@@ -72,10 +89,9 @@ class MyReferralStatusView(APIView):
 
     def get(self, request):
         profile = self.get_profile(request)
+        code = getattr(profile, "referral_code", "")
 
-        code = profile.referral_code
-
-        stats = referral_stats(profile)
+        stats = referral_stats(request.user)
 
         data = {
             "referral_code": code,
@@ -91,7 +107,11 @@ class MyReferralsListView(ListAPIView):
     serializer_class = ReferralItemSerializer
 
     def get_queryset(self):
-        return ProfileReferral.objects.filter(referrer_user=self.request.user).select_related("referee_profile").order_by("-created_at")
+        return (
+            ProfileReferral.objects.filter(referrer_user=self.request.user)
+            .select_related("referee_user")
+            .order_by("-created_at")
+        )
 
 
 class CustomerMyReferralStatusView(MyReferralStatusView, BaseCustomerAPIView):

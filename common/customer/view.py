@@ -11,7 +11,7 @@ class BaseCustomerAPIView(GenericAPIView):
     permission_classes = [IsCustomer]
 
     def get_customer_profile(self, request) -> CustomerProfile:
-        profile = request.user.customer_profile
-        if not profile:
+        try:
+            return request.user.customer_profile
+        except CustomerProfile.DoesNotExist:
             raise NotFound("Customer profile not found")
-        return profile

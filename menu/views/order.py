@@ -34,9 +34,7 @@ import logging
 from menu.payment_services import initialize_order_sale
 from django.db import transaction
 from menu.serializers import OrderCreateSerializer, PaymentRetrySerializer, PaymentMethodSerializer
-from django.db.models import Prefetch
-from referrals.services import convert_referral_once
-from payments.services.sale_service import complete_service, assign_driver
+from referrals.services import convert_referral_for_customer, convert_referral_for_driver
 from driver_api.services import ledger_credit_for_delivered_order
 from common.customer.view import BaseCustomerAPIView
 from driver_api.views import BaseDriverAPIView
@@ -901,20 +899,28 @@ class DriverOrderView(BaseDriverAPIView):
         driver.save(update_fields=["is_available", "current_order", "total_deliveries"])
 
         # Conversion criteria:
-        # - referee customer converts on first delivered order
+        # - referee customer converts on first qualifying delivered order
         # - referee driver converts on first completed delivery
-        # convert_referral_once(referee_profile=order.orderer)
+        customer_converted = False
+        if order.orderer:
+            customer_user = getattr(order.orderer, "user", None)
+            if customer_user:
+                customer_converted = convert_referral_for_customer(user=customer_user, order=order)
 
-        reffered = False
-        reffered = convert_referral_once(referee_profile=order.orderer)
-        if driver:
-            reffered = convert_referral_once(referee_profile=driver)
-
-        if reffered:
+        if customer_converted:
             idempotency_key = f"referred-order:{order.id}:{order.orderer.id}"
-            award_referred_first_order_task.delay(
-                referred_id= order.orderer.id, sale_id = order.sale.id, idempotency_key=idempotency_key
-            )
+            sale_id = order.sale.id if getattr(order, "sale", None) else None
+            if sale_id:
+                award_referred_first_order_task.delay(
+                    referred_id=order.orderer.id,
+                    sale_id=sale_id,
+                    idempotency_key=idempotency_key,
+                )
+
+        if driver:
+            driver_user = getattr(driver, "user", None)
+            if driver_user:
+                convert_referral_for_driver(user=driver_user, driver_profile=driver)
 
         # Log event
         OrderEvent.objects.create(

@@ -170,7 +170,7 @@ class CreateCustomerSerializer(serializers.Serializer):
     def validate(self, data):
         user = self.context["user"]
 
-        if user.customer_profile:
+        if getattr(user, "customer_profile", None):
             raise serializers.ValidationError("Customer profile already exists.")
 
         # identity fill rules
@@ -237,15 +237,26 @@ class CreateCustomerSerializer(serializers.Serializer):
         referral_code = validated_data.get("referral_code")
         if referral_code:
             try:
-                referral = apply_referral_code(profile=profile, code=referral_code)
-                idempotency_key = f"referral-success:{referral.id}:{profile}"
+                request = self.context.get("request")
+                device_id = request.headers.get("X-Device-ID") if request else None
+                ip_address = request.META.get("REMOTE_ADDR") if request else None
+
+                referral = apply_referral_code(
+                    user=profile.user,
+                    profile=profile,
+                    code=referral_code,
+                    role="customer",
+                    device_id=device_id,
+                    ip_address=ip_address,
+                )
+                idempotency_key = f"referral-success:{referral.id}:{profile.id}"
                 award_referral_success_task.delay(
-                    referrer_id= referral.referrer_user.id, referred_user_id= referral.referee_user.id, 
-                    idempotency_key= idempotency_key
+                    referrer_id=referral.referrer_user_id,
+                    referred_user_id=referral.referee_user_id, 
+                    idempotency_key=idempotency_key,
                 )
             except DjangoValidationError as exc:
                 msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
-                print(msg)
                 raise serializers.ValidationError({"referral_code": msg})
 
         return profile
@@ -266,7 +277,7 @@ class UpdateCustomerSerializer(serializers.Serializer):
     def validate(self, data):
         user = self.context["user"]
 
-        if not user.customer_profile:
+        if not getattr(user, "customer_profile", None):
             raise serializers.ValidationError("Customer profile does not exist.")
 
         if data.get("email"):

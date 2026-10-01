@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from accounts.serializers import InS
 from authflow.services.jwt import issue_jwt_for_user_with_plan, issue_jwt_for_user
 from django.contrib.auth import get_user_model
+from notifications.firebase_service import send_dummy_message
 
 User = get_user_model()
 # rate limit instead of block
@@ -75,6 +76,7 @@ class LogoutView(GenericAPIView):
     serializer_class = InS.LogoutSerializer
     # permission_classes = [IsAuthenticated] not sure if we need is authenticated
     def post(self, request):
+        # send_dummy_message()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data

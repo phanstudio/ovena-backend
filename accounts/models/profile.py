@@ -9,52 +9,25 @@ from authflow.services.generate import generate_referral_code
 
 
 # profile
-class ProfileBase(models.Model):
-    """
-    Shared referral identity for any profile type.
-    """
-
-    PROFILE_CUSTOMER = "customer"
-    PROFILE_DRIVER = "driver"
-    PROFILE_TYPE_CHOICES = [
-        (PROFILE_CUSTOMER, "Customer"),
-        (PROFILE_DRIVER, "Driver"),
-    ]
-
-    user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="profile_bases"
-    )
-    profile_type = models.CharField(
-        max_length=20, choices=PROFILE_TYPE_CHOICES, db_index=True
-    )
+class ReferralCodeMixin(models.Model):
     referral_code = models.CharField(
         max_length=20, unique=True, null=True, blank=True, db_index=True
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return f"{self.user_id}:{self.profile_type}"
+    class Meta:
+        abstract = True
 
     def _generate_referral_code(self) -> str:
         return generate_referral_code(8)
 
-    # for no collisions
-    # base62: 9+
-    # base36: 11+
-
-    # I might adjust or out rightly add to this, if the error occur no fail state for it
     def _pick_unique_code_batch(self, batch_size=25) -> str:
-        # generate candidate codes in memory
         candidates = {self._generate_referral_code() for _ in range(batch_size)}
-
-        # single DB query to find which ones already exist
         taken = set(
             self.__class__.objects.filter(referral_code__in=candidates).values_list(
                 "referral_code", flat=True
             )
         )
-
-        # pick a free one
         available = list(candidates - taken)
         if not available:
             raise ValueError(
@@ -63,65 +36,41 @@ class ProfileBase(models.Model):
         return available[0]
 
     def save(self, *args, **kwargs):
-        if self.referral_code:
-            return super().save(*args, **kwargs)
-
-        # try a few rounds
-        for _ in range(10):
-            self.referral_code = self._pick_unique_code_batch(batch_size=25)
-            try:
-                with transaction.atomic():
-                    return super().save(*args, **kwargs)
-            except IntegrityError:
-                # collision still possible under concurrency, so retry
-                self.referral_code = None
-
-        raise RuntimeError(
-            "Could not generate a unique referral code after multiple attempts."
-        )
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["user", "profile_type"],
-                name="uniq_profilebase_user_type",
+        if not self.referral_code:
+            for _ in range(10):
+                self.referral_code = self._pick_unique_code_batch(batch_size=25)
+                try:
+                    with transaction.atomic():
+                        return super().save(*args, **kwargs)
+                except IntegrityError:
+                    self.referral_code = None
+            raise RuntimeError(
+                "Could not generate a unique referral code after multiple attempts."
             )
-        ]
+        return super().save(*args, **kwargs)
 
 
-class CustomerProfile(
-    ProfileBase
-):  # create a simple view to change the defualt address
-    profilebase_ptr = models.OneToOneField(
-        ProfileBase,
-        on_delete=models.CASCADE,
-        parent_link=True,
-        related_name="customer_profile",
+
+
+class CustomerProfile(ReferralCodeMixin, models.Model):
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="customer_profile"
     )
     birth_date = models.DateField(null=True, blank=True)
     addresses = models.ManyToManyField(Address, related_name="customers", blank=True)
-    name = models.CharField(max_length=150, blank=True, null= True)
+    name = models.CharField(max_length=150, blank=True, null=True)
     default_address = models.ForeignKey(
         Address,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="default_for_customers",
-    )  # set normally but change if requested
+    )
     pickup_food = models.BooleanField(default=False)
-    # profile_image_url = models.URLField(blank=True, null=True)
 
-    # not validated; which allow us to use create normally?? aso stopping people from using a different profile to create a user.
-    #:attention
-
-    def save(self, *args, **kwargs):
-        if not self.pk:
-            self.profile_type = ProfileBase.PROFILE_CUSTOMER
-        else:
-            if self.profile_type != ProfileBase.PROFILE_CUSTOMER:
-                raise ValueError("Cannot change profile_type on CustomerProfile")
-
-        super().save(*args, **kwargs)
+    @property
+    def profile_type(self):
+        return "customer"
 
     @property
     def age(self):
@@ -138,26 +87,15 @@ class CustomerProfile(
     def successful_referrals(self):
         return 0
 
-# revoked can withdraw their money
-# 
-class DriverProfile(RatingModelMixin, ProfileBase):
-    # STATUS_CHOICES = [
-    #     ("active", "Active"),
-    #     ("revoked", "Revoked"),
-    #     ("on_trial", "On Trail"),
-    #     ("unauthenticated", "Unauthenticated"),
-    #     ("deactivated", "Deactivated"),
-    # ]
-    
-    profilebase_ptr = models.OneToOneField(
-        ProfileBase,
-        on_delete=models.CASCADE,
-        parent_link=True,
-        related_name="driver_profile"
-    )
+    def __str__(self):
+        return f"Customer: {self.name or self.user_id}"
 
-    # Personal info
-    birth_date = models.DateField(null=True, blank=True) # should this be moveed to creds
+
+class DriverProfile(RatingModelMixin, ReferralCodeMixin, models.Model):
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="driver_profile"
+    )
+    birth_date = models.DateField(null=True, blank=True)
     first_name = models.CharField(max_length=80, blank=True)
     last_name = models.CharField(max_length=80, blank=True)
 
@@ -166,48 +104,30 @@ class DriverProfile(RatingModelMixin, ProfileBase):
         choices=[("male","Male"),("female","Female"),("other","Other"),("na","Prefer not to say")],
         default="na"
     )
-    residential_address = models.TextField(blank=True) # same as this
+    residential_address = models.TextField(blank=True)
     
-    # Availability
     is_online = models.BooleanField(default=False)
-    is_available = models.BooleanField(default=False)  # Online but not on delivery
+    is_available = models.BooleanField(default=False)
     current_order = models.ForeignKey('menu.Order', on_delete=models.SET_NULL, null=True, blank=True, related_name='current_driver')
     
-    
-    # Tracking
     last_location_update = models.DateTimeField(blank=True, null=True)
     
-    # Vehicle info
     vehicle_make = models.CharField(max_length=60, blank=True)
-    vehicle_type = models.CharField(max_length=50, blank=True, null=True,
-        # choices=[("bike","Bike"),("car","Car"),("van","Van")],
-    )  # bike, car, etc.
+    vehicle_type = models.CharField(max_length=50, blank=True, null=True)
     vehicle_number = models.CharField(max_length=50, blank=True, null=True)
-    # status = models.CharField(
-    #     max_length=50,
-    #     choices=STATUS_CHOICES,
-    #     default="unauthenticated",
-    # )
-    # trail_start_time = models.DateTimeField()
 
-    # Stats
     total_deliveries = models.IntegerField(default=0)
-    
-    
+
+    @property
+    def profile_type(self):
+        return "driver"
+
     def __str__(self):
         return f"Driver: {self.full_name or (self.user.email or get_phone_number(self.user.phone_number))}"
 
     @property
     def full_name(self):
         return (self.first_name + " " + self.last_name).strip()
-    
-    def save(self, *args, **kwargs):
-        if not self.pk:
-            self.profile_type = ProfileBase.PROFILE_DRIVER
-        else:
-            if self.profile_type != ProfileBase.PROFILE_DRIVER:
-                raise ValueError("Cannot change profile_type on DriverProfile")
-        super().save(*args, **kwargs)
 
 
 class BusinessAdmin(models.Model):

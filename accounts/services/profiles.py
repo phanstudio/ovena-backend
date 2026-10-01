@@ -19,10 +19,10 @@ _LEGACY_ALIASES = {
 
 PROFILE_PREFETCHES = {
     PROFILE_CUSTOMER: {
-        "prefetch": ["profile_bases__customer_profile"],
+        "select": ["customer_profile"],
     },
     PROFILE_DRIVER: {
-        "prefetch": ["profile_bases__driver_profile"],
+        "select": ["driver_profile"],
     },
     PROFILE_BUSINESS_ADMIN: {
         "select": ["business_admin"],
@@ -147,26 +147,20 @@ def get_profile(user, profile_type: str):
 
 
 def retieve_profile(user, profile_type: str):
-    from accounts.models import ProfileBase
-
     pt = normalize_profile_type(profile_type)
     result = None
 
     if pt == PROFILE_CUSTOMER:
-        base = (
-            ProfileBase.objects.filter(user=user, profile_type=PROFILE_CUSTOMER)
-            .select_related("customer_profile")
-            .first()
-        )
-        result = getattr(base, "customer_profile", None) if base else None
+        try:
+            result = user.customer_profile
+        except ObjectDoesNotExist:
+            result = None
 
     elif pt == PROFILE_DRIVER:
-        base = (
-            ProfileBase.objects.filter(user=user, profile_type=PROFILE_DRIVER)
-            .select_related("driver_profile")
-            .first()
-        )
-        result = getattr(base, "driver_profile", None) if base else None
+        try:
+            result = user.driver_profile
+        except ObjectDoesNotExist:
+            result = None
 
     elif pt == PROFILE_BUSINESS_ADMIN:
         try:

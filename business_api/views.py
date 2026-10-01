@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import GenericAPIView
 
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework.pagination import LimitOffsetPagination
 
 from accounts.models import (
@@ -191,7 +191,7 @@ class BaseBuisAdminAPIView(GenericAPIView):
         try:
             return request.user.business_admin
         except BusinessAdmin.DoesNotExist:
-            return get_object_or_404(BusinessAdmin, user=request.user)
+            raise NotFound("Business admin profile not found")
 
 
 class BaseBusiStaffAPIView(GenericAPIView):

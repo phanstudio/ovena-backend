@@ -137,7 +137,7 @@ class UpdateAppAdmin(BaseAppAdminAPIView):
 class ApproveDriverView(BaseAppAdminAPIView):
     def post(self, request, driver_id: int):
         updated = User.objects.filter(
-            profile_bases__driver_profile__id=driver_id
+            driver_profile__id=driver_id
         ).update(
             is_approved=True
         )
@@ -319,9 +319,9 @@ class AdminUserListView(BaseAppAdminAPIView, ListAPIView):
 
         role = (self.request.query_params.get("role") or "").strip().lower()
         if role == "drivers":
-            qs = qs.filter(profile_bases__profile_type="driver")
+            qs = qs.filter(driver_profile__isnull=False)
         elif role == "customers":
-            qs = qs.filter(profile_bases__profile_type="customer")
+            qs = qs.filter(customer_profile__isnull=False)
         elif role == "business_admins":
             qs = qs.filter(business_admin__isnull=False)
         elif role == "app_admins":
@@ -739,9 +739,9 @@ class AdminSendNotificationView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
         audience = vd.get("audience")
         users_qs = User.objects.filter(is_active=True)
         if audience == "customers":
-            users_qs = users_qs.filter(profile_bases__profile_type="customer")
+            users_qs = users_qs.filter(customer_profile__isnull=False)
         elif audience == "drivers":
-            users_qs = users_qs.filter(profile_bases__profile_type="driver")
+            users_qs = users_qs.filter(driver_profile__isnull=False)
         elif audience == "business_admins":
             users_qs = users_qs.filter(business_admin__isnull=False)
 

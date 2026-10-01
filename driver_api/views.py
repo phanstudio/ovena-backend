@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView
+from rest_framework.exceptions import NotFound
 from drf_spectacular.utils import extend_schema # type: ignore
 
 from accounts.models import DriverAvailability, DriverProfile
@@ -45,10 +46,10 @@ class BaseDriverAPIView(GenericAPIView):
     permission_classes = [IsDriver, IsNotSuspended]
 
     def get_driver(self, request) -> DriverProfile:
-        profile = request.user.driver_profile#getattr(request.user, "driver_profile", None)
-        if not profile:
-            profile = get_object_or_404(DriverProfile, user=request.user)
-        return profile
+        try:
+            return request.user.driver_profile
+        except DriverProfile.DoesNotExist:
+            raise NotFound("Driver profile not found")
 
 
 class DriverLimitOffsetPagination(LimitOffsetPagination):
