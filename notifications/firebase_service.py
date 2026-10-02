@@ -64,7 +64,7 @@ def _build_apns_config():
 
 
 def send_dummy_message():
-    key = "Y"
+    key = ""
     send_push(key, "love", "love")
 
 
@@ -117,8 +117,8 @@ def send_push_to_user(user, title, body, data=None):
         except Exception:
             logger.exception("Firebase push failed for user_id=%s", user.pk)
 
-    if invalid_tokens:
-        DeviceToken.objects.filter(token__in=invalid_tokens).delete()
+    # if invalid_tokens:
+    #     DeviceToken.objects.filter(token__in=invalid_tokens).delete()
 
     return responses
 
