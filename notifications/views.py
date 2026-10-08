@@ -132,3 +132,41 @@ class BusinessRegisterDeviceTokenView(BaseRegisterDeviceTokenView):
 class DriverRegisterDeviceTokenView(BaseRegisterDeviceTokenView):
     authentication_classes = [CustomDriverAuth]
     permission_classes = [IsDriver, IsNotSuspended]
+
+
+class BaseUnRegisterDeviceTokenView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = BaseRegisterDeviceTokenSerialzer
+
+    def post(self, request):
+        serializer = self.get_serializer(
+            data=request.data, context={"user": request.user}
+        )
+        serializer.is_valid(raise_exception=True)
+        vd = serializer.validated_data
+        token = vd.get("token")
+        platform = vd.get("platform")
+        if not token:
+            return Response({"error": "token required"}, status=400)
+
+        DeviceToken.objects.filter(
+            token=token,
+            user=request.user, 
+            platform=platform,
+        ).delete()
+        return Response({"status": "ok"})
+
+
+class CustomerUnRegisterDeviceTokenView(BaseUnRegisterDeviceTokenView):
+    authentication_classes = [CustomCustomerAuth]
+    permission_classes = [IsCustomer]
+
+
+class BusinessUnRegisterDeviceTokenView(BaseUnRegisterDeviceTokenView):
+    authentication_classes = [CustomBusinessAgentsAuth]
+    permission_classes = [IsBusinessAgent]
+
+
+class DriverUnRegisterDeviceTokenView(BaseUnRegisterDeviceTokenView):
+    authentication_classes = [CustomBusinessAgentsAuth]
+    permission_classes = [IsBusinessAgent]

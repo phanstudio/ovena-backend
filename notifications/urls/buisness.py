@@ -1,5 +1,7 @@
 from rest_framework.routers import DefaultRouter
-from notifications.views import BuisnessNotificationViewSet, BusinessRegisterDeviceTokenView
+from notifications.views import (
+    BuisnessNotificationViewSet, BusinessRegisterDeviceTokenView, BusinessUnRegisterDeviceTokenView
+)
 from django.urls import path
 
 router = DefaultRouter()
@@ -10,6 +12,11 @@ urlpatterns = [
     path(
         "notifications/register-device/",
         BusinessRegisterDeviceTokenView.as_view(),
-        name="driver-register-device",
+        name="business-register-device",
+    ),
+    path(
+        "notifications/unregister-device/",
+        BusinessUnRegisterDeviceTokenView.as_view(),
+        name="business-unregister-device",
     ),
 ]

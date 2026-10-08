@@ -63,11 +63,6 @@ def _build_apns_config():
     )
 
 
-def send_dummy_message():
-    key = ""
-    send_push(key, "love", "love")
-
-
 def send_push(token, title, body, data=None):
     """Single device push with error handling."""
     if not token:
@@ -84,8 +79,8 @@ def send_push(token, title, body, data=None):
         return messaging.send(message)
     except Exception as e:
         logger.warning("FCM single push failed for token %s: %s", token[:10], e)
-        if _is_invalid_token_error(e):
-            DeviceToken.objects.filter(token=token).delete()
+        # if _is_invalid_token_error(e):
+        #     DeviceToken.objects.filter(token=token).delete()
         return None
 
 
