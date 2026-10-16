@@ -54,8 +54,24 @@ def has_role_all(user, role: str) -> bool:
     return normalized_target in get_user_roles(user)
 
 def has_role(request, role: str) -> bool:
-    active_profile = request.auth.get("active_profile")
-    return active_profile == role
+    normalized_target = _normalize_role(role)
+    active_profile = None
+
+    if hasattr(request, "auth") and hasattr(request.auth, "get"):
+        active_profile = request.auth.get("active_profile")
+
+    if not active_profile:
+        active_profile = getattr(request, "active_profile", None)
+
+    if not active_profile and hasattr(request, "user"):
+        active_profile = getattr(request.user, "active_profile", None)
+
+    if not active_profile and hasattr(request, "user"):
+        # Backward compatibility fallback to DB / profile cache
+        return has_profile(request.user, normalized_target)
+
+    return _normalize_role(active_profile) == normalized_target
+
 
 # def _check_single_role(user, role: str) -> bool:
 #     if role in (PROFILE_CUSTOMER, PROFILE_DRIVER, PROFILE_BUSINESS_ADMIN, PROFILE_BUSINESS_STAFF):

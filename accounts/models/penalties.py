@@ -39,12 +39,15 @@ class Appeal(models.Model):
     resolution_notes = models.TextField(blank=True)
 
     def approve(self, reviewer):
+        from accounts.services.suspensions import clear_suspension_cache
+
         self.status = "approved"
         self.reviewed_by = reviewer
         self.reviewed_at = timezone.now()
         self.save()
         self.suspension.lifted_at = timezone.now()
         self.suspension.save()
+        clear_suspension_cache(self.suspension.user_id, self.suspension.role)
         # penalty count is untouched on purpose — the strike stands, only the ban is lifted
 
     def reject(self, reviewer, notes=""):
