@@ -21,4 +21,7 @@ urlpatterns = [
 
     # Banks
     path("banks/", views.ListBanks.as_view(), name="list-banks"),
+
+    # Admin Withdrawal Review & Resolution
+    path("admin/withdrawals/<uuid:withdrawal_id>/review/", views.AdminReviewWithdrawalView.as_view(), name="admin-withdrawal-review"),
 ]

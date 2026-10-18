@@ -220,7 +220,7 @@ class DriverWithdrawalEvaluator(WithdrawalEligibilityEvaluator):
     def _check_bank_verified(self) -> bool:
         try:
             profile = getattr(self.user, "driver_profile", None)
-            if profile and hasattr(profile, "bank_account"):
+            if profile and hasattr(profile, "bank_account") and profile.bank_account:
                 return bool(profile.bank_account.is_verified)
             return False
         except Exception:

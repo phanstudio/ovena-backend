@@ -235,14 +235,41 @@ def execute_realtime(withdrawal: Withdrawal):
 
 @transaction.atomic
 def execute_batch(batch_date: date | None = None) -> dict:
+    from payments.services.ledger_audit import (
+        verify_user_ledger_chain_since_last_withdrawal,
+        flag_withdrawal,
+    )
+
     run_date = batch_date or date.today()
     pending = list(
         Withdrawal.objects.select_for_update()
-        .filter(status="pending_batch", strategy=STRATEGY_BATCH)
+        .filter(status="pending_batch", strategy=STRATEGY_BATCH, is_flagged=False)
         .order_by("requested_at")
     )
     if not pending:
         return {"batch_date": str(run_date), "count": 0, "queued": 0}
+
+    valid_pending = []
+    for withdrawal in pending:
+        is_valid, reason, failed_ids = verify_user_ledger_chain_since_last_withdrawal(withdrawal.user)
+        if not is_valid:
+            logger.critical(
+                "payments.withdrawal.batch.tampering_detected",
+                extra={
+                    "withdrawal_id": str(withdrawal.id),
+                    "user_id": str(withdrawal.user_id),
+                    "reason": reason,
+                },
+            )
+            flag_withdrawal(withdrawal, reason=reason, failed_entry_ids=failed_ids)
+            continue
+        valid_pending.append(withdrawal)
+
+    if not valid_pending:
+        logger.warning("payments.withdrawal.batch.no_valid_transfers", extra={"batch_date": run_date.isoformat()})
+        return {"batch_date": str(run_date), "count": 0, "queued": 0}
+
+    pending = valid_pending
 
     logger.info(
         "payments.withdrawal.batch.start",

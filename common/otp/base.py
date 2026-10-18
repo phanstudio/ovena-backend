@@ -96,6 +96,34 @@ class OTPManager:
         elif channel == "phone":
             cls._deliver_sms(identifier, code)
     
+    @classmethod
+    def send_with_fallback(cls, phone_number: str, email: str, prefer_email: bool = False) -> dict:
+        """
+        Sends an OTP code. If prefer_email is True, sends via email.
+        Otherwise attempts SMS delivery first; if SMS delivery fails due to OTPDeliveryError
+        or network/provider failure, automatically falls back to email delivery.
+        Returns a dict: {"channel_used": "phone"|"email", "fallback": bool}.
+        """
+        if prefer_email and email:
+            cls.send(channel="email", identifier=email)
+            return {"channel_used": "email", "fallback": False}
+
+        if phone_number:
+            try:
+                cls.send(channel="phone", identifier=phone_number)
+                return {"channel_used": "phone", "fallback": False}
+            except (OTPDeliveryError, Exception) as exc:
+                if email:
+                    cls.send(channel="email", identifier=email)
+                    return {"channel_used": "email", "fallback": True}
+                raise exc
+
+        if email:
+            cls.send(channel="email", identifier=email)
+            return {"channel_used": "email", "fallback": False}
+
+        raise ValueError("Neither phone number nor email was provided for OTP delivery.")
+
     @staticmethod
     def send_blank(identifier: str) -> str:
         """

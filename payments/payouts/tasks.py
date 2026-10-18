@@ -189,7 +189,8 @@ def ensure_paystack_recipient_for_business_admin(business_admin_id: int):
 
     payout.paystack_recipient_code = code
     payout.save(update_fields=["paystack_recipient_code", "updated_at"])
-    return code
+    return "success"
+    # return code
 
 
 @shared_task(name="payments.payouts.ensure_paystack_recipient_for_user_accounts")

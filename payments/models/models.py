@@ -7,6 +7,7 @@ from accounts.models import User
 from authflow.services.model import ULIDField
 from .accounts import AbstractPayoutAccount
 from django.contrib.auth.hashers import check_password, make_password
+from django.utils import timezone
 
 class UserAccount(AbstractPayoutAccount):
     """
@@ -182,7 +183,7 @@ class LedgerEntry(models.Model):
     balance_after = models.BigIntegerField()
     row_hash = models.CharField(max_length=64)
     notes = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
 
     def save(self, *args, **kwargs):
         if self.pk and LedgerEntry.objects.filter(pk=self.pk).exists():
