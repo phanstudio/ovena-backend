@@ -152,8 +152,8 @@ def test_business_admin_payout_account_syncs_to_user_account(monkeypatch):
         business=business,
         bank_name="GTBank",
         bank_code="058",
-        account_number="0123456789",
-        account_name="Biz Two Ltd",
+        bank_account_number="0123456789",
+        bank_account_name="Biz Two Ltd",
         bvn="1234",
     )
 

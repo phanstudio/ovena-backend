@@ -14,9 +14,9 @@ urlpatterns = [
     path("business/tin/",        views.TINVerificationView.as_view(),         name="verify-business-tin"),
     path("business/rc/",         views.RCNumberVerificationView.as_view(),    name="verify-business-rc"),
     path("business/bvn/",        views.BusinessBVNVerificationView.as_view(), name="verify-business-bvn"),
-    path("business/status/",     views.BusinessManualReviewStatusView.as_view(), name="verify-business-bvn"),
+    path("business/status/",     views.BusinessManualReviewStatusView.as_view(), name="verify-business-status"),
 
     # admin verfications
-    path("admin/business/<business_admin_id>/",views.AdminBusinessReviewDetailsView.as_view(), name="verify-business-bvn"),
-    path("admin/business/list/", views.AdminBusinessReviewListView.as_view(), name="verify-business-bvn"),
+    path("admin/business/<business_admin_id>/", views.AdminBusinessReviewDetailsView.as_view(), name="admin-business-review-details"),
+    path("admin/business/list/", views.AdminBusinessReviewListView.as_view(), name="admin-business-review-list"),
 ]

@@ -326,6 +326,7 @@ class RestaurantPhase2OnboardingView(GenericAPIView):
             BusinessOnboardStatus.objects.filter(admin=admin).update(
                 onboarding_step=2,
                 needs_manual_review=needs_manual_review,
+                checked=False,
             )
 
             # Payment info

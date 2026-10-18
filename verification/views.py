@@ -34,6 +34,7 @@ from accounts.models import (
 )
 from driver_api.views import BaseDriverAPIView
 from business_api.views import BaseBuisAdminAPIView
+from admin_api.views import BaseAppAdminAPIView
 from common.pagination import StandardResultsSetPagination
 from django.shortcuts import get_object_or_404
 # ──────────────────────────────────────────────
@@ -68,6 +69,20 @@ def _record_business_verification(business, verification_type, result, request_p
             "completed_at": timezone.now(),
         },
     )
+    admin = getattr(business, "admin", None)
+    if admin:
+        onboard_status = BusinessOnboardStatus.objects.filter(admin=admin).first()
+        if onboard_status:
+            if not result["success"]:
+                onboard_status.needs_manual_review = True
+                onboard_status.checked = False
+                onboard_status.save(update_fields=["needs_manual_review", "checked"])
+            else:
+                all_verifs = business.verifications.all()
+                has_failures = any(v.status != BusinessVerification.STATUS_SUCCESS for v in all_verifs)
+                if not has_failures:
+                    onboard_status.needs_manual_review = False
+                    onboard_status.save(update_fields=["needs_manual_review"])
 
 
 def _extract_ref(data):
@@ -349,7 +364,7 @@ class BusinessManualReviewStatusView(BaseBuisAdminAPIView):
         })
 
 
-class AdminBusinessReviewDetailsView(BaseBuisAdminAPIView):
+class AdminBusinessReviewDetailsView(BaseAppAdminAPIView):
     """
     GET   /api/verify/admin/business/<business_admin_id>/
     PATCH /api/verify/admin/business/<business_admin_id>/
@@ -433,15 +448,18 @@ class AdminBusinessReviewDetailsView(BaseBuisAdminAPIView):
         )
 
 
-class AdminBusinessReviewListView(BaseBuisAdminAPIView):
+class AdminBusinessReviewListView(BaseAppAdminAPIView):
     """
-    GET /api/verify/business/manual-review/status/?page=
+    GET /api/verify/admin/business/list/?page=
     """
     pagination_class = StandardResultsSetPagination
     serializer_class = AdminBusinessReviewListSerializer
     def get(self, _request):
-        business_admins = BusinessAdmin.objects.filter(cerd__needs_manual_review= True).select_related("business", "cerd")
+        business_admins = BusinessAdmin.objects.filter(cerd__needs_manual_review=True).select_related("business", "cerd")
         page = self.paginate_queryset(business_admins)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
-        serializer = self.get_serializer(page, many=True)
+        serializer = self.get_serializer(business_admins, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)

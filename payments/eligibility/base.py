@@ -219,7 +219,10 @@ class DriverWithdrawalEvaluator(WithdrawalEligibilityEvaluator):
 
     def _check_bank_verified(self) -> bool:
         try:
-            return bool(self.user.driver_profile.bank_account.is_verified)
+            profile = getattr(self.user, "driver_profile", None)
+            if profile and hasattr(profile, "bank_account"):
+                return bool(profile.bank_account.is_verified)
+            return False
         except Exception:
             return False
 
@@ -270,10 +273,42 @@ class ReferralWithdrawalEvaluator(WithdrawalEligibilityEvaluator):
 # Dispatcher — replaces the old standalone evaluate_eligibility()
 # ---------------------------------------------------------------------------
 
+class CustomerWithdrawalEvaluator(WithdrawalEligibilityEvaluator):
+    def __init__(self, user, amount_kobo: int):
+        super().__init__(user, amount_kobo, role="customer")
+
+    def get_payout_account(self):
+        return resolve_payout_account(self.user, self.role)
+
+    def _check_has_transaction_pin(self) -> bool:
+        account = self.get_payout_account()
+        return bool(account and getattr(account, "has_transaction_pin", False))
+
+    def _check_security_cooldown(self) -> bool:
+        from accounts.services.security_guards import is_security_cooldown_active
+        is_active, _ = is_security_cooldown_active(self.user)
+        return not is_active
+
+    def evaluate(self) -> WithdrawalDecision:
+        decision = super().evaluate()
+        extra = {
+            "has_transaction_pin": self._check_has_transaction_pin(),
+            "security_cooldown_ok": self._check_security_cooldown(),
+        }
+        merged_checks = {**decision.checks, **extra}
+        return WithdrawalDecision(
+            eligible=all(merged_checks.values()),
+            checks=merged_checks,
+            minimum_amount_kobo=decision.minimum_amount_kobo,
+            available_balance_kobo=decision.available_balance_kobo,
+        )
+
+
 _EVALUATOR_MAP = {
     "business_owner": BusinessWithdrawalEvaluator,
     "driver": DriverWithdrawalEvaluator,
     "referral": ReferralWithdrawalEvaluator,
+    "customer": CustomerWithdrawalEvaluator,
 }
 
 

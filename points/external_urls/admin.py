@@ -2,7 +2,7 @@ from django.urls import path
 
 from points import views
 
-app_name = "points"
+app_name = "points_admin"
 external_name = "admin-"
 
 urlpatterns = [
