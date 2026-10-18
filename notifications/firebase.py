@@ -4,6 +4,7 @@ import logging
 import firebase_admin
 from firebase_admin import credentials
 from django.conf import settings
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ def get_firebase_app():
 
     if json_creds:
         cred = credentials.Certificate(json.loads(json_creds))
-    elif path:
+    elif path and os.path.exists(path):
         cred = credentials.Certificate(path)
     else:
         if settings.DEBUG:

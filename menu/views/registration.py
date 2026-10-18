@@ -58,19 +58,20 @@ class RegisterMenusPhase3View(GenericAPIView):
             return Response({"detail": "Business not created yet"}, status=400)
 
 
-        try:
-            BStatus:BusinessOnboardStatus = BusinessOnboardStatus.objects.get(admin=user.business_admin)
-        except BusinessOnboardStatus.DoesNotExist:
-            return Response(
-                {"detail": "Onboarding status deosn't exist. Contact support to update your business details."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        with transaction.atomic():
+            try:
+                BStatus: BusinessOnboardStatus = BusinessOnboardStatus.objects.select_for_update().get(admin=user.business_admin)
+            except BusinessOnboardStatus.DoesNotExist:
+                return Response(
+                    {"detail": "Onboarding status deosn't exist. Contact support to update your business details."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
-        if BStatus.is_onboarding_complete:
-            return Response(
-                {"detail": "Onboarding is already complete. Contact support to update your business details."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+            if BStatus.is_onboarding_complete:
+                return Response(
+                    {"detail": "Onboarding is already complete. Contact support to update your business details."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
         menus_data = request.data.get("menus", [])
 

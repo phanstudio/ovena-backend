@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def verify_user_ledger_chain_since_last_withdrawal(user) -> tuple[bool, str, list[str]]:
     """
-    Verifies hash integrity of a user's ledger entries since their latest completed withdrawal.
+    Verifies hash integrity and chain continuity of a user's ledger entries since their latest completed withdrawal.
     Returns (is_valid, reason, failed_entry_ids).
     """
     last_withdrawal = (
@@ -19,22 +19,37 @@ def verify_user_ledger_chain_since_last_withdrawal(user) -> tuple[bool, str, lis
         .first()
     )
 
-    entries = LedgerEntry.objects.filter(user=user)
+    all_user_entries = LedgerEntry.objects.filter(user=user).order_by("seq")
+
     if last_withdrawal:
         since_time = last_withdrawal.completed_at or last_withdrawal.requested_at
         if since_time:
-            entries = entries.filter(created_at__gt=since_time)
-
-    entries = entries.order_by("created_at")
+            # Baseline hash comes from the last entry at or before since_time
+            prior_entry = all_user_entries.filter(created_at__lte=since_time).last()
+            prev_expected_hash = prior_entry.row_hash if prior_entry else "GENESIS"
+            entries = all_user_entries.filter(created_at__gt=since_time)
+        else:
+            prev_expected_hash = "GENESIS"
+            entries = all_user_entries
+    else:
+        prev_expected_hash = "GENESIS"
+        entries = all_user_entries
 
     failed_ids = []
     for entry in entries:
         try:
             if not entry.verify_hash():
                 failed_ids.append(str(entry.id))
+            elif entry.previous_hash != prev_expected_hash:
+                logger.error(
+                    "Ledger entry %s chain broken: expected previous_hash %s, got %s",
+                    entry.id, prev_expected_hash, entry.previous_hash
+                )
+                failed_ids.append(str(entry.id))
         except Exception as exc:
             logger.error("Ledger entry %s hash verification raised error: %s", entry.id, exc)
             failed_ids.append(str(entry.id))
+        prev_expected_hash = entry.row_hash
 
     if failed_ids:
         reason = f"Hash mismatch detected on {len(failed_ids)} ledger row(s): {', '.join(failed_ids[:5])}"

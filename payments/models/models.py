@@ -182,10 +182,24 @@ class LedgerEntry(models.Model):
     type = models.CharField(max_length=50, choices=TYPES)
     amount = models.BigIntegerField()
     balance_after = models.BigIntegerField()
+    seq = models.BigIntegerField(default=1, db_index=True)
+    hash_version = models.PositiveSmallIntegerField(default=2)
     previous_hash = models.CharField(max_length=64, default="GENESIS")
     row_hash = models.CharField(max_length=64)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["sale", "user", "role", "type"],
+                condition=models.Q(type__in=["credit", "reversal"]),
+                name="uniq_ledger_credit_reversal_per_sale_user_role",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "seq"]),
+        ]
 
     def save(self, *args, **kwargs):
         if self.pk and LedgerEntry.objects.filter(pk=self.pk).exists():
@@ -205,19 +219,35 @@ class LedgerEntry(models.Model):
             role=self.role,
             created_at=self.created_at.isoformat(),
             previous_hash=self.previous_hash or "GENESIS",
+            seq=self.seq,
+            version=self.hash_version,
         )
 
     @staticmethod
-    def generate_hash(sale_id, user_id, amount, balance_after, entry_type, role, created_at, previous_hash="GENESIS"):
+    def generate_hash(
+        sale_id,
+        user_id,
+        amount,
+        balance_after=0,
+        entry_type="",
+        role="",
+        created_at="",
+        previous_hash="GENESIS",
+        seq=1,
+        version=2,
+    ):
         salt = os.environ.get("LEDGER_HASH_SALT", "")
         if not salt:
             raise ValueError("LEDGER_HASH_SALT env variable not set")
-        prev = previous_hash or "GENESIS"
-        payload = f"{sale_id}|{user_id}|{amount}|{balance_after}|{entry_type}|{role}|{created_at}|{prev}|{salt}"
+        if version == 1:
+            payload = f"{sale_id}|{user_id}|{amount}|{entry_type}|{role}|{created_at}|{salt}"
+        else:
+            prev = previous_hash or "GENESIS"
+            payload = f"{sale_id}|{user_id}|{amount}|{balance_after}|{seq}|{entry_type}|{role}|{created_at}|{prev}|{salt}"
         return hashlib.sha256(payload.encode()).hexdigest()
 
     def __str__(self):
-        return f"{self.type} NGN {abs(self.amount)/100:.2f} - {self.user} ({self.role})"
+        return f"{self.type} NGN {abs(self.amount)/100:.2f} - {self.user} ({self.role}) seq={self.seq}"
 
 
 class Withdrawal(models.Model):
