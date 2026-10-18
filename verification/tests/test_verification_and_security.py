@@ -417,7 +417,9 @@ def test_sms_to_email_fallback_and_breach_alerts(mock_alert, mock_otp_send):
 
     mock_otp_send.side_effect = fake_send
 
-    result = OTPManager.send_with_fallback(
+    from common.otp.service import MultiChannelOTPService
+
+    result = MultiChannelOTPService.send_with_fallback(
         phone_number="+2348011223344",
         email="fallback@example.com",
     )
@@ -475,9 +477,11 @@ def test_ledger_hash_chain_tamper_detection_and_flagging(monkeypatch):
         sale_id="withdrawal",
         user_id=str(user.id),
         amount=100000,
+        balance_after=100000,
         entry_type="credit",
         role="customer",
         created_at=entry.created_at.isoformat(),
+        previous_hash="GENESIS",
     )
     LedgerEntry.objects.filter(id=entry.id).update(row_hash=entry.row_hash)
 

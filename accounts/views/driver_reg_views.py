@@ -1,4 +1,5 @@
 import base64
+from django.db import transaction
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -35,7 +36,7 @@ from accounts.services.profiles import (
 
 def _get_or_create_submission(profile: DriverProfile) -> DriverOnboardingSubmission:
     """Always work against the latest non-approved/non-rejected submission."""
-    submission = (
+    qs = (
         DriverOnboardingSubmission.objects
         .filter(driver=profile)
         .exclude(status__in=[
@@ -43,8 +44,11 @@ def _get_or_create_submission(profile: DriverProfile) -> DriverOnboardingSubmiss
             DriverOnboardingSubmission.STATUS_REJECTED,
         ])
         .order_by("-created_at")
-        .first()
     )
+    if transaction.get_connection().in_atomic_block:
+        qs = qs.select_for_update()
+
+    submission = qs.first()
     if not submission:
         last_rejected = (
             DriverOnboardingSubmission.objects
@@ -191,6 +195,13 @@ class OnboardingPhase1View(GenericAPIView):
     serializer_class = OnboardingPhase1InputSerializer
 
     def put(self, request):
+        email = request.data.get("email")
+        existing_user = User.objects.filter(email=email).first() if email else None
+        if existing_user and hasattr(existing_user, "driver_profile"):
+            guard = _guard_already_approved(existing_user.driver_profile)
+            if guard:
+                return guard
+
         user, _ = User.objects.get_or_create(email=request.data["email"])
         serializer = self.get_serializer(
             data=request.data,

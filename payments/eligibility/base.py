@@ -222,6 +222,11 @@ class DriverWithdrawalEvaluator(WithdrawalEligibilityEvaluator):
             profile = getattr(self.user, "driver_profile", None)
             if profile and hasattr(profile, "bank_account") and profile.bank_account:
                 return bool(profile.bank_account.is_verified)
+            account = self.get_payout_account()
+            if account:
+                if getattr(account, "paystack_recipient_code", None):
+                    return True
+                return bool(getattr(account, "is_verified", False))
             return False
         except Exception:
             return False

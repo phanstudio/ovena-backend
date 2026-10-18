@@ -167,6 +167,7 @@ class LedgerEntry(models.Model):
         ("business_owner", "Business Owner"),
         ("referral", "Referral"),
         ("platform", "Platform"),
+        ("customer", "Customer"),
     ]
     TYPES = [
         ("credit", "Credit"),
@@ -181,6 +182,7 @@ class LedgerEntry(models.Model):
     type = models.CharField(max_length=50, choices=TYPES)
     amount = models.BigIntegerField()
     balance_after = models.BigIntegerField()
+    previous_hash = models.CharField(max_length=64, default="GENESIS")
     row_hash = models.CharField(max_length=64)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(default=timezone.now)
@@ -198,17 +200,20 @@ class LedgerEntry(models.Model):
             sale_id=str(self.sale_id) if self.sale_id else "withdrawal",
             user_id=str(self.user_id),
             amount=self.amount,
+            balance_after=self.balance_after,
             entry_type=self.type,
             role=self.role,
             created_at=self.created_at.isoformat(),
+            previous_hash=self.previous_hash or "GENESIS",
         )
 
     @staticmethod
-    def generate_hash(sale_id, user_id, amount, entry_type, role, created_at):
+    def generate_hash(sale_id, user_id, amount, balance_after, entry_type, role, created_at, previous_hash="GENESIS"):
         salt = os.environ.get("LEDGER_HASH_SALT", "")
         if not salt:
             raise ValueError("LEDGER_HASH_SALT env variable not set")
-        payload = f"{sale_id}|{user_id}|{amount}|{entry_type}|{role}|{created_at}|{salt}"
+        prev = previous_hash or "GENESIS"
+        payload = f"{sale_id}|{user_id}|{amount}|{balance_after}|{entry_type}|{role}|{created_at}|{prev}|{salt}"
         return hashlib.sha256(payload.encode()).hexdigest()
 
     def __str__(self):

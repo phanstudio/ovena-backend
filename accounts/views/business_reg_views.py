@@ -88,6 +88,14 @@ class RegisterBAdmin(GenericAPIView):
                     defaults={"email": vd["email"]},
                 )
                 if not is_new:
+                    admin = getattr(user, "business_admin", None)
+                    if admin:
+                        b_status = BusinessOnboardStatus.objects.filter(admin=admin).first()
+                        if b_status and b_status.is_onboarding_complete:
+                            return Response(
+                                {"error": "Business registration already completed. Please log in to your account."},
+                                status=status.HTTP_403_FORBIDDEN,
+                            )
                     user.email = vd["email"]
                     user.save(update_fields=["email"])
 
