@@ -79,6 +79,10 @@ class LeaderboardEntrySerializer(serializers.Serializer):
     name = serializers.CharField(allow_blank=True)
     points = serializers.IntegerField()
 
+class AdminLeaderboardEntrySerializer(LeaderboardEntrySerializer):
+    """Shared shape for both live (current month) and snapshot (past month) rows."""
+    user_type = serializers.CharField(read_only=True) # customer, driver
+    
 
 class MyLeaderboardRankSerializer(serializers.Serializer):
     user_id = serializers.CharField()

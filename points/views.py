@@ -34,6 +34,7 @@ from points.serializers import (
     PointsWithdrawalRequestCreateSerializer,
     PointsWithdrawalRequestSerializer,
     PointsWithdrawalResolveSerializer,
+    AdminLeaderboardEntrySerializer,
 )
 from admin_api.views import BaseAppAdminAPIView
 from common.customer.view import BaseCustomerAPIView
@@ -325,3 +326,38 @@ class CustomerLeaderboardCurrentView(BaseCustomerAPIView, LeaderboardCurrentView
 
 class CustomerMyLeaderboardRankView(BaseCustomerAPIView, MyLeaderboardRankView):
     user_type = "customer"
+
+
+### admin views
+class AdminLeaderboardSnapshotPeriodListView(BaseAppAdminAPIView, LeaderboardSnapshotPeriodListView):
+    ...
+
+class AdminLeaderboardSnapshotView(BaseAppAdminAPIView, LeaderboardSnapshotView):
+    ...
+
+class AdminPointsBalanceListView(BaseAppAdminAPIView, PointsBalanceListView):
+    ...
+
+class AdminPointsWithdrawalRequestAdminListView(BaseAppAdminAPIView, PointsWithdrawalRequestAdminListView):
+    ...
+
+class AdminPointsWithdrawalRequestResolveView(BaseAppAdminAPIView, PointsWithdrawalRequestResolveView):
+    ...
+
+class AdminLeaderboardCurrentView(BaseAppAdminAPIView, LeaderboardCurrentView):
+    serializer_class = AdminLeaderboardEntrySerializer
+
+    def list(self, request, *args, **kwargs):
+        self.user_type:str = self.request.query_params.get("user_type", "customer")\
+            .strip().lower()
+        return super().list(request, *args, **kwargs)
+
+class AdminPointsEventRuleListView(BaseAppAdminAPIView, PointsEventRuleListView):
+    ...
+
+class AdminPointsEventRuleDetailView(BaseAppAdminAPIView, PointsEventRuleDetailView):
+    ...
+
+## fake entries views ...
+class AdminFakeEntriesView(BaseAppAdminAPIView):
+    pass
