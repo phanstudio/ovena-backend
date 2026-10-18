@@ -16,7 +16,17 @@ class LoginResponseSerializer(serializers.Serializer):
 
 class LoginSerializer(serializers.Serializer):
     phone_number = PhoneNumberField()
-    password = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+
+class CustomerLoginSerializer(LoginSerializer):
+    phone_number = PhoneNumberField(required=False, allow_null=True)
+    email = serializers.EmailField(required=False, allow_null=True, allow_blank=True)
+
+    def validate(self, data):
+        if not data.get("phone_number") and not data.get("email"):
+            raise serializers.ValidationError("Either phone_number or email is required.")
+        return data
 
 
 class AdminLoginSerializer(LoginSerializer):
@@ -45,10 +55,9 @@ class LinkRequestSerializer(serializers.Serializer):
 class LinkApproveSerializer(serializers.Serializer):
     otp = serializers.CharField()
     device_id = serializers.CharField()
-    # branch_id = serializers.IntegerField()
     phone_number = PhoneNumberField()
-    username = serializers.CharField(required=False, allow_blank=True) # depeciated
-    # password = serializers.CharField()
+    password = serializers.CharField(write_only=True, min_length=8)
+    username = serializers.CharField(required=False, allow_blank=True) # depreciated
 
 
 class AppAdminRequestSerializer(serializers.Serializer):
@@ -65,9 +74,7 @@ class AppAdminApproveSerializer(serializers.Serializer):
 
 class LinkStaffLoginSerializer(serializers.Serializer):
     device_id = serializers.CharField()
-    # password = serializers.CharField()
-    # branch_id = serializers.CharField() or int
-    # phone_number = PhoneNumberField()
+    password = serializers.CharField(write_only=True)
 
 
 class BaseVerifyOtpSerizer(serializers.Serializer):

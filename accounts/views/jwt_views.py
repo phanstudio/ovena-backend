@@ -66,7 +66,8 @@ class LogoutView(GenericAPIView):
     
         return Response({"message": "Logged out"})
 
-class LogInView(APIView): # can work with password, will be removed
+# DEV ONLY: For local/testing fixtures only, not exposed to customers in production
+class LogInView(APIView):
 
     def post(self, request):
         phone_number = request.data.get("phone_number")
