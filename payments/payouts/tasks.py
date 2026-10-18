@@ -169,6 +169,7 @@ def ensure_paystack_recipient_for_business_admin(business_admin_id: int):
 
     if payout.paystack_recipient_code:
         return "already-set"
+        # return payout.paystack_recipient_code
     
     if not payout.bank_code or not payout.bank_account_number or not payout.bank_account_name:
         return "incomplete-payout-account"
@@ -188,7 +189,7 @@ def ensure_paystack_recipient_for_business_admin(business_admin_id: int):
 
     payout.paystack_recipient_code = code
     payout.save(update_fields=["paystack_recipient_code", "updated_at"])
-    return "success"
+    return code
 
 
 @shared_task(name="payments.payouts.ensure_paystack_recipient_for_user_accounts")

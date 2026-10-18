@@ -19,7 +19,7 @@ from payments.payouts.services import execute_realtime, get_balance_summary
 
 def notify_driver(driver: DriverProfile, title: str, body: str, notification_type: str = "generic", payload=None):
     create_notification(
-        user_id=driver.user_id,
+        user=driver.user,
         notification_type=notification_type,
         title=title,
         body=body,

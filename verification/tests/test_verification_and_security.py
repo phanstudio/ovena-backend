@@ -5,6 +5,7 @@ from unittest.mock import patch, MagicMock
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
@@ -274,3 +275,272 @@ def test_business_review_status_can_retry_and_resubmission():
     business.refresh_from_db()
     assert updated_status.is_onboarding_complete is True
     assert business.onboarding_complete is True
+
+
+# ─────────────────────────────────────────────────────────────
+# 7. PHASE 2 FACE MATCH & PHASE 4 REFACTORED TEST
+# ─────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
+)
+@patch("verification.service.verify_nin")
+@patch("verification.service.verify_bvn")
+@patch("verification.service.match_face_to_name")
+def test_driver_phase_2_face_match_pipeline(mock_match, mock_bvn, mock_nin):
+    """Verify that Phase 2 accepts verified_selfie and executes match_face_to_name with NIN and BVN."""
+    from accounts.views.driver_reg_views import OnboardingPhase2View
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from accounts.models import DriverVerification
+
+    mock_nin.return_value = {"success": True, "provider": "dojah", "data": {"status": "ok"}, "attempts": []}
+    mock_bvn.return_value = {"success": True, "provider": "dojah", "data": {"status": "ok"}, "attempts": []}
+    mock_match.return_value = {"success": True, "provider": "dojah", "data": {"confidence": 98}, "attempts": []}
+
+    user = User.objects.create_user(email="driver_p2@example.com", password="PassWord123!")
+    profile = DriverProfile.objects.create(user=user, first_name="Bayo", last_name="Adewale")
+    submission = DriverOnboardingSubmission.objects.create(
+        driver=profile,
+        answers={"phase_1_complete": True, "phase_1": {"first_name": "Bayo"}},
+    )
+
+    TINY_GIF = (
+        b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff"
+        b"!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+    )
+    license_file = SimpleUploadedFile("license.gif", TINY_GIF, content_type="image/gif")
+    selfie_file = SimpleUploadedFile("selfie.gif", TINY_GIF, content_type="image/gif")
+
+    factory = APIRequestFactory()
+    req = factory.put(
+        "/api/accounts/driver/onboarding/phase/2/",
+        data={
+            "drivers_license": license_file,
+            "verified_selfie": selfie_file,
+            "nin": "12345678901",
+            "bvn": "98765432109",
+            "vehicle_type": "motorcycle",
+            "vehicle_make": "Bajaj",
+            "plate_number": "ABC-123-XY",
+            "guarantor1_name": "Ade Friend",
+            "guarantor1_phone": "08011112222",
+            "guarantor2_name": "Bola Friend",
+            "guarantor2_phone": "08033334444",
+        },
+        format="multipart",
+    )
+    force_authenticate(req, user=user)
+
+    res = OnboardingPhase2View.as_view()(req)
+    assert res.status_code == 200
+    assert res.data["face_match_status"] == "verified"
+
+    # Confirm face match verification record was created
+    face_ver = DriverVerification.objects.filter(
+        driver=profile, verification_type=DriverVerification.TYPE_FACE_MATCH
+    ).first()
+    assert face_ver is not None
+    assert face_ver.status == DriverVerification.STATUS_SUCCESS
+
+
+# ─────────────────────────────────────────────────────────────
+# 8. MANDATORY PIN ENFORCEMENT & POINTS ORDER PAYMENT
+# ─────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+def test_mandatory_pin_enforcement_points_and_withdrawal():
+    """Verify that paying with points or withdrawing without a configured PIN returns 400."""
+    from menu.views.order import OrderPaymentView
+    from payments.views import request_withdrawal_view
+
+    user = User.objects.create_user(email="customer_pin_req@example.com", password="PassWord123!")
+    customer = CustomerProfile.objects.create(user=user)
+    business = Business.objects.create(business_name="Pin Test Biz")
+    branch = Branch.objects.create(business=business, name="Pin Branch")
+
+    order = Order.objects.create(
+        orderer=customer,
+        branch=branch,
+        order_number=99001,
+        grand_total=Decimal("1500.00"),
+        status="awaiting_payment_method",
+    )
+
+    factory = APIRequestFactory()
+
+    # 1. Order payment without PIN configured -> 400
+    req = factory.post(
+        f"/api/orders/{order.id}/payment/",
+        data={"method": "points"},
+        format="json",
+    )
+    force_authenticate(req, user=user, token={"active_profile": "customer"})
+    res = OrderPaymentView.as_view()(req, order_id=order.id)
+    assert res.status_code == 400
+    assert "Transaction PIN not configured" in res.data["error"]
+
+    # 2. Withdrawal without PIN configured -> 400
+    req_w = factory.post(
+        "/api/wallet/withdraw/",
+        data={"amount_kobo": 100000, "role": "customer"},
+        format="json",
+        HTTP_IDEMPOTENCY_KEY="idem-with-pin-1",
+    )
+    force_authenticate(req_w, user=user, token={"active_profile": "customer"})
+    res_w = request_withdrawal_view(req_w)
+    assert res_w.status_code == 400
+    assert "Transaction PIN not configured" in res_w.data["error"]
+
+
+# ─────────────────────────────────────────────────────────────
+# 9. SMS TO EMAIL OTP FALLBACK & BREACH ALERT EMAILS
+# ─────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+@patch("common.otp.base.OTPManager.send")
+@patch("common.mail.services.send_security_alert_email")
+def test_sms_to_email_fallback_and_breach_alerts(mock_alert, mock_otp_send):
+    """Verify SMS-to-email fallback on carrier failure and breach alerts on 5 failed attempts."""
+    from common.otp.base import OTPManager
+    from common.otp.exceptions import OTPDeliveryError
+    from accounts.services.security_guards import record_failed_pin_attempt, is_pin_locked
+
+    # Test send_with_fallback
+    def fake_send(channel, identifier):
+        if channel == "phone":
+            raise OTPDeliveryError("SMS provider gateway unreachable")
+        return None
+
+    mock_otp_send.side_effect = fake_send
+
+    result = OTPManager.send_with_fallback(
+        phone_number="+2348011223344",
+        email="fallback@example.com",
+    )
+    assert result["channel_used"] == "email"
+    assert result["fallback"] is True
+
+    # Test breach alert on 5 failed PIN attempts
+    user = User.objects.create_user(email="pin_lockout@example.com", password="PassWord123!")
+    for _ in range(4):
+        record_failed_pin_attempt(user.id)
+    assert is_pin_locked(user.id)[0] is False
+
+    # 5th attempt locks out and triggers breach email
+    record_failed_pin_attempt(user.id)
+    assert is_pin_locked(user.id)[0] is True
+    assert mock_alert.called
+
+
+# ─────────────────────────────────────────────────────────────
+# 10. HASH CHAIN VERIFICATION & FLAGGING SYSTEM
+# ─────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+def test_ledger_hash_chain_tamper_detection_and_flagging(monkeypatch):
+    """Verify verify_user_ledger_chain_since_last_withdrawal catches tampered ledger rows."""
+    monkeypatch.setenv("LEDGER_HASH_SALT", "test_secret_salt")
+    from payments.models import LedgerEntry, Withdrawal
+    from payments.services.ledger_audit import (
+        verify_user_ledger_chain_since_last_withdrawal,
+        flag_withdrawal,
+    )
+
+    user = User.objects.create_user(email="tamper_audit@example.com", password="PassWord123!")
+    
+    # 1. Create a prior complete withdrawal
+    w1 = Withdrawal.objects.create(
+        user=user,
+        amount=50000,
+        status="complete",
+        paystack_recipient_code="RCP_1",
+        completed_at=timezone.now() - datetime.timedelta(days=1),
+    )
+
+    # 2. Create valid subsequent ledger entry
+    entry = LedgerEntry.objects.create(
+        user=user,
+        role="customer",
+        type="credit",
+        amount=100000,
+        balance_after=100000,
+        row_hash="",
+    )
+    # Generate proper hash
+    entry.row_hash = LedgerEntry.generate_hash(
+        sale_id="withdrawal",
+        user_id=str(user.id),
+        amount=100000,
+        entry_type="credit",
+        role="customer",
+        created_at=entry.created_at.isoformat(),
+    )
+    LedgerEntry.objects.filter(id=entry.id).update(row_hash=entry.row_hash)
+
+    # Verify audit passes
+    is_valid, reason, _ = verify_user_ledger_chain_since_last_withdrawal(user)
+    assert is_valid is True
+
+    # 3. Simulate tamper: update amount without updating row_hash
+    LedgerEntry.objects.filter(id=entry.id).update(amount=99999999)
+
+    is_valid, reason, failed_ids = verify_user_ledger_chain_since_last_withdrawal(user)
+    assert is_valid is False
+    assert str(entry.id) in failed_ids
+
+    # 4. Test flag_withdrawal
+    w2 = Withdrawal.objects.create(
+        user=user,
+        amount=100000,
+        status="pending_batch",
+        paystack_recipient_code="RCP_1",
+    )
+    flag_withdrawal(w2, reason=reason, failed_entry_ids=failed_ids)
+    w2.refresh_from_db()
+    assert w2.is_flagged is True
+    assert "Hash mismatch" in w2.flag_reason
+
+
+# ─────────────────────────────────────────────────────────────
+# 11. PAYOUT ACCOUNT ROLE BOUNDARIES & SIGNAL HYGIENE
+# ─────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+def test_no_useraccount_created_for_business_or_driver():
+    """Verify DriverBankAccount and BusinessPayoutAccount never create UserAccount, and bridge never falls back."""
+    from accounts.models import DriverBankAccount, BusinessPayoutAccount
+    from payments.payouts.bridge import resolve_payout_account, purge_rogue_user_accounts
+
+    # Driver test
+    driver_user = User.objects.create_user(email="driver_acc@example.com")
+    driver_profile = DriverProfile.objects.create(user=driver_user)
+    
+    # Resolving before bank account configured returns None (never UserAccount)
+    assert resolve_payout_account(driver_user, "driver") is None
+    assert UserAccount.objects.filter(user=driver_user).exists() is False
+
+    dba = DriverBankAccount.objects.create(driver=driver_profile, bank_account_number="0123456789")
+    assert UserAccount.objects.filter(user=driver_user).exists() is False
+
+    # Business test
+    biz_user = User.objects.create_user(email="biz_owner@example.com")
+    business = Business.objects.create(business_name="Acme Corp")
+    admin = BusinessAdmin.objects.create(user=biz_user, business=business)
+
+    assert resolve_payout_account(biz_user, "business_owner") is None
+    assert UserAccount.objects.filter(user=biz_user).exists() is False
+
+    bpa = BusinessPayoutAccount.objects.create(business=business, bank_account_number="9876543210")
+    assert UserAccount.objects.filter(user=biz_user).exists() is False
+
+    # Test rogue account purge
+    UserAccount.objects.create(user=biz_user, bank_name="Fake Bank")
+    assert UserAccount.objects.filter(user=biz_user).exists() is True
+    purged = purge_rogue_user_accounts()
+    assert purged == 1
+    assert UserAccount.objects.filter(user=biz_user).exists() is False
+

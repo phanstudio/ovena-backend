@@ -252,6 +252,10 @@ class Withdrawal(models.Model):
     processed_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
+    is_flagged = models.BooleanField(default=False, db_index=True)
+    flag_reason = models.CharField(max_length=255, blank=True)
+    flagged_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["user", "idempotency_key"], condition=~models.Q(idempotency_key=""), name="uniq_withdrawal_user_idem"),

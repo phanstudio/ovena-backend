@@ -82,6 +82,7 @@ class OnboardingPhase1OutputSerializer(serializers.Serializer):
 
 class OnboardingPhase2InputSerializer(serializers.Serializer):
     drivers_license = serializers.ImageField()
+    verified_selfie = serializers.ImageField()
     nin = serializers.CharField(min_length=11, max_length=11)
     bvn = serializers.CharField(min_length=11, max_length=11)
     vehicle_type = serializers.CharField(max_length=50)
@@ -107,10 +108,12 @@ class OnboardingPhase2OutputSerializer(serializers.Serializer):
     phase = serializers.IntegerField(default=2)
     status = serializers.CharField()
     drivers_license_url = serializers.CharField()
+    selfie_url = serializers.CharField(required=False, allow_blank=True)
     nin_last4 = serializers.CharField()
     bvn_last4 = serializers.CharField()
     nin_verification_status = serializers.CharField()
     bvn_verification_status = serializers.CharField()
+    face_match_status = serializers.CharField(required=False, allow_blank=True)
     vehicle_type = serializers.CharField()
     vehicle_make = serializers.CharField()
     plate_number = serializers.CharField()
@@ -152,18 +155,6 @@ class OnboardingPhase3InputSerializer(serializers.Serializer):
         return super().to_internal_value(data)
     
     def validate_compliance_answers(self, value):
-        # required = [
-        #     "have_you_worked_as_delivery_rider",
-        #     "familiarity_with_local_routes",
-        #     "have_used_gps_for_deliveries",
-        #     "can_handle_cash_on_delivery",
-        #     "willing_to_follow_traffic_rules",
-        #     "willing_to_wear_helmet_and_gear",
-        #     "punctuality_self_rating",
-        #     "has_health_condition",
-        #     "why_work_with_us",
-        #     "how_soon_can_you_start",
-        # ]
         required= COMPLIANCE_QUESTIONS
         missing = [q for q in required if q not in value]
         if missing:
@@ -205,10 +196,9 @@ class OnboardingPhase3OutputSerializer(serializers.Serializer):
 # ─── Phase 4 ──────────────────────────────────────────────────────────────────
 
 class OnboardingPhase4InputSerializer(serializers.Serializer):
-    bank_name = serializers.CharField(max_length=120)
+    bank_code = serializers.CharField(max_length=120)
     account_number = serializers.CharField(min_length=10, max_length=10)
     account_name = serializers.CharField(max_length=160)
-    verified_selfie = serializers.ImageField()
 
     def validate_account_number(self, value):
         if not value.isdigit():
@@ -223,7 +213,7 @@ class OnboardingPhase4OutputSerializer(serializers.Serializer):
     account_number = serializers.CharField()
     account_name = serializers.CharField()
     bank_verification_status = serializers.CharField()
-    selfie_url = serializers.CharField()
+    needs_manual_review = serializers.BooleanField(default=False)
     onboarding_complete = serializers.BooleanField()
 
 
@@ -235,4 +225,5 @@ class OnboardingStatusOutputSerializer(serializers.Serializer):
     all_phases_complete = serializers.BooleanField()
     submission_status = serializers.CharField()  # draft / submitted / approved / rejected
     reviewer_note = serializers.CharField(allow_blank=True)
+    can_retry = serializers.BooleanField(default=False)
     phase_data = serializers.DictField()

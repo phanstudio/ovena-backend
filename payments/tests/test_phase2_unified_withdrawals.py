@@ -163,9 +163,10 @@ def test_business_admin_payout_account_syncs_to_user_account(monkeypatch):
     )
 
     code = ensure_paystack_recipient_for_business_admin(admin.id)
-    account = UserAccount.objects.get(user=user)
+    payout = BusinessPayoutAccount.objects.get(business=business)
 
     assert code == "RCP_BIZ_2"
-    assert account.paystack_recipient_code == "RCP_BIZ_2"
-    assert account.bank_code == "058"
-    assert account.bank_account_number == "0123456789"
+    assert payout.paystack_recipient_code == "RCP_BIZ_2"
+    assert payout.bank_code == "058"
+    assert payout.bank_account_number == "0123456789"
+    assert not UserAccount.objects.filter(user=user).exists()

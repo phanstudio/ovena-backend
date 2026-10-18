@@ -291,17 +291,42 @@ class UserAccountCreateView(BaseCustomerAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        from accounts.services.security_guards import validate_pin_format, set_security_cooldown
+        from verification import service as verification_service
+        from rest_framework import serializers as rf_serializers
+
+        try:
+            validate_pin_format(payment_data["transaction_pin"])
+        except rf_serializers.ValidationError as e:
+            msg = e.detail[0] if isinstance(e.detail, list) else str(e.detail)
+            return Response({"error": msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify NUBAN via unified verification service
+        verify_result = verification_service.verify_account_number(
+            payment_data["bank_account_number"],
+            payment_data["bank_code"]
+        )
+        if not verify_result.get("success"):
+            return Response(
+                {"error": "Bank account could not be verified. Please check your account number and bank."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        resolved_name = (verify_result.get("data") or {}).get("account_name") or payment_data["bank_account_name"]
+
         try:
             account = UserAccount(
                 user=user,
                 bank_name=payment_data["bank_name"],
                 bank_code=payment_data["bank_code"],
                 bank_account_number=payment_data["bank_account_number"],
-                bank_account_name=payment_data["bank_account_name"],
+                bank_account_name=resolved_name,
+                last_bank_change_at=timezone.now(),
             )
 
             account.set_transaction_pin(payment_data["transaction_pin"])
             account.save()
+            set_security_cooldown(user, hours=24)
             ensure_paystack_recipient_for_user_accounts.delay(account.pk)
         except IntegrityError:
             return Response(
@@ -343,8 +368,8 @@ class UserAccountChangeRequestView(BaseCustomerAPIView, SendVerifyMixin):
                     {"detail": "You can only change your bank account once every day."}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            is_vaild = account.check_transaction_pin(vd["transaction_pin"])
-            if not is_vaild:
+            is_valid = account.check_transaction_pin(vd["transaction_pin"])
+            if not is_valid:
                 return Response({"detail": "Incorrect pin"}, status=status.HTTP_400_BAD_REQUEST)
             self.send(user.email, "email", "AccountChange")
             
@@ -370,18 +395,35 @@ class UserAccountChangeConfirmView(BaseCustomerAPIView, SendVerifyMixin):
         if error:
             return error
 
+        from verification import service as verification_service
+        from accounts.services.security_guards import set_security_cooldown
+
+        # Verify NUBAN via unified verification service
+        verify_result = verification_service.verify_account_number(
+            payment_data["bank_account_number"],
+            payment_data["bank_code"]
+        )
+        if not verify_result.get("success"):
+            return Response(
+                {"error": "Bank account could not be verified. Please check your account number and bank."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        resolved_name = (verify_result.get("data") or {}).get("account_name") or payment_data["bank_account_name"]
+
         with transaction.atomic():
             account = UserAccount.objects.select_for_update().get(user=user)
 
             account.bank_name = payment_data["bank_name"]
             account.bank_code = payment_data["bank_code"]
             account.bank_account_number = payment_data["bank_account_number"]
-            account.bank_account_name = payment_data["bank_account_name"]
+            account.bank_account_name = resolved_name
             account.last_bank_change_at = timezone.now()
 
             # Important
             account.paystack_recipient_code = ""
             account.save()
+            set_security_cooldown(user, hours=24)
 
         ensure_paystack_recipient_for_user_accounts.delay(account.pk)
 

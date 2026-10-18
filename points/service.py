@@ -244,3 +244,108 @@ def create_points_withdrawal_request(*, user, points_requested: int, idempotency
         points_requested=points_requested,
         ledger_entry=hold_entry,
     )
+
+
+class InsufficientPoints(Exception):
+    pass
+
+
+def initialize_order_points_sale(order):
+    from payments.services.sale_service import initialize_points_sale
+    branch = order.branch
+    if not branch:
+        raise ValueError("Order has no branch")
+
+    business_owner_id = None
+    business = getattr(branch, "business", None)
+    admin = getattr(business, "admin", None) if business else None
+    if admin and admin.user_id:
+        business_owner_id = str(admin.user_id)
+
+    if not business_owner_id:
+        raise ValueError("Branch has no business owner user")
+
+    total_ngn = max(order.grand_total, 500)
+    amount_kobo = int(total_ngn * 100)
+
+    items_total_kobo = int(order.subtotal * 100)
+    delivery_fee_kobo = int(order.delivery_price * 100)
+    platform_fee_percent = float(order.ovena_commission or 5)
+
+    return initialize_points_sale(
+        payer_id=str(order.orderer.user_id),
+        driver_id=str(order.driver.user_id) if order.driver_id else None,
+        business_owner_id=business_owner_id,
+        amount_kobo=amount_kobo,
+        metadata={
+            "order_id": str(order.id),
+            "order_number": order.order_number,
+            "split_rule": "order_v1",
+            "items_total_kobo": items_total_kobo,
+            "delivery_fee_kobo": delivery_fee_kobo,
+            "platform_fee_type": "percent",
+            "platform_fee_percent": platform_fee_percent,
+            "platform_fee_fixed_kobo": 500 * 100,
+        },
+    )
+
+
+@transaction.atomic
+def pay_order_with_points(customer, order):
+    """
+    Safely debits customer points balance with select_for_update locking and initializes a points sale.
+    """
+    from menu.models import OrderStatus
+    user = customer.user
+
+    # Lock user row to serialize points writes for this user
+    user_model = user.__class__
+    user_model.objects.select_for_update().filter(id=user.id).exists()
+
+    idempotency_key = f"order_payment:{order.id}"
+    existing = PointsLedgerEntry.objects.filter(idempotency_key=idempotency_key).first()
+    if existing:
+        logger.info("pay_order_with_points: idempotent replay for order %s", order.id)
+        return existing
+
+    balance = get_points_balance(user)
+    amount = int(order.grand_total)
+
+    if balance < amount:
+        raise InsufficientPoints(f"Points balance {balance} is less than order total {amount}")
+
+    entry = _award_points(
+        user=user,
+        event_type=PointsLedgerEntry.EVENT_ORDER_PAYMENT,
+        points=-amount,
+        proof=order,
+        idempotency_key=idempotency_key,
+        notes=f"Order {order.order_number} paid with points",
+    )
+
+    sale_result = initialize_order_points_sale(order)
+    order.sale_id = sale_result["sale_id"]
+    order.status = OrderStatus.PENDING
+    order.save(update_fields=["sale_id", "status"])
+
+    return entry
+
+
+@transaction.atomic
+def refund_order_points(order, reason: str = "Order cancelled"):
+    """
+    Restores points for an order that was paid with points and subsequently cancelled/failed.
+    """
+    if not order or not getattr(order, "orderer", None) or not getattr(order.orderer, "user", None):
+        return None
+    user = order.orderer.user
+    amount = int(order.grand_total)
+    idempotency_key = f"order_refund:{order.id}"
+    return _award_points(
+        user=user,
+        event_type=PointsLedgerEntry.EVENT_REFUND_COMPENSATION,
+        points=amount,
+        proof=order,
+        idempotency_key=idempotency_key,
+        notes=f"Refund of {amount} points for order #{order.order_number}: {reason}",
+    )

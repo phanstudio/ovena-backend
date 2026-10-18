@@ -144,6 +144,49 @@ def request_withdrawal_view(request):
     if not idempotency_key:
         return Response({"error": "Idempotency-Key header is required"}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Security Cooldown Guard
+    from accounts.services.security_guards import (
+        is_security_cooldown_active,
+        is_pin_locked,
+        record_failed_pin_attempt,
+        clear_pin_attempts,
+    )
+    cooldown_active, rem_sec = is_security_cooldown_active(request.user)
+    if cooldown_active:
+        hours = max(1, rem_sec // 3600)
+        return Response(
+            {"error": f"Withdrawals are temporarily paused due to recent security updates on your account. Try again in {hours} hour(s)."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    # Customer Transaction PIN Guard
+    if role == "customer":
+        account = getattr(request.user, "payment_account", None)
+        if not account or not account.has_transaction_pin:
+            return Response(
+                {"error": "Transaction PIN not configured. Please set a transaction PIN before proceeding."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        pin = request.data.get("transaction_pin") or request.headers.get("X-Transaction-PIN")
+        if not pin:
+            return Response({"error": "transaction_pin is required for customer withdrawals."}, status=status.HTTP_400_BAD_REQUEST)
+
+        locked, rem_lock = is_pin_locked(request.user.id)
+        if locked:
+            mins = max(1, rem_lock // 60)
+            return Response(
+                {"error": f"Transaction PIN is locked due to multiple failed attempts. Try again in {mins} minute(s)."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+
+        if not account.check_transaction_pin(str(pin)):
+            attempts = record_failed_pin_attempt(request.user.id, ip_address=request.META.get("REMOTE_ADDR"))
+            rem = max(0, 5 - attempts)
+            return Response({"error": f"Incorrect transaction PIN. {rem} attempt(s) remaining."}, status=status.HTTP_400_BAD_REQUEST)
+
+        clear_pin_attempts(request.user.id)
+
     try:
         row, has_response = begin_idempotent_request(
             scope="withdrawal_request",
@@ -263,3 +306,75 @@ class ListBanks(ListAPIView): # require an active profile
     pagination_class = PageNumberPagination
     queryset = Bank.objects.all()
     serializer_class = BankSerializer
+
+
+class AdminReviewWithdrawalView(BaseAppAdminAPIView):
+    """
+    Admin endpoint to review a customer withdrawal claim, audit the ledger hash chain,
+    and resolve (approve_and_transfer, mark_paid, reject).
+    """
+
+    def get(self, request, withdrawal_id):
+        from payments.services.ledger_audit import verify_user_ledger_chain_since_last_withdrawal
+
+        withdrawal = Withdrawal.objects.filter(id=withdrawal_id).first()
+        if not withdrawal:
+            return Response({"error": "Withdrawal not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        is_valid, reason, failed_ids = verify_user_ledger_chain_since_last_withdrawal(withdrawal.user)
+
+        return Response({
+            "withdrawal_id": str(withdrawal.id),
+            "user_id": str(withdrawal.user_id),
+            "amount": withdrawal.amount,
+            "status": withdrawal.status,
+            "is_flagged": withdrawal.is_flagged,
+            "flag_reason": withdrawal.flag_reason,
+            "flagged_at": withdrawal.flagged_at,
+            "hash_chain_valid": is_valid,
+            "hash_chain_reason": reason,
+            "failed_entry_ids": failed_ids,
+        })
+
+    def post(self, request, withdrawal_id):
+        from payments.services.ledger_audit import (
+            verify_user_ledger_chain_since_last_withdrawal,
+            flag_withdrawal,
+        )
+        from payments.payouts.services import (
+            execute_realtime,
+            mark_withdrawal_paid,
+            mark_withdrawal_failed,
+        )
+
+        withdrawal = Withdrawal.objects.filter(id=withdrawal_id).first()
+        if not withdrawal:
+            return Response({"error": "Withdrawal not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        action = request.data.get("action")
+        if action not in ["approve_and_transfer", "mark_paid", "reject"]:
+            return Response(
+                {"error": "Invalid action. Choose from 'approve_and_transfer', 'mark_paid', 'reject'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if action in ["approve_and_transfer", "mark_paid"]:
+            is_valid, reason, failed_ids = verify_user_ledger_chain_since_last_withdrawal(withdrawal.user)
+            if not is_valid:
+                flag_withdrawal(withdrawal, reason=reason, failed_entry_ids=failed_ids)
+                return Response(
+                    {"error": f"Approval blocked. Hash chain integrity verification failed: {reason}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if action == "approve_and_transfer":
+                execute_realtime(withdrawal)
+                return Response({"message": "Withdrawal approved and queued for transfer.", "status": withdrawal.status})
+            else:
+                mark_withdrawal_paid(withdrawal)
+                return Response({"message": "Withdrawal marked paid.", "status": withdrawal.status})
+
+        # Reject action
+        reject_reason = request.data.get("reason", "Admin rejected withdrawal claim")
+        mark_withdrawal_failed(withdrawal, reason=reject_reason)
+        return Response({"message": "Withdrawal rejected and ledger hold released.", "status": withdrawal.status})
