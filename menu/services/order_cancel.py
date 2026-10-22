@@ -55,6 +55,7 @@ from django.db import transaction
 
 from menu.models import Order, OrderEvent, OrderStatus
 from payments.services.sale_service import cancel_sale
+from payments.models import ResponsibleParty
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -76,7 +77,7 @@ class ACTORS(Enum):
     ADMIN = "admin"
 
 @transaction.atomic
-def cancel_order(order: "Order", actor_type: str, reason: str, responsible_party: str = None):
+def cancel_order(order: "Order", actor_type: str, reason: str, responsible_party: str | ResponsibleParty = None):
     """
     actor_type: "customer" | "branch" | "system" | "support"
     responsible_party: pass explicitly if you already know who's at fault
@@ -91,7 +92,10 @@ def cancel_order(order: "Order", actor_type: str, reason: str, responsible_party
         if actor_type not in allowed_actors:
             raise ValueError(f"'{actor_type}' cannot cancel an order at stage: {order.status}")
 
-    responsible_party = responsible_party or "platform"
+    if not responsible_party:
+        responsible_party = ResponsibleParty.BUSINESS if actor_type == "branch" else ResponsibleParty.PLATFORM
+    elif isinstance(responsible_party, str):
+        responsible_party = ResponsibleParty(responsible_party.lower().strip())
 
     old_status = order.status
     order.status = OrderStatus.CANCELLED
@@ -103,7 +107,7 @@ def cancel_order(order: "Order", actor_type: str, reason: str, responsible_party
         actor_type=actor_type,
         old_status=old_status,
         new_status=order.status,
-        metadata={"reason": reason, "responsible_party": responsible_party},
+        metadata={"reason": reason, "responsible_party": responsible_party.value},
     )
 
     refund_result = None

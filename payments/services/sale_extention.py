@@ -32,7 +32,7 @@ import logging
 from django.db import transaction
 from django.utils import timezone
 
-from payments.models import Sale
+from payments.models import Sale, ResponsibleParty
 from payments.services.split_calculator import reverse_ledger_entries
 from accounts.services.penalties import record_sales_penalty
 
@@ -40,13 +40,18 @@ logger = logging.getLogger(__name__)
 
 
 @transaction.atomic
-def process_refund(sale_id, reason, responsible_party: str = "business", responsible_party_reason: str = ""):
+def process_refund(sale_id, reason, responsible_party: str | ResponsibleParty = ResponsibleParty.BUSINESS, responsible_party_reason: str = ""):
     """
     STEP 3 (if needed): Refund the user.
     Reverses ledger entries (based on responsible party fault), calls Paystack refund API,
     awards compensation points to the customer, and penalizes the responsible party.
     """
     from points.service import award_refund_compensation
+
+    if isinstance(responsible_party, str):
+        responsible_party = ResponsibleParty(responsible_party.lower().strip())
+    elif not isinstance(responsible_party, ResponsibleParty):
+        raise ValueError(f"Invalid responsible_party: {responsible_party!r}")
 
     sale = Sale.objects.select_for_update().get(id=sale_id)
 
@@ -93,7 +98,7 @@ def process_refund(sale_id, reason, responsible_party: str = "business", respons
 
 
 @transaction.atomic
-def cancel_sale(sale_id, reason, responsible_party: str = "platform", responsible_party_reason: str = ""):
+def cancel_sale(sale_id, reason, responsible_party: str | ResponsibleParty = ResponsibleParty.PLATFORM, responsible_party_reason: str = ""):
     """
     Entry point for order cancellations. Post-delivery disputes should keep
     calling process_refund directly, not this.
@@ -108,6 +113,11 @@ def cancel_sale(sale_id, reason, responsible_party: str = "platform", responsibl
       the business/driver -- this is a dispute, not a cancellation. Call
       process_refund directly with a deliberately chosen responsible_party.
     """
+    if isinstance(responsible_party, str):
+        responsible_party = ResponsibleParty(responsible_party.lower().strip())
+    elif not isinstance(responsible_party, ResponsibleParty):
+        raise ValueError(f"Invalid responsible_party: {responsible_party!r}")
+
     sale = Sale.objects.select_for_update().select_related("order").get(id=sale_id)
 
     if sale.status == "refunded":
@@ -117,17 +127,17 @@ def cancel_sale(sale_id, reason, responsible_party: str = "platform", responsibl
         sale.status = "refunded"
         sale.refunded_at = timezone.now()
         sale.refund_reason = reason
-        sale.responsible_party = responsible_party
+        sale.responsible_party = responsible_party.value
         sale.responsible_party_reason = responsible_party_reason
         sale.save()
 
-        if responsible_party in (Sale.RESPONSIBLE_BUSINESS, Sale.RESPONSIBLE_DRIVER):
+        if responsible_party in (ResponsibleParty.BUSINESS, ResponsibleParty.DRIVER):
             try:
                 record_sales_penalty(sale, sale.order)
             except Exception as e:
                 logger.error(f"Failed to record penalty for sale {sale.id}: {e}")
 
-        return {"success": True, "amount_refunded": 0, "responsible_party": responsible_party}
+        return {"success": True, "amount_refunded": 0, "responsible_party": responsible_party.value}
 
     if sale.status in ("paid", "in_escrow"):
         return process_refund(

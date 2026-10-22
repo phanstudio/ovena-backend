@@ -23,7 +23,16 @@ class AbstractPayoutAccount(models.Model):
     class Meta:
         abstract = True
 
+    def save(self, *args, **kwargs):
+        if self.pk:
+            orig = type(self).objects.filter(pk=self.pk).values("bank_code", "bank_account_number").first()
+            if orig:
+                if orig.get("bank_code") != self.bank_code or orig.get("bank_account_number") != self.bank_account_number:
+                    self.paystack_recipient_code = ""
+        super().save(*args, **kwargs)
+
     @abstractmethod
     def get_recipient_code(self) -> str:
         """Return the Paystack recipient code for this payout account."""
         raise NotImplementedError
+

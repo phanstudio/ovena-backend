@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from payments.models import Bank, Withdrawal
+from payments.models import Bank, Withdrawal, ResponsibleParty
 
 
 class BankSerializer(serializers.ModelSerializer):
@@ -24,8 +24,8 @@ class SaleInitializeSerializer(serializers.Serializer):
 class SaleRefundSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, default="Refund requested")
     responsible_party = serializers.ChoiceField(
-        choices=["business", "driver", "platform"],
-        default="business",
+        choices=ResponsibleParty.choices,
+        default=ResponsibleParty.BUSINESS.value,
     )
     responsible_party_reason = serializers.CharField(required=False, allow_blank=True, default="")
 

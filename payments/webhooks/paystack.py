@@ -13,7 +13,7 @@ from django.utils.dateparse import parse_datetime
 
 from payments.models import PaystackWebhookLog, Sale, Withdrawal
 from payments.observability.metrics import increment, observe_ms
-from payments.payouts.services import mark_withdrawal_failed, mark_withdrawal_paid
+from payments.payouts.services import mark_withdrawal_failed, mark_withdrawal_paid, mark_withdrawal_reversed
 from menu.payment_handlers import order_fail, order_update
 from payments.models.subscription import (
     Subscription, User, Plan, Invoice, Status
@@ -250,6 +250,8 @@ def process_event(body: dict[str, Any]) -> None:
         if payment_withdrawal:
             if event == "transfer.success":
                 mark_withdrawal_paid(payment_withdrawal)
+            elif event == "transfer.reversed":
+                mark_withdrawal_reversed(payment_withdrawal, reason=reason)
             else:
                 mark_withdrawal_failed(payment_withdrawal, reason=reason)
         return

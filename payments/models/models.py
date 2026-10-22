@@ -112,15 +112,16 @@ class Sale(models.Model):
         ("disputed", "Disputed"),
     ]
 
-    RESPONSIBLE_BUSINESS = "business"
-    RESPONSIBLE_DRIVER = "driver"
-    RESPONSIBLE_PLATFORM = "platform"
+    class ResponsibleParty(models.TextChoices):
+        BUSINESS = "business", "Business"
+        DRIVER = "driver", "Driver"
+        PLATFORM = "platform", "Platform"
 
-    RESPONSIBLE_PARTY_CHOICES = [
-        (RESPONSIBLE_BUSINESS, "Business"),
-        (RESPONSIBLE_DRIVER, "Driver"),
-        (RESPONSIBLE_PLATFORM, "Platform"),
-    ]
+    RESPONSIBLE_BUSINESS = ResponsibleParty.BUSINESS.value
+    RESPONSIBLE_DRIVER = ResponsibleParty.DRIVER.value
+    RESPONSIBLE_PLATFORM = ResponsibleParty.PLATFORM.value
+
+    RESPONSIBLE_PARTY_CHOICES = ResponsibleParty.choices
 
     SOURCE_POINTS = "points"
     SOURCE_PAYSTACK = "paystack"
@@ -196,6 +197,10 @@ class LedgerEntry(models.Model):
                 condition=models.Q(type__in=["credit", "reversal"]),
                 name="uniq_ledger_credit_reversal_per_sale_user_role",
             ),
+            models.UniqueConstraint(
+                fields=["user", "seq"],
+                name="uniq_ledger_entry_user_seq",
+            ),
         ]
         indexes = [
             models.Index(fields=["user", "seq"]),
@@ -257,6 +262,7 @@ class Withdrawal(models.Model):
         ("complete", "Complete"),
         ("failed", "Failed"),
         ("cancelled", "Cancelled"),
+        ("reversed", "Reversed"),
     ]
     STRATEGY_BATCH = "batch"
     STRATEGY_REALTIME = "realtime"
@@ -282,6 +288,7 @@ class Withdrawal(models.Model):
     paystack_recipient_code = models.CharField(max_length=100)
 
     ledger_entry = models.OneToOneField(LedgerEntry, on_delete=models.PROTECT, null=True, blank=True)
+    refund_ledger_entry = models.OneToOneField(LedgerEntry, on_delete=models.PROTECT, null=True, blank=True, related_name="refunded_withdrawal")
     failure_reason = models.TextField(blank=True)
 
     requested_at = models.DateTimeField(auto_now_add=True)

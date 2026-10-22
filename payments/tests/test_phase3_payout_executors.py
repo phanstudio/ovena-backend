@@ -115,10 +115,17 @@ def test_mark_withdrawal_paid_and_failed_emit_metrics(monkeypatch):
     UserAccount.objects.create(user=user, paystack_recipient_code="RCP_4")
     _create_ledger_entry(user=user, sale=None, role="driver", entry_type="credit", amount=500000, notes="seed")
 
-    withdrawal, _ = create_withdrawal_request(
+    w_paid, _ = create_withdrawal_request(
         user_id=str(user.id),
         amount_kobo=100000,
-        idempotency_key="idem-s4",
+        idempotency_key="idem-s4-paid",
+        strategy="realtime",
+        role="driver",
+    )
+    w_failed, _ = create_withdrawal_request(
+        user_id=str(user.id),
+        amount_kobo=100000,
+        idempotency_key="idem-s4-failed",
         strategy="realtime",
         role="driver",
     )
@@ -132,8 +139,8 @@ def test_mark_withdrawal_paid_and_failed_emit_metrics(monkeypatch):
 
     from payments.payouts.services import mark_withdrawal_failed, mark_withdrawal_paid
 
-    mark_withdrawal_paid(withdrawal)
-    mark_withdrawal_failed(withdrawal, "test-failure")
+    mark_withdrawal_paid(w_paid)
+    mark_withdrawal_failed(w_failed, "test-failure")
 
     assert ("payments.payout.success_total", {"strategy": "realtime"}) in metric_calls
     assert ("payments.payout.failed_total", {"strategy": "realtime"}) in metric_calls

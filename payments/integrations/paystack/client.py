@@ -66,8 +66,18 @@ class PaystackClient:
         # self._client.transfer.bulk # was here before
         return self._call(self._client.transfer.initiate_bulk_transfer, payload)
 
+    def verify_transfer(self, reference: str) -> dict[str, Any]:
+        """Verify a transfer by its unique reference."""
+        return self._call(self._client.transfer.verify, {"reference": reference})
+
     def fetch_transfer(self, transfer_code: str) -> dict[str, Any]:
-        return self._call(self._client.transfer.verify, {"reference": transfer_code})
+        """Fetch transfer by transfer_code or fallback to verify by reference."""
+        if transfer_code.startswith("wd_") or transfer_code.startswith("BATCH_"):
+            return self.verify_transfer(transfer_code)
+        try:
+            return self._call(self._client.transfer.fetch, {"id_or_code": transfer_code})
+        except Exception:
+            return self._call(self._client.transfer.verify, {"reference": transfer_code})
     
     def verfy_bvn_match(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._call(self._client.verification.verify_bvn_match, payload)
