@@ -244,6 +244,9 @@ class LinkApproveView(GenericAPIView):
                 )
 
             user = target_user or User.objects.create(phone_number=vd["phone_number"])
+            if vd.get("password"):
+                user.set_password(vd["password"])
+                user.save(update_fields=["password"])
 
             same_row = (
                 existing_agent is not None
@@ -361,7 +364,7 @@ class RegisterCustomer(GenericAPIView):
 
     def post(self, request):
         serializer = self.get_serializer(
-            data=request.data, context={"user": request.user}
+            data=request.data, context={"user": request.user, "request": request}
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -515,7 +518,7 @@ class LoginView(GenericAPIView):
         user = User.objects.filter(phone_number=vd["phone_number"]).first()
         if not user:
             return None, Response(
-                {"error": "Invalid credentials (phone number)"}, status=status.HTTP_401_UNAUTHORIZED
+                {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
             )
         return user, None
     
@@ -553,6 +556,31 @@ class LoginView(GenericAPIView):
 
         return self.return_jwt(result["user"])
 
+
+class CustomerLoginView(LoginView):
+    serializer_class = InS.CustomerLoginSerializer
+    def get_profile_type(self):
+        return PROFILE_CUSTOMER
+    
+    def get_user_from_credentials(self, vd):
+        phone_number = vd.get("phone_number")
+        email = vd.get("email")
+
+        user = None
+        if phone_number:
+            user = User.objects.filter(phone_number=phone_number).first()
+        elif email:
+            user = User.objects.filter(email=email).first()
+
+        if not user:
+            return None, Response(
+                {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
+            )
+        return user, None
+    
+    def get_user_from_phone(self, vd):
+        return self.get_user_from_credentials(vd)
+    
 
 class DriverLoginView(LoginView):
     serializer_class = InS.DriverLoginSerializer
@@ -609,11 +637,11 @@ class StaffLoginView(LoginView):
         
         user = buisness_staff.user
 
-        # if not user or not user.check_password(vd["password"]): # add this later after we remove
-        #     return Response(
-        #         {"error": "Invalid credentials"},
-        #         status=status.HTTP_401_UNAUTHORIZED
-        #     )
+        if not user or not user.check_password(vd["password"]):
+            return Response(
+                {"error": "Invalid credentials"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
         return self.return_jwt(user)
 

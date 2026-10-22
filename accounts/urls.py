@@ -5,7 +5,7 @@ from .views import (
     jwt_views, SendEmailOTPView, VerifyEmailOTPView, SendPhoneOTPView,
     PasswordResetView, BusinessAdminLoginView, DriverLoginView, LinkRequestCreateView, 
     StaffLoginView, PassWordResetSendView, ChangePasswordView, 
-    AppAdminRequestCreateView, AppAdminApproveView
+    AppAdminRequestCreateView, AppAdminApproveView, CustomerLoginView
 )
 from .views import driver_reg_views
 from .views import business_reg_views
@@ -14,12 +14,13 @@ from image.views import BatchGenerateBuisnessURLView
 token_urls = [
     path("rotate-token/", jwt_views.RotateTokenView.as_view(), name="rotate-token"),
     path("refresh/", jwt_views.RefreshTokenView.as_view(), name="refresh"),
-    path("logout/", jwt_views.LogoutView.as_view(), name="logout"), # for 
-    path("login/", jwt_views.LogInView.as_view(), name="login"),
+    path("logout/", jwt_views.LogoutView.as_view(), name="logout"),
+    path("dev/login/", jwt_views.LogInView.as_view(), name="dev-login"),
     path("health/", jwt_views.Health.as_view(), name="health"),
 ]
 
 account_urls = [
+    path("customer/login/", CustomerLoginView.as_view(), name="customer-login"),
     path("business/admin-login/", BusinessAdminLoginView.as_view(), name="business-admin-login"),
     path("driver-login/", DriverLoginView.as_view(), name="driver-login"),
     path("staff-login/", StaffLoginView.as_view(), name="staff-login"),
