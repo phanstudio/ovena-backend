@@ -163,52 +163,64 @@ def get_features(
 
 # export
 def check_feature(plan_id, code):
-    result = NO_REDIS
-    try:
-        result = has_feature(plan_id, code)
-    except Exception as e:
-        logger.exception("[Check Feature redis] request error: %s", e)
-
-    if check(result):
-        return result
-    
-    features = list(
-        Feature.objects.filter(
-            plans__id=plan_id
-        ).values_list(
-            "code",
-            flat=True,
-        )
-    )
-
-    if features:
-        try:
-            cache_features(plan_id, features)
-        except Exception as e:
-            logger.exception("[Cache Features redis] request error: %s", e)
-
-    return code in features
+    return PlanFeatureService.has_feature(plan_id, code)
 
 def get_all_features(plan_id):
-    features = NO_REDIS
-    try:
-        features = get_features(plan_id)
-    except Exception as e:
-        logger.exception("[Get Features redis] request error: %s", e)
+    return PlanFeatureService.get_plan_features(plan_id)
 
-    if check(features):
-        return features
-    
-    features = []
-    features = list(Feature.objects.filter(
-        plans__id=plan_id
-    ).values_list(
-        "code",
-        flat=True
-    ))
-    if features:
+
+class PlanFeatureService:
+    """
+    Caching service layer between Redis/Cache and DB for plan features.
+    Features are stored and queried per plan_id, avoiding per-user feature bloat in tokens.
+    """
+
+    @classmethod
+    def get_plan_features(cls, plan_id) -> set:
+        if not plan_id:
+            return set()
+
+        cached_features = NO_REDIS
         try:
-            cache_features(plan_id, features)
+            cached_features = get_features(plan_id)
         except Exception as e:
-            logger.exception("[Cache Features redis] request error: %s", e)
-    return features
+            logger.exception("[Get Features] cache retrieval error for plan %s: %s", plan_id, e)
+
+        if check(cached_features) and cached_features is not None:
+            # Normalize strings in case Redis returned bytes
+            return {f.decode() if isinstance(f, bytes) else str(f) for f in cached_features}
+
+        # Cache miss -> query DB
+        features = list(
+            Feature.objects.filter(plans__id=plan_id).values_list("code", flat=True)
+        )
+        if features:
+            try:
+                cache_features(plan_id, features)
+            except Exception as e:
+                logger.exception("[Cache Features] caching error for plan %s: %s", plan_id, e)
+
+        return set(features)
+
+    @classmethod
+    def has_feature(cls, plan_id, code: str) -> bool:
+        if not plan_id or not code:
+            return False
+
+        features = cls.get_plan_features(plan_id)
+        return code in features
+
+    @classmethod
+    def invalidate_plan_features_cache(cls, plan_id):
+        key = get_key(plan_id)
+        try:
+            cache.delete(key)
+        except Exception:
+            pass
+        try:
+            client = get_feature_redis_backend()
+            if client:
+                client.delete(key)
+        except Exception:
+            pass
+

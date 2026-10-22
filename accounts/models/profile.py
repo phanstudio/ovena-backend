@@ -50,8 +50,6 @@ class ReferralCodeMixin(models.Model):
         return super().save(*args, **kwargs)
 
 
-
-
 class CustomerProfile(ReferralCodeMixin, models.Model):
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="customer_profile"

@@ -32,12 +32,18 @@ apple_settings:dict = settings.OAUTH_PROVIDERS["apple"]
 def _get_apple_jwks(force_refresh: bool = False):
     now = time.time()
     ttl = apple_settings.get("APPLE_JWKS_CACHE_TTL", 3600)
+    jwks_url = apple_settings.get("APPLE_JWKS_URL", "https://appleid.apple.com/auth/keys")
 
     if force_refresh or _jwks_cache["keys"] is None or now - _jwks_cache["fetched_at"] > ttl:
-        resp = httpx.get(apple_settings.get("APPLE_JWKS_URL"), timeout=5)
-        resp.raise_for_status()
-        _jwks_cache["keys"] = resp.json()["keys"]
-        _jwks_cache["fetched_at"] = now
+        try:
+            resp = httpx.get(jwks_url, timeout=10)
+            resp.raise_for_status()
+            _jwks_cache["keys"] = resp.json()["keys"]
+            _jwks_cache["fetched_at"] = now
+        except Exception as e:
+            if _jwks_cache["keys"] is not None:
+                return _jwks_cache["keys"]
+            raise ValidationError({"id_token": f"Unable to reach Apple verification servers: {e}"})
 
     return _jwks_cache["keys"]
 
@@ -50,6 +56,10 @@ def verify_apple_token(id_token: str) -> dict:
     """
     if not id_token:
         raise ValidationError({"id_token": "This field is required."})
+
+    aud = apple_settings.get("APPLE_AUDIENCE")
+    if not aud:
+        raise ValidationError({"id_token": "Apple authentication is not configured on the server (missing APPLE_AUDIENCE)."})
 
     try:
         header = jwt.get_unverified_header(id_token)
@@ -74,8 +84,8 @@ def verify_apple_token(id_token: str) -> dict:
             id_token,
             key=public_key,
             algorithms=["RS256"],
-            audience=apple_settings.get("APPLE_AUDIENCE"),
-            issuer=apple_settings.get("APPLE_ISSUER"),
+            audience=aud,
+            issuer=apple_settings.get("APPLE_ISSUER", "https://appleid.apple.com"),
         )
     except jwt.PyJWTError as e:
         raise ValidationError({"id_token": f"Invalid Apple token: {e}"})

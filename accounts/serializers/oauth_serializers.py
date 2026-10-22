@@ -41,6 +41,8 @@ class AppleNameSerializer(serializers.Serializer):
     """
     firstName = serializers.CharField(required=False, allow_blank=True)
     lastName = serializers.CharField(required=False, allow_blank=True)
+    givenName = serializers.CharField(required=False, allow_blank=True)
+    familyName = serializers.CharField(required=False, allow_blank=True)
 
 
 class AppleAuthSerializer(serializers.Serializer):
