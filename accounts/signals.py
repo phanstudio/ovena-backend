@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 
+from accounts.services.suspensions import clear_suspension_cache
 from accounts.models.business import BusinessPayoutAccount
 from accounts.models.driver import DriverBankAccount
 from accounts.models import Suspension, Penalty
@@ -63,3 +64,4 @@ def check_penalty_threshold(sender, instance, created, **kwargs):
         return
 
     Suspension.objects.create(user=instance.user, role=instance.role, level=target_level)
+    clear_suspension_cache(instance.user_id, instance.role)

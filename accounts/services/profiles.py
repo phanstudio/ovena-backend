@@ -47,33 +47,61 @@ def has_profile(user, profile_type: str) -> bool:
     return get_profile(user, profile_type) is not None
 
 
+def validate_active_profile(user, profile_type: str | None) -> bool:
+    if not profile_type:
+        return False
+    pt = normalize_profile_type(profile_type)
+    return has_profile(user, pt)
+
+
+def get_default_profile_for_user(user) -> Optional[str]:
+    """
+    Returns the first available profile type for the user in standard precedence:
+    Customer, Driver, Business Admin, Business Staff, App Admin.
+    """
+    for pt in [
+        PROFILE_CUSTOMER,
+        PROFILE_DRIVER,
+        PROFILE_BUSINESS_ADMIN,
+        PROFILE_BUSINESS_STAFF,
+        PROFILE_APP_ADMIN,
+    ]:
+        if has_profile(user, pt):
+            return pt
+    return None
+
+
 def resolve_active_profile_type(
-    *, request, user, allowed_types: list[str]
+    *, request=None, user, allowed_types: list[str] | None = None
 ) -> Optional[str]:
     """
-    Resolve profile context for a request:
-    1. X-Profile-Type header
-    2. token claim 'active_profile'
-    3. first allowed type user actually has
+    Resolve profile context for a user/request:
+    1. token claim 'active_profile' (if present in request._auth or request.auth)
+    2. first allowed profile type user actually has from DB / cache
     """
-    normalized_allowed = [normalize_profile_type(t) for t in allowed_types]
-    normalized_allowed = [t for t in normalized_allowed if t]
+    if allowed_types:
+        normalized_allowed = [normalize_profile_type(t) for t in allowed_types]
+        normalized_allowed = [t for t in normalized_allowed if t]
+    else:
+        normalized_allowed = [
+            PROFILE_CUSTOMER,
+            PROFILE_DRIVER,
+            PROFILE_BUSINESS_ADMIN,
+            PROFILE_BUSINESS_STAFF,
+            PROFILE_APP_ADMIN,
+        ]
 
-    header_type = normalize_profile_type(request.headers.get("X-Profile-Type"))
-    if (
-        header_type
-        and header_type in normalized_allowed
-        and has_profile(user, header_type)
-    ):
-        return header_type
+    auth = None
+    if request is not None:
+        auth = getattr(request, "_auth", None) or getattr(request, "auth", None)
 
-    auth = getattr(request, "_auth", None)
     token_type = None
-    if auth is not None:
+    if auth is not None and hasattr(auth, "get"):
         try:
             token_type = normalize_profile_type(auth.get("active_profile"))
         except Exception:
             token_type = None
+
     if (
         token_type
         and token_type in normalized_allowed
