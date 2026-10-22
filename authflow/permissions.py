@@ -15,7 +15,7 @@ class NeedsApprovalPermission(permissions.BasePermission):
     message = "User account not approved."
 
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and self.needs_approval(request))
+        return bool(request.user.is_authenticated and self.needs_approval(request))
     
     def needs_approval(self, request):
         if request.auth and hasattr(request.auth, "get") and "is_approved" in request.auth:
@@ -27,7 +27,7 @@ class NeedsVerficationsPermission(permissions.BasePermission):
     message = "Business verification or onboarding incomplete."
 
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and self.needs_approval(request))
+        return bool(request.user.is_authenticated and self.needs_approval(request))
     
     def needs_approval(self, request):
         if request.auth and hasattr(request.auth, "get") and "is_approved" in request.auth:
