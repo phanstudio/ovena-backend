@@ -174,20 +174,20 @@ class CreateCustomerSerializer(serializers.Serializer):
             raise serializers.ValidationError("Customer profile already exists.")
 
         # identity fill rules
-        if data.get("email"):
+        if data.get("email") and str(data["email"]).strip().casefold() != str(user.email).casefold():
             if user.email:
                 raise serializers.ValidationError(
                     {"email": "User already has an email."}
                 )
-            if User.objects.filter(email=data["email"]).exists():
+            if not user.email and User.objects.filter(email=data["email"]).exists():
                 raise serializers.ValidationError({"email": "Email already in use."})
 
-        if data.get("phone_number"):
+        if data.get("phone_number") and str(data["phone_number"]) != str(user.phone_number):
             if user.phone_number:
                 raise serializers.ValidationError(
                     {"phone_number": "User already has a phone number."}
                 )
-            if User.objects.filter(phone_number=data["phone_number"]).exists():
+            if not user.phone_number and User.objects.filter(phone_number=data["phone_number"]).exists():
                 raise serializers.ValidationError(
                     {"phone_number": "Phone number already in use."}
                 )

@@ -345,10 +345,7 @@ class StaffRevokeView(BaseBuisAdminAPIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            # NOTE: adjust this to however BaseBuisAdminAPIView exposes the
-            # admin performing the action (e.g. request.user.business_admin,
-            # or a property already set on the base view). Placeholder below.
-            business_admin = request.business_admin
+            business_admin = self.get_buisnessadmn(request)
 
             agent.revoked = vd["revoked"]
             agent.revoked_at = timezone.now() if vd["revoked"] else None

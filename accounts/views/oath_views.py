@@ -1,22 +1,24 @@
 from rest_framework.response import Response
 from rest_framework import status, permissions
-from accounts.serializers import OAuthCodeSerializer
+from accounts.serializers.oauth_serializers import (
+    OAuthCodeSerializer,
+    GoogleAuthSerializer,
+    AppleAuthSerializer,
+)
 from ..utils.oath import verify_apple_token
 from authflow.services.jwt import issue_jwt_for_user, issue_jwt_for_user_with_plan
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from accounts.serializers.oauth_serializers import GoogleAuthSerializer, AppleAuthSerializer
 from rest_framework.generics import GenericAPIView
 from accounts.models import SocialAccount
 from accounts.services.profiles import PROFILE_CUSTOMER
 
 User = get_user_model()
 
-# one flaw with this s the fact that 2 people can have hte same email; 
-# second is we can check for cutomer profile or and etra profile for it to verify
+
 class AuthLogic:
     @staticmethod
-    def _get_or_link_user(provider, sub, email, defaults=None):
+    def _get_or_link_user(provider, sub, email, defaults=None, raw_signup=None):
         social = SocialAccount.objects.filter(
             provider=provider, provider_uid=sub
         ).select_related("user").first()
@@ -34,7 +36,11 @@ class AuthLogic:
             created = True
 
         SocialAccount.objects.create(
-            user=user, provider=provider, provider_uid=sub, email_at_signup=email
+            user=user,
+            provider=provider,
+            provider_uid=sub,
+            email_at_signup=email,
+            raw_signup_payload=raw_signup,
         )
         return user, created
 
@@ -48,8 +54,9 @@ class AuthLogic:
             provider=SocialAccount.PROVIDER_GOOGLE,
             sub=info["sub"],
             email=info.get("email"),
+            raw_signup=info,
         )
-        mainname:str = f"{info.get('given_name','')} {info.get('family_name','')}".strip()
+        mainname: str = f"{info.get('given_name','')} {info.get('family_name','')}".strip()
         prefill = {
             "name": mainname or None,
             "email": info.get("email"),
@@ -65,16 +72,34 @@ class AuthLogic:
         payload = verify_apple_token(vd["id_token"])
         email = payload.get("email")
 
+        # Apple only sends user name on the first authorization
+        name = None
+        user_info = vd.get("user") or request.data.get("name")
+        if isinstance(user_info, dict):
+            first = user_info.get("firstName") or user_info.get("givenName") or ""
+            last = user_info.get("lastName") or user_info.get("familyName") or ""
+            name = f"{first} {last}".strip() or None
+
+        raw_signup = {"name": name, "email": email} if (name or email) else None
+
         user, created = AuthLogic._get_or_link_user(
             provider=SocialAccount.PROVIDER_APPLE,
             sub=payload["sub"],
             email=email,
+            raw_signup=raw_signup,
         )
-        name = None
-        if vd.get("name"): # this should be user
-            name = f"{vd['name'].get('firstName','')} {vd['name'].get('lastName','')}".strip()
 
-        prefill = {"name": name or None, "email": email, "profile_pic": None}  # apple never gives a pic
+        # If returning user didn't send name (Apple never resends it), recover from saved raw_signup_payload
+        if not name and not created:
+            social = SocialAccount.objects.filter(
+                provider=SocialAccount.PROVIDER_APPLE, provider_uid=payload["sub"]
+            ).first()
+            if social and social.raw_signup_payload:
+                name = social.raw_signup_payload.get("name")
+                if not email:
+                    email = social.raw_signup_payload.get("email")
+
+        prefill = {"name": name or None, "email": email or user.email, "profile_pic": None}  # Apple never provides an avatar
         return user, created, prefill
 
 

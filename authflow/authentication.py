@@ -10,7 +10,8 @@ from accounts.services.profiles import (
     PROFILE_DRIVER,
     PROFILE_BUSINESS_STAFF,
     PROFILE_APP_ADMIN,
-    # get_profile,
+    has_profile,
+    normalize_profile_type,
     resolve_active_profile_type,
     apply_profile_fetches,
 )
@@ -125,12 +126,32 @@ class CustomJWtAuth(SimpleJWTAuth):
 
         _prime_profile_cache(user)
 
-        active_profile = resolve_active_profile_type(
-            request=request,
-            user=user,
-            allowed_types=self.allowed_profile_types(),
-        )
+        # 1. Read locked active_profile claim directly from token
+        token_profile = token.get("active_profile") if hasattr(token, "get") else None
+        if token_profile:
+            normalized_profile = normalize_profile_type(token_profile)
+            # Check of the active profile: verify user actually has this profile in DB / cache
+            if not has_profile(user, normalized_profile):
+                self.raise_error(
+                    f"User does not possess active profile '{normalized_profile}'",
+                    code="profile_invalid"
+                )
+            active_profile = normalized_profile
+        else:
+            # Backward compatibility fallback to DB resolution
+            active_profile = resolve_active_profile_type(
+                request=request,
+                user=user,
+                allowed_types=self.allowed_profile_types(),
+            )
 
+        allowed = [normalize_profile_type(t) for t in self.allowed_profile_types()]
+        if allowed and active_profile not in allowed:
+            # Active profile mismatch with this specific auth class
+            return (user, token, None)
+
+        request.active_profile = active_profile
+        user.active_profile = active_profile
         return (user, token, active_profile)
 
     def get_auth(self, result, holder_label):
@@ -140,8 +161,9 @@ class CustomJWtAuth(SimpleJWTAuth):
         if not profile_type:
             self.raise_profile_error(holder_label)
         token["active_profile"] = profile_type
-        # user.active_profile = profile_type will switch later
+        user.active_profile = profile_type
         return (user, token)
+
     
     @staticmethod
     def raise_error(message= "profile", code=""):

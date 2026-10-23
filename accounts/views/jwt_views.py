@@ -6,70 +6,47 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework.permissions import IsAuthenticated
 from accounts.serializers import InS
-from authflow.services.jwt import issue_jwt_for_user_with_plan, issue_jwt_for_user
+from authflow.services.jwt import (
+    issue_jwt_for_user_with_plan,
+    issue_jwt_for_user,
+    refresh_jwt_tokens,
+)
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
-# rate limit instead of block
-# class RefreshTokenView(APIView):
-#     def post(self, request):
-#         refresh_token = request.data.get("refresh")
 
-#         try:
-#             refresh = RefreshToken(refresh_token)
 
-#             return Response({
-#                 "access": str(refresh.access_token),
-#                 "refresh": refresh_token  # same one
-#             })
-
-#         except TokenError:
-#             return Response({"error": "Invalid or expired refresh"}, status=401)
 
 class RefreshTokenView(APIView):
     def post(self, request):
         refresh_token = request.data.get("refresh")
+        if not refresh_token:
+            return Response({"error": "Refresh token required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            old_refresh = RefreshToken(refresh_token)
-            user_id = old_refresh["user_id"]
-            user = User.objects.get(pk=user_id)
-
-            active_profile = old_refresh.get("active_profile")  # if you do store this on the refresh token
-
-            tokens = issue_jwt_for_user_with_plan(user, active_profile=active_profile)
-
-            return Response(tokens)
-
-        except TokenError:
-            return Response({"error": "Invalid or expired refresh"}, status=401)
+            tokens = refresh_jwt_tokens(refresh_token)
+            return Response(tokens, status=status.HTTP_200_OK)
+        except (TokenError, AuthenticationFailed) as e:
+            return Response({"error": str(e)}, status=status.HTTP_401_UNAUTHORIZED)
         except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=401)
+            return Response({"error": "User not found"}, status=status.HTTP_401_UNAUTHORIZED)
+
 
 class RotateTokenView(APIView):
-    # permission_classes = [IsAuthenticated] not sure if we need is authenticated
     def post(self, request):
         refresh_token = request.data.get("refresh")
-
         if not refresh_token:
-            return Response({"error": "Refresh token required"}, status=400)
+            return Response({"error": "Refresh token required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            refresh = RefreshToken(refresh_token)
+            tokens = refresh_jwt_tokens(refresh_token)
+            return Response(tokens, status=status.HTTP_200_OK)
+        except (TokenError, AuthenticationFailed) as e:
+            return Response({"error": str(e)}, status=status.HTTP_401_UNAUTHORIZED)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_401_UNAUTHORIZED)
 
-            # ⚠️ THIS INVALIDATES THE OLD REFRESH
-            new_refresh = refresh.rotate()
-
-            return Response({
-                "access": str(new_refresh.access_token),
-                "refresh": str(new_refresh)
-            }, status=200)
-
-        except TokenError:
-            return Response(
-                {"error": "Invalid or expired refresh token"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
 
 class LogoutView(GenericAPIView):
     serializer_class = InS.LogoutSerializer
