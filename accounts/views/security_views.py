@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.core.cache import cache
 from django.contrib.auth import get_user_model
 from rest_framework import status, serializers
 from rest_framework.views import APIView
@@ -116,6 +117,7 @@ class RequestChangePhoneView(APIView):
         except Exception as e:
             return Response({"error": f"Failed to send verification code: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
+        cache.set(f"pending_phone_change:{user.id}", str(new_phone).strip(), timeout=900)
         return Response({"message": f"Verification code sent to {new_phone}."})
 
 
@@ -134,6 +136,20 @@ class ConfirmChangePhoneView(APIView):
         if not new_phone or not otp_code:
             return Response({"error": "new_phone_number and otp_code are required."}, status=status.HTTP_400_BAD_REQUEST)
 
+        pending_phone = cache.get(f"pending_phone_change:{user.id}")
+        if pending_phone is not None and str(pending_phone).strip() != str(new_phone).strip():
+            return Response(
+                {"error": "Phone number does not match the authorized phone change request."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if pending_phone is None:
+            ok, err_resp = verify_actor_intent(user, request)
+            if not ok:
+                return Response(
+                    {"error": "No active phone change request found. Please initiate step 1 (/change-phone/request/) first."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
         try:
             verified_id = OTPManager.verify(otp_code=otp_code)
         except OTPInvalidError as e:
@@ -147,6 +163,7 @@ class ConfirmChangePhoneView(APIView):
                 return Response({"error": "This phone number is already registered to another account."}, status=status.HTTP_400_BAD_REQUEST)
             user.phone_number = new_phone
             user.save(update_fields=["phone_number"])
+            cache.delete(f"pending_phone_change:{user.id}")
             set_security_cooldown(user, hours=24)
 
         return Response({"message": "Phone number updated successfully. 24-hour security cooldown applied to withdrawals."})
@@ -186,6 +203,7 @@ class RequestChangeEmailView(APIView):
         except Exception as e:
             return Response({"error": f"Failed to send verification code: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
+        cache.set(f"pending_email_change:{user.id}", new_email, timeout=900)
         return Response({"message": f"Verification code sent to {new_email}."})
 
 
@@ -206,6 +224,20 @@ class ConfirmChangeEmailView(APIView):
 
         new_email = new_email.strip().lower()
 
+        pending_email = cache.get(f"pending_email_change:{user.id}")
+        if pending_email is not None and str(pending_email).strip().lower() != new_email:
+            return Response(
+                {"error": "Email does not match the authorized email change request."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if pending_email is None:
+            ok, err_resp = verify_actor_intent(user, request)
+            if not ok:
+                return Response(
+                    {"error": "No active email change request found. Please initiate step 1 (/change-email/request/) first."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
         try:
             verified_id = OTPManager.verify(otp_code=otp_code)
         except OTPInvalidError as e:
@@ -219,6 +251,7 @@ class ConfirmChangeEmailView(APIView):
                 return Response({"error": "This email is already registered to another account."}, status=status.HTTP_400_BAD_REQUEST)
             user.email = new_email
             user.save(update_fields=["email"])
+            cache.delete(f"pending_email_change:{user.id}")
             set_security_cooldown(user, hours=24)
 
         return Response({"message": "Email updated successfully. 24-hour security cooldown applied to withdrawals."})
