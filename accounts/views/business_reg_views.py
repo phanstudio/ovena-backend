@@ -175,7 +175,7 @@ class RestaurantPhase1RegisterView(BaseBuisAdminAPIView, ImageMixin):
         try:
             with transaction.atomic():
                 business_image = files.get("business_image")
-                business_logo = files.get("business_image")
+                business_logo = files.get("business_logo")
                 if business_image:
                     self.validate_image(business_image)
                 if business_logo:
