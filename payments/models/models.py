@@ -102,6 +102,12 @@ class PaymentIdempotencyKey(models.Model):
         ]
 
 
+class ResponsibleParty(models.TextChoices):
+    BUSINESS = "business", "Business"
+    DRIVER = "driver", "Driver"
+    PLATFORM = "platform", "Platform"
+
+
 class Sale(models.Model):
     STATUS_CHOICES = [
         ("pending", "Pending"),
@@ -112,10 +118,7 @@ class Sale(models.Model):
         ("disputed", "Disputed"),
     ]
 
-    class ResponsibleParty(models.TextChoices):
-        BUSINESS = "business", "Business"
-        DRIVER = "driver", "Driver"
-        PLATFORM = "platform", "Platform"
+    ResponsibleParty = ResponsibleParty
 
     RESPONSIBLE_BUSINESS = ResponsibleParty.BUSINESS.value
     RESPONSIBLE_DRIVER = ResponsibleParty.DRIVER.value
