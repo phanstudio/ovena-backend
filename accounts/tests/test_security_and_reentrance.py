@@ -200,3 +200,51 @@ def test_business_admin_reentrance_guard():
 
     assert res.status_code == 403
     assert "already completed" in res.data["error"].lower()
+
+
+@pytest.mark.django_db
+def test_confirm_change_phone_blocks_bypass_of_step_1(monkeypatch):
+    """ConfirmChangePhoneView must reject an OTP if Step 1 (/change-phone/request/) was not authorized."""
+    from accounts.views.security_views import RequestChangePhoneView, ConfirmChangePhoneView
+    from django.core.cache import cache
+
+    cache.clear()
+    monkeypatch.setattr(OTPManager, "send", lambda channel, identifier: True)
+    monkeypatch.setattr(OTPManager, "verify", lambda otp_code: "+2348055556666")
+
+    factory = APIRequestFactory()
+    user = User.objects.create_user(email="victim@test.com", phone_number="+2348011112222")
+    user.set_password("StrongVictimPassword123!")
+    user.save()
+
+    # Attacker tries to call ConfirmChangePhoneView directly without completing RequestChangePhoneView
+    req_bypass = factory.post(
+        "/api/accounts/security/change-phone/confirm/",
+        {"new_phone_number": "+2348055556666", "otp_code": "123456"},
+        format="json",
+    )
+    force_authenticate(req_bypass, user=user)
+    res_bypass = ConfirmChangePhoneView.as_view()(req_bypass)
+    assert res_bypass.status_code == 403
+
+    # Legitimate Step 1 with password
+    req_step1 = factory.post(
+        "/api/accounts/security/change-phone/request/",
+        {"new_phone_number": "+2348055556666", "password": "StrongVictimPassword123!"},
+        format="json",
+    )
+    force_authenticate(req_step1, user=user)
+    res_step1 = RequestChangePhoneView.as_view()(req_step1)
+    assert res_step1.status_code == 200
+
+    # Legitimate Step 2 succeeds
+    req_step2 = factory.post(
+        "/api/accounts/security/change-phone/confirm/",
+        {"new_phone_number": "+2348055556666", "otp_code": "123456"},
+        format="json",
+    )
+    force_authenticate(req_step2, user=user)
+    res_step2 = ConfirmChangePhoneView.as_view()(req_step2)
+    assert res_step2.status_code == 200
+    user.refresh_from_db()
+    assert str(user.phone_number) == "+2348055556666"

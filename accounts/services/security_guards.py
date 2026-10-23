@@ -74,8 +74,9 @@ def set_security_cooldown(user, hours: int = 24, reason: str = "security credent
     """Sets a withdrawal cooldown on the user following a sensitive credential change and alerts the user."""
     from common.mail.services import send_security_alert_email
 
+    expires_at = timezone.now() + timedelta(hours=hours)
     key = f"security_cooldown:{user.id}"
-    cache.set(key, timezone.now().isoformat(), timeout=hours * 3600)
+    cache.set(key, expires_at.isoformat(), timeout=hours * 3600)
 
     if getattr(user, "email", None):
         try:
@@ -92,6 +93,8 @@ def set_security_cooldown(user, hours: int = 24, reason: str = "security credent
 
 def is_security_cooldown_active(user) -> tuple[bool, int]:
     """Returns (is_active, remaining_seconds)."""
+    from django.utils.dateparse import parse_datetime
+
     key = f"security_cooldown:{user.id}"
     val = cache.get(key)
     if not val:
@@ -102,5 +105,15 @@ def is_security_cooldown_active(user) -> tuple[bool, int]:
             if elapsed < SECURITY_COOLDOWN_SECONDS:
                 return True, int(SECURITY_COOLDOWN_SECONDS - elapsed)
         return False, 0
+
+    if isinstance(val, str):
+        parsed = parse_datetime(val)
+        if parsed is not None:
+            now = timezone.now()
+            if parsed > now:
+                return True, max(1, int((parsed - now).total_seconds()))
+            elapsed = (now - parsed).total_seconds()
+            if elapsed < SECURITY_COOLDOWN_SECONDS:
+                return True, max(1, int(SECURITY_COOLDOWN_SECONDS - elapsed))
 
     return True, SECURITY_COOLDOWN_SECONDS
