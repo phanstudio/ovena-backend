@@ -285,3 +285,31 @@ def test_abstract_payout_account_invalidates_recipient_code_on_change(monkeypatc
     bank.save()
     bank.refresh_from_db()
     assert bank.paystack_recipient_code == ""
+
+
+@pytest.mark.django_db
+def test_consecutive_withdrawals_do_not_double_subtract_pending(monkeypatch):
+    """
+    Creating a withdrawal writes a ledger debit hold immediately.
+    A second withdrawal request while the first is still pending must not
+    double-subtract the first withdrawal's amount from available balance.
+    """
+    monkeypatch.setenv("LEDGER_HASH_SALT", "test-salt-secret")
+    user = User.objects.create_user(email="consec_wd@test.com", password="x")
+    UserAccount.objects.create(user=user, paystack_recipient_code="RCP_CONSEC")
+    # Seed 200,000 kobo (₦2,000)
+    _create_ledger_entry(user=user, sale=None, role="driver", entry_type="credit", amount=200000, notes="seed")
+
+    # 1st withdrawal of 100,000 kobo leaves 100,000 kobo in ledger balance
+    w1, created1 = create_withdrawal_request(
+        user_id=str(user.id), amount_kobo=100000, idempotency_key="idem-c1", role="driver"
+    )
+    assert created1 is True
+    assert w1.status == "pending_batch"
+
+    # 2nd withdrawal of 100,000 kobo should succeed because 100,000 kobo is still available
+    w2, created2 = create_withdrawal_request(
+        user_id=str(user.id), amount_kobo=100000, idempotency_key="idem-c2", role="driver"
+    )
+    assert created2 is True
+    assert w2.status == "pending_batch"

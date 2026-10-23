@@ -32,12 +32,19 @@ def _resolve_for_business(user) -> "AbstractPayoutAccount | None":
     Navigate: user → business_admin → business → payout (BusinessPayoutAccount)
     Never falls back to UserAccount.
     """
-    try:
-        admin = getattr(user, "business_admin", None)
-        if admin and hasattr(admin.business, "payout") and admin.business.payout:
-            return admin.business.payout
-    except Exception:
-        pass
+    admin = getattr(user, "business_admin", None)
+    if admin is not None:
+        try:
+            if hasattr(admin.business, "payout") and admin.business.payout:
+                return admin.business.payout
+        except Exception:
+            pass
+        logger.warning(
+            "payments.bridge.business_payout.missing",
+            extra={"user_id": str(getattr(user, "id", None))},
+        )
+        return None
+
     fallback = _resolve_for_individual(user)
     if fallback and fallback.paystack_recipient_code:
         return fallback
@@ -69,12 +76,19 @@ def _resolve_for_driver(user) -> "AbstractPayoutAccount | None":
     Driver payout account lives on DriverProfile as DriverBankAccount.
     Falls back to UserAccount only when no DriverProfile is attached.
     """
-    try:
-        profile = getattr(user, "driver_profile", None)
-        if profile and hasattr(profile, "bank_account") and profile.bank_account:
-            return profile.bank_account
-    except Exception:
-        pass
+    profile = getattr(user, "driver_profile", None)
+    if profile is not None:
+        try:
+            if hasattr(profile, "bank_account") and profile.bank_account:
+                return profile.bank_account
+        except Exception:
+            pass
+        logger.warning(
+            "payments.bridge.driver_bank_account.missing",
+            extra={"user_id": str(getattr(user, "id", None))},
+        )
+        return None
+
     fallback = _resolve_for_individual(user)
     if fallback and fallback.paystack_recipient_code:
         return fallback
