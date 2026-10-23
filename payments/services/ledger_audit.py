@@ -70,7 +70,12 @@ def flag_withdrawal(withdrawal: Withdrawal, reason: str, failed_entry_ids: list[
     withdrawal.is_flagged = True
     withdrawal.flag_reason = reason
     withdrawal.flagged_at = timezone.now()
-    withdrawal.save(update_fields=["is_flagged", "flag_reason", "flagged_at"])
+    update_fields = ["is_flagged", "flag_reason", "flagged_at"]
+    if withdrawal.status == "processing":
+        withdrawal.status = "pending_batch"
+        withdrawal.processed_at = None
+        update_fields.extend(["status", "processed_at"])
+    withdrawal.save(update_fields=update_fields)
 
     # 1. Freeze user withdrawals
     set_security_cooldown(

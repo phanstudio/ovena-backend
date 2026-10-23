@@ -184,7 +184,6 @@ class FavoriteListView(BaseCustomerAPIView, ListAPIView):
     queryset = FavoriteMenuItem.objects.all()
     def get_queryset(self):
         customer = self.get_customer_profile(self.request)
-        notify_user(user=self.request.user, title="welcome", body="welcome to ovena")
         return FavoriteMenuItem.objects.filter(customer=customer).select_related("menu_item", "branch")
 
 

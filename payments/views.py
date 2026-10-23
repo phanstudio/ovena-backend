@@ -416,14 +416,22 @@ class AdminReviewWithdrawalView(BaseAppAdminAPIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            if withdrawal.is_flagged:
+                withdrawal.is_flagged = False
+                withdrawal.flag_reason = ""
+                withdrawal.flagged_at = None
+                if withdrawal.status == "processing":
+                    withdrawal.status = "pending_batch"
+                withdrawal.save(update_fields=["is_flagged", "flag_reason", "flagged_at", "status"])
+
             if action == "approve_and_transfer":
-                execute_realtime(withdrawal)
+                withdrawal = execute_realtime(withdrawal)
                 return Response({"message": "Withdrawal approved and queued for transfer.", "status": withdrawal.status})
             else:
-                mark_withdrawal_paid(withdrawal)
+                withdrawal = mark_withdrawal_paid(withdrawal)
                 return Response({"message": "Withdrawal marked paid.", "status": withdrawal.status})
 
         # Reject action
         reject_reason = serializer.validated_data.get("reason", "Admin rejected withdrawal claim")
-        mark_withdrawal_failed(withdrawal, reason=reject_reason)
+        withdrawal = mark_withdrawal_failed(withdrawal, reason=reject_reason)
         return Response({"message": "Withdrawal rejected and ledger hold released.", "status": withdrawal.status})

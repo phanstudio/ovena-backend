@@ -96,7 +96,7 @@ def reconcile_stale_processing_withdrawals():
     errors = 0
 
     qs = Withdrawal.objects.filter(
-        Q(status="processing"),
+        Q(status="processing", is_flagged=False),
         Q(processed_at__lt=cutoff) | Q(processed_at__isnull=True),
     ).select_related("user")
 

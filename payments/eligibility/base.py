@@ -116,8 +116,9 @@ class WithdrawalEligibilityEvaluator:
 
     def evaluate(self) -> WithdrawalDecision:
         balance = self.get_balance()
-        pending = self.get_pending()
-        available = balance - pending
+        # Withdrawal requests create a ledger debit hold immediately, so the ledger
+        # balance is already the available balance (do not subtract pending twice).
+        available = max(0, balance)
         minimum = self.get_minimum()
         account = self.get_payout_account()
 
