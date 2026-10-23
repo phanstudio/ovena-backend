@@ -48,7 +48,7 @@ from common.mail.services import send_order_thankyou_email
 from points.tasks import award_referred_first_order_task
 from payments.integrations.errors import TemporaryPaymentError, PermanentPaymentError
 from menu.services.order_cancel import cancel_order, ACTORS
-from points.services import pay_order_with_points, InsufficientPoints
+from points.service import pay_order_with_points, InsufficientPoints
 
 
 logger = logging.getLogger(__name__)
@@ -285,6 +285,7 @@ class OrderPaymentView(BaseCustomerAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         method = serializer.validated_data["method"]
+        pin = serializer.validated_data.get("pin")
 
         with transaction.atomic():
             order = get_object_or_404(
@@ -307,6 +308,39 @@ class OrderPaymentView(BaseCustomerAPIView):
                 )
 
             if method == "points":
+                account = getattr(customer.user, "payment_account", None)
+                if not account or not account.has_transaction_pin:
+                    return Response(
+                        {"error": "Transaction PIN not configured. Please set a transaction PIN before proceeding."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                if not pin:
+                    return Response(
+                        {"error": "Transaction PIN is required to pay with points."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                from accounts.services.security_guards import (
+                    is_pin_locked, record_failed_pin_attempt, clear_pin_attempts
+                )
+                locked, rem = is_pin_locked(customer.user.id)
+                if locked:
+                    return Response(
+                        {"error": f"Account is temporarily locked due to multiple failed PIN attempts. Try again in {rem // 60} minutes."},
+                        status=status.HTTP_423_LOCKED,
+                    )
+
+                if not account.check_transaction_pin(str(pin)):
+                    attempts = record_failed_pin_attempt(customer.user.id, ip_address=request.META.get("REMOTE_ADDR"))
+                    remaining = max(0, 5 - attempts)
+                    return Response(
+                        {"error": f"Invalid transaction PIN. {remaining} attempt(s) remaining."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                clear_pin_attempts(customer.user.id)
+
                 try:
                     pay_order_with_points(customer, order)
                 except InsufficientPoints:

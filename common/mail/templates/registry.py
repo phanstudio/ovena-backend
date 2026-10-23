@@ -6,13 +6,14 @@ To add a new email type: write a new module in this package exposing
 Nothing else in the app needs to change.
 """
 
-from . import congrats, order_thankyou, otp, welcome
+from . import congrats, order_thankyou, otp, welcome, security_alert
 
 TEMPLATES = {
     "otp": otp.build,
     "welcome": welcome.build,
     "order_thankyou": order_thankyou.build,
     "congrats": congrats.build,
+    "security_alert": security_alert.build,
 }
 
 

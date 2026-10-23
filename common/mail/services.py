@@ -143,3 +143,22 @@ def send_congrats_email(
             "cta_text": cta_text,
         },
     )
+
+
+def send_security_alert_email(
+    email: str,
+    alert_type: str,
+    message: str,
+    name: str | None = None,
+    ip_address: str | None = None,
+) -> dict:
+    return send_templated_email(
+        to=email,
+        template_name="security_alert",
+        context={
+            "user_name": name or email,
+            "alert_type": alert_type,
+            "message": message,
+            "ip_address": ip_address,
+        },
+    )

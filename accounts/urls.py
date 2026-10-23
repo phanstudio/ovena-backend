@@ -9,6 +9,7 @@ from .views import (
 )
 from .views import driver_reg_views
 from .views import business_reg_views
+from .views import security_views
 from image.views import BatchGenerateBuisnessURLView
 
 token_urls = [
@@ -79,4 +80,18 @@ urlpatterns = [
     path("", include(account_urls)),
     path("linked/", include(linked_user_urls)),
     path("admin/", include(app_admin_user_urls)),
+
+    # ── Security Guards (Guarded Phone & Email Updates) ─────────────
+    path("security/change-phone/request/", security_views.RequestChangePhoneView.as_view(), name="security-change-phone-request"),
+    path("security/change-phone/confirm/", security_views.ConfirmChangePhoneView.as_view(), name="security-change-phone-confirm"),
+    path("security/change-email/request/", security_views.RequestChangeEmailView.as_view(), name="security-change-email-request"),
+    path("security/change-email/confirm/", security_views.ConfirmChangeEmailView.as_view(), name="security-change-email-confirm"),
+    path("security/set-password/", security_views.SetPasswordView.as_view(), name="security-set-password"),
+
+    # ── Customer Transaction PIN Full CRUD ─────────────────────────
+    path("customer/pin/status/", security_views.CustomerPinStatusView.as_view(), name="customer-pin-status"),
+    path("customer/pin/set/", security_views.CustomerSetPinView.as_view(), name="customer-pin-set"),
+    path("customer/pin/change/", security_views.CustomerChangePinView.as_view(), name="customer-pin-change"),
+    path("customer/pin/reset/request/", security_views.CustomerResetPinRequestView.as_view(), name="customer-pin-reset-request"),
+    path("customer/pin/reset/confirm/", security_views.CustomerResetPinConfirmView.as_view(), name="customer-pin-reset-confirm"),
 ]

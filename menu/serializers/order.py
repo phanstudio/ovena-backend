@@ -29,6 +29,7 @@ class PaymentRetrySerializer(serializers.Serializer):
 
 class PaymentMethodSerializer(serializers.Serializer):
     method = serializers.ChoiceField(choices=["points", "paystack"])
+    pin = serializers.CharField(max_length=4, min_length=4, required=False)
 
 
 class OrderItemCreateSerializer(serializers.Serializer):

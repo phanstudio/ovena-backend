@@ -264,9 +264,6 @@ class CreateCustomerSerializer(serializers.Serializer):
 
 class UpdateCustomerSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True)
-    email = serializers.EmailField(required=False, allow_blank=True)
-    phone_number = PhoneNumberField(required=False, allow_blank=True)
-
     lat = serializers.FloatField(required=False)
     long = serializers.FloatField(required=False)
     birth_date = serializers.DateField(required=False)
@@ -280,42 +277,17 @@ class UpdateCustomerSerializer(serializers.Serializer):
         if not getattr(user, "customer_profile", None):
             raise serializers.ValidationError("Customer profile does not exist.")
 
-        if data.get("email"):
-            if User.objects.exclude(id=user.id).filter(email=data["email"]).exists():
-                raise serializers.ValidationError(
-                    {"email": "This email is already in use."}
-                )
-
-        if data.get("phone_number"):
-            if (
-                User.objects.exclude(id=user.id)
-                .filter(phone_number=data["phone_number"])
-                .exists()
-            ):
-                raise serializers.ValidationError(
-                    {"phone_number": "This phone number is already in use."}
-                )
+        # Guard against unverified phone/email injection
+        initial_data = getattr(self, "initial_data", {})
+        if "email" in initial_data or "phone_number" in initial_data:
+            raise serializers.ValidationError(
+                "Updating email or phone number requires two-step verification. Please use the /accounts/security/ endpoints."
+            )
 
         return data
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        user = self.context["user"]
-
-        # ─── USER UPDATES ─────────────────────
-        user_fields = []
-
-        if validated_data.get("email"):
-            user.email = validated_data["email"]
-            user_fields.append("email")
-
-        if validated_data.get("phone_number"):
-            user.phone_number = validated_data["phone_number"]
-            user_fields.append("phone_number")
-
-        if user_fields:
-            user.save(update_fields=user_fields)
-
         # ─── PROFILE UPDATES ──────────────────
         profile_updates = {}
 

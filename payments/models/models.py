@@ -7,6 +7,7 @@ from accounts.models import User
 from authflow.services.model import ULIDField
 from .accounts import AbstractPayoutAccount
 from django.contrib.auth.hashers import check_password, make_password
+from django.utils import timezone
 
 class UserAccount(AbstractPayoutAccount):
     """
@@ -101,6 +102,12 @@ class PaymentIdempotencyKey(models.Model):
         ]
 
 
+class ResponsibleParty(models.TextChoices):
+    BUSINESS = "business", "Business"
+    DRIVER = "driver", "Driver"
+    PLATFORM = "platform", "Platform"
+
+
 class Sale(models.Model):
     STATUS_CHOICES = [
         ("pending", "Pending"),
@@ -111,15 +118,13 @@ class Sale(models.Model):
         ("disputed", "Disputed"),
     ]
 
-    RESPONSIBLE_BUSINESS = "business"
-    RESPONSIBLE_DRIVER = "driver"
-    RESPONSIBLE_PLATFORM = "platform"
+    ResponsibleParty = ResponsibleParty
 
-    RESPONSIBLE_PARTY_CHOICES = [
-        (RESPONSIBLE_BUSINESS, "Business"),
-        (RESPONSIBLE_DRIVER, "Driver"),
-        (RESPONSIBLE_PLATFORM, "Platform"),
-    ]
+    RESPONSIBLE_BUSINESS = ResponsibleParty.BUSINESS.value
+    RESPONSIBLE_DRIVER = ResponsibleParty.DRIVER.value
+    RESPONSIBLE_PLATFORM = ResponsibleParty.PLATFORM.value
+
+    RESPONSIBLE_PARTY_CHOICES = ResponsibleParty.choices
 
     SOURCE_POINTS = "points"
     SOURCE_PAYSTACK = "paystack"
@@ -166,6 +171,7 @@ class LedgerEntry(models.Model):
         ("business_owner", "Business Owner"),
         ("referral", "Referral"),
         ("platform", "Platform"),
+        ("customer", "Customer"),
     ]
     TYPES = [
         ("credit", "Credit"),
@@ -180,9 +186,28 @@ class LedgerEntry(models.Model):
     type = models.CharField(max_length=50, choices=TYPES)
     amount = models.BigIntegerField()
     balance_after = models.BigIntegerField()
+    seq = models.BigIntegerField(default=1, db_index=True)
+    hash_version = models.PositiveSmallIntegerField(default=2)
+    previous_hash = models.CharField(max_length=64, default="GENESIS")
     row_hash = models.CharField(max_length=64)
     notes = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["sale", "user", "role", "type"],
+                condition=models.Q(type__in=["credit", "reversal"]),
+                name="uniq_ledger_credit_reversal_per_sale_user_role",
+            ),
+            models.UniqueConstraint(
+                fields=["user", "seq"],
+                name="uniq_ledger_entry_user_seq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "seq"]),
+        ]
 
     def save(self, *args, **kwargs):
         if self.pk and LedgerEntry.objects.filter(pk=self.pk).exists():
@@ -197,21 +222,40 @@ class LedgerEntry(models.Model):
             sale_id=str(self.sale_id) if self.sale_id else "withdrawal",
             user_id=str(self.user_id),
             amount=self.amount,
+            balance_after=self.balance_after,
             entry_type=self.type,
             role=self.role,
             created_at=self.created_at.isoformat(),
+            previous_hash=self.previous_hash or "GENESIS",
+            seq=self.seq,
+            version=self.hash_version,
         )
 
     @staticmethod
-    def generate_hash(sale_id, user_id, amount, entry_type, role, created_at):
+    def generate_hash(
+        sale_id,
+        user_id,
+        amount,
+        balance_after=0,
+        entry_type="",
+        role="",
+        created_at="",
+        previous_hash="GENESIS",
+        seq=1,
+        version=2,
+    ):
         salt = os.environ.get("LEDGER_HASH_SALT", "")
         if not salt:
             raise ValueError("LEDGER_HASH_SALT env variable not set")
-        payload = f"{sale_id}|{user_id}|{amount}|{entry_type}|{role}|{created_at}|{salt}"
+        if version == 1:
+            payload = f"{sale_id}|{user_id}|{amount}|{entry_type}|{role}|{created_at}|{salt}"
+        else:
+            prev = previous_hash or "GENESIS"
+            payload = f"{sale_id}|{user_id}|{amount}|{balance_after}|{seq}|{entry_type}|{role}|{created_at}|{prev}|{salt}"
         return hashlib.sha256(payload.encode()).hexdigest()
 
     def __str__(self):
-        return f"{self.type} NGN {abs(self.amount)/100:.2f} - {self.user} ({self.role})"
+        return f"{self.type} NGN {abs(self.amount)/100:.2f} - {self.user} ({self.role}) seq={self.seq}"
 
 
 class Withdrawal(models.Model):
@@ -221,6 +265,7 @@ class Withdrawal(models.Model):
         ("complete", "Complete"),
         ("failed", "Failed"),
         ("cancelled", "Cancelled"),
+        ("reversed", "Reversed"),
     ]
     STRATEGY_BATCH = "batch"
     STRATEGY_REALTIME = "realtime"
@@ -246,11 +291,16 @@ class Withdrawal(models.Model):
     paystack_recipient_code = models.CharField(max_length=100)
 
     ledger_entry = models.OneToOneField(LedgerEntry, on_delete=models.PROTECT, null=True, blank=True)
+    refund_ledger_entry = models.OneToOneField(LedgerEntry, on_delete=models.PROTECT, null=True, blank=True, related_name="refunded_withdrawal")
     failure_reason = models.TextField(blank=True)
 
     requested_at = models.DateTimeField(auto_now_add=True)
     processed_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+
+    is_flagged = models.BooleanField(default=False, db_index=True)
+    flag_reason = models.CharField(max_length=255, blank=True)
+    flagged_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [

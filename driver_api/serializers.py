@@ -183,6 +183,7 @@ class WithdrawalRequestSerializer(serializers.ModelSerializer):
     transfer_ref = serializers.CharField(source="paystack_transfer_ref", allow_blank=True, allow_null=True)
     payment_withdrawal = serializers.SerializerMethodField()
     needs_manual_review = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(source="requested_at")
     approved_at = serializers.DateTimeField(source="requested_at")
     paid_at = serializers.DateTimeField(source="completed_at", allow_null=True)
 

@@ -8,4 +8,5 @@ MINIMUM_BY_ROLE = {
     "driver": int(getattr(settings, "MIN_WITHDRAWAL_DRIVER", 100_000)),
     "business_owner": int(getattr(settings, "MIN_WITHDRAWAL_BUSINESS", 200_000)),
     "referral": int(getattr(settings, "MIN_WITHDRAWAL_REFERRAL", 50_000)),
+    "customer": int(getattr(settings, "MIN_WITHDRAWAL_CUSTOMER", 100_000)),
 }

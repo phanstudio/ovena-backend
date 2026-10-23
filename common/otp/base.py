@@ -96,6 +96,8 @@ class OTPManager:
         elif channel == "phone":
             cls._deliver_sms(identifier, code)
     
+
+
     @staticmethod
     def send_blank(identifier: str) -> str:
         """

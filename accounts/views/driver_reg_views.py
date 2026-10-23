@@ -1,4 +1,5 @@
 import base64
+from django.db import transaction
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -20,6 +21,7 @@ from accounts.serializers import (
     OnboardingPhase4InputSerializer, OnboardingPhase4OutputSerializer,
     OnboardingStatusOutputSerializer,
 )
+from payments.models import Bank
 from payments.integrations import client
 from verification import service as verification_service
 from referrals.services import apply_referral_code
@@ -34,7 +36,7 @@ from accounts.services.profiles import (
 
 def _get_or_create_submission(profile: DriverProfile) -> DriverOnboardingSubmission:
     """Always work against the latest non-approved/non-rejected submission."""
-    submission = (
+    qs = (
         DriverOnboardingSubmission.objects
         .filter(driver=profile)
         .exclude(status__in=[
@@ -42,13 +44,23 @@ def _get_or_create_submission(profile: DriverProfile) -> DriverOnboardingSubmiss
             DriverOnboardingSubmission.STATUS_REJECTED,
         ])
         .order_by("-created_at")
-        .first()
     )
+    if transaction.get_connection().in_atomic_block:
+        qs = qs.select_for_update()
+
+    submission = qs.first()
     if not submission:
+        last_rejected = (
+            DriverOnboardingSubmission.objects
+            .filter(driver=profile, status=DriverOnboardingSubmission.STATUS_REJECTED)
+            .order_by("-created_at")
+            .first()
+        )
+        inherited_answers = dict(last_rejected.answers) if last_rejected and last_rejected.answers else {}
         submission = DriverOnboardingSubmission.objects.create(
             driver=profile,
             status=DriverOnboardingSubmission.STATUS_DRAFT,
-            answers={},
+            answers=inherited_answers,
         )
     return submission
 
@@ -138,7 +150,21 @@ class OnboardingStatusView(APIView):
 
     def get(self, request):
         profile = get_object_or_404(DriverProfile, user=request.user)
-        submission = _get_or_create_submission(profile)
+        latest = (
+            DriverOnboardingSubmission.objects
+            .filter(driver=profile)
+            .order_by("-created_at")
+            .first()
+        )
+        if latest and latest.status in [
+            DriverOnboardingSubmission.STATUS_REJECTED,
+            DriverOnboardingSubmission.STATUS_APPROVED,
+            DriverOnboardingSubmission.STATUS_SUBMITTED,
+        ]:
+            submission = latest
+        else:
+            submission = _get_or_create_submission(profile)
+
         complete = _phases_complete(submission)
         answers = submission.answers or {}
 
@@ -147,7 +173,8 @@ class OnboardingStatusView(APIView):
             "phases_complete": complete,
             "all_phases_complete": len(complete) == 4,
             "submission_status": submission.status,
-            "reviewer_note": submission.reviewer_note,
+            "reviewer_note": submission.reviewer_note or "",
+            "can_retry": submission.status == DriverOnboardingSubmission.STATUS_REJECTED,
             "phase_data": {
                 "phase_1": answers.get("phase_1"),
                 "phase_2": answers.get("phase_2"),
@@ -168,6 +195,13 @@ class OnboardingPhase1View(GenericAPIView):
     serializer_class = OnboardingPhase1InputSerializer
 
     def put(self, request):
+        email = request.data.get("email")
+        existing_user = User.objects.filter(email=email).first() if email else None
+        if existing_user and hasattr(existing_user, "driver_profile"):
+            guard = _guard_already_approved(existing_user.driver_profile)
+            if guard:
+                return guard
+
         user, _ = User.objects.get_or_create(email=request.data["email"])
         serializer = self.get_serializer(
             data=request.data,
@@ -299,6 +333,15 @@ class OnboardingPhase2View(GenericAPIView):
         license_doc.status = DriverDocument.STATUS_PENDING
         license_doc.save(update_fields=["file", "status"])
 
+        # ── Verified selfie document ──
+        selfie_doc, _ = DriverDocument.objects.get_or_create(
+            driver=profile,
+            doc_type=DriverDocument.DOC_SELFIE,
+        )
+        selfie_doc.file = data["verified_selfie"]
+        selfie_doc.status = DriverDocument.STATUS_PENDING
+        selfie_doc.save(update_fields=["file", "status"])
+
         # ── NIN verification: Dojah first, Mono fallback ──
         nin_result = verification_service.verify_nin(data["nin"])
         nin_ver, _ = DriverVerification.objects.update_or_create(
@@ -330,6 +373,30 @@ class OnboardingPhase2View(GenericAPIView):
             }
         )
 
+        # ── Face match: selfie vs BVN/NIN registry photo (Dojah) ──
+        data["verified_selfie"].seek(0)
+        selfie_b64 = base64.b64encode(data["verified_selfie"].read()).decode("utf-8")
+        face_result = verification_service.match_face_to_name(
+            image=selfie_b64,
+            first_name=profile.first_name,
+            last_name=profile.last_name,
+            bvn=data["bvn"],
+            nin=data["nin"],
+        )
+
+        face_ver, _ = DriverVerification.objects.update_or_create(
+            driver=profile,
+            verification_type=DriverVerification.TYPE_FACE_MATCH,
+            defaults={
+                "status": DriverVerification.STATUS_SUCCESS if face_result["success"] else DriverVerification.STATUS_FAILED,
+                "provider_name": face_result["provider"] or "",
+                "provider_ref": _ref_from(face_result),
+                "request_payload": {"first_name": profile.first_name, "last_name": profile.last_name},
+                "response_payload": face_result["data"] if face_result["success"] else {"attempts": face_result["attempts"]},
+                "completed_at": timezone.now(),
+            },
+        )
+
         # ── Store last4 in DriverCred ──
         cred, _ = DriverCred.objects.get_or_create(user=profile)
         cred.nin_last4 = data["nin"][-4:]
@@ -353,10 +420,12 @@ class OnboardingPhase2View(GenericAPIView):
         # ── Snapshot ──
         answers["phase_2"] = {
             "drivers_license_url": license_doc.file.url if license_doc.file else "",
+            "selfie_url": selfie_doc.file.url if selfie_doc.file else "",
             "nin_last4": data["nin"][-4:],
             "bvn_last4": data["bvn"][-4:],
             "nin_verification_status": nin_ver.status,
             "bvn_verification_status": bvn_ver.status,
+            "face_match_status": "verified" if face_result["success"] else "failed",
             "vehicle_type": data["vehicle_type"],
             "vehicle_make": data["vehicle_make"],
             "plate_number": data["plate_number"],
@@ -490,108 +559,65 @@ class OnboardingPhase4View(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        bank_code = request.data.get("bank_code", "")
+        bank_code = data["bank_code"]
         payload = {
-            "account_number": bank_account_number,
+            "account_number": data["account_number"],
             "bank_code": bank_code
         }
-        bank_result = client.verfy_account(payload).get("data", {})
+        try:
+            paystack_resp = client.verfy_account(payload)
+            bank_data = paystack_resp.get("data") or {}
+            bank_success = bool(paystack_resp.get("status")) and bool(bank_data.get("account_name")) #old: bank_result["success"]
+            resolved_account_name = bank_data.get("account_name") or data["account_name"]
+            provider_ref = str(bank_data.get("bank_id") or "")
+        except Exception as exc:
+            bank_success = False
+            bank_data = {"error": str(exc)}
+            resolved_account_name = data["account_name"]
+            provider_ref = ""
 
         DriverVerification.objects.update_or_create(
             driver=profile,
             verification_type=DriverVerification.TYPE_BANK_ACCOUNT,
             defaults={
-                "status": DriverVerification.STATUS_SUCCESS if bank_result["success"] else DriverVerification.STATUS_FAILED,
+                "status": DriverVerification.STATUS_SUCCESS if bank_success else DriverVerification.STATUS_FAILED,
                 "provider_name": "paystack",
-                "provider_ref": bank_result.get("provider_ref", ""),
+                "provider_ref": provider_ref,
                 "request_payload": {"account_number": data["account_number"], "bank_code": bank_code},
-                "response_payload": bank_result.get("response_payload") or {"error": bank_result.get("error")},
+                "response_payload": bank_data,
                 "completed_at": timezone.now(),
             },
         )
 
+        bank = Bank.objects.filter(code=bank_code).first()
+        bank_name = bank.name if bank else ""
+
         bank_account, _ = DriverBankAccount.objects.get_or_create(driver=profile)
-        bank_account.bank_name = data["bank_name"]
+        bank_account.bank_name = bank_name
         bank_account.bank_code = bank_code
         bank_account.bank_account_number = data["account_number"]
         # Use Paystack-resolved name if available, else trust driver input
-        bank_account.bank_account_name = data["account_name"]
-        bank_account.is_verified = bank_result["success"]
+        bank_account.bank_account_name = resolved_account_name
+        bank_account.is_verified = bank_success
         bank_account.verified_at = timezone.now()
         bank_account.save()
 
-        # ── Selfie document ──
-        selfie_doc, _ = DriverDocument.objects.get_or_create(
-            driver=profile,
-            doc_type=DriverDocument.DOC_SELFIE,
-        )
-        selfie_doc.file = data["verified_selfie"]
-        selfie_doc.status = DriverDocument.STATUS_PENDING
-        selfie_doc.save(update_fields=["file", "status"])
-
-        # ── Face match: selfie vs BVN/NIN registry photo (Dojah only) ──
-        # ASSUMPTION FLAGGED: DriverCred only ever keeps the last 4 digits
-        # of the NIN/BVN (by design, from Phase 2) - but Dojah's photoid
-        # match needs the FULL number to look up the registry photo, and
-        # the selfie isn't collected until this phase. Rather than persist
-        # the full NIN/BVN a second time just to make this call, this asks
-        # for it again here, write-only, used only for this request and
-        # never saved. If you'd rather not re-prompt the driver for it,
-        # the alternatives are: (a) keep the full number in memory across
-        # phases in the session/cache until Phase 4 completes, or (b) move
-        # selfie collection into Phase 2 so the match can happen right
-        # after the NIN/BVN call while the number is still in hand. Flag
-        # if you want either of those instead - happy to switch it.
-        nin_for_match = data.get("nin_for_face_match")
-        bvn_for_match = data.get("bvn_for_face_match")
-        if nin_for_match or bvn_for_match:
-            data["verified_selfie"].seek(0)
-            selfie_b64 = base64.b64encode(data["verified_selfie"].read()).decode("utf-8")
-            face_result = verification_service.match_face_to_name(
-                image=selfie_b64,
-                first_name=profile.first_name,
-                last_name=profile.last_name,
-                bvn=bvn_for_match,
-                nin=nin_for_match,
-            )
-        else:
-            face_result = {
-                "success": False, "provider": None, "data": None,
-                "attempts": [{"provider": "dojah", "error": "no nin/bvn supplied for face match"}],
-            }
-
-        DriverVerification.objects.update_or_create(
-            driver=profile,
-            verification_type=DriverVerification.TYPE_FACE_MATCH,
-            defaults={
-                "status": DriverVerification.STATUS_SUCCESS if face_result["success"] else DriverVerification.STATUS_FAILED,
-                "provider_name": face_result["provider"] or "",
-                "provider_ref": _ref_from(face_result),
-                "request_payload": {"first_name": profile.first_name, "last_name": profile.last_name},  # image/nin/bvn excluded
-                "response_payload": face_result["data"] if face_result["success"] else {"attempts": face_result["attempts"]},
-                "completed_at": timezone.now(),
-            },
-        )
-
-        needs_manual_review = not bank_result["success"] or not face_result["success"]
+        needs_manual_review = not bank_success
 
         # ── Snapshot & mark complete ──
-        # Per your instruction: a failed check doesn't block the phase from
-        # completing, it just doesn't get treated as a clean pass - flagged
-        # via needs_manual_review for whoever reviews DriverOnboardingSubmission.
         answers["phase_4"] = {
             "bank_name": bank_account.bank_name,
             "account_number": bank_account.bank_account_number,
             "account_name": bank_account.bank_account_name,
-            "bank_verification_status": "verified" if bank_result["success"] else "failed",
-            "face_match_status": "verified" if face_result["success"] else "failed",
-            "selfie_url": selfie_doc.file.url if selfie_doc.file else "",
+            "bank_verification_status": "verified" if bank_success else "failed",
             "needs_manual_review": needs_manual_review,
         }
         answers["phase_4_complete"] = True
         submission.answers = answers
+        submission.status = DriverOnboardingSubmission.STATUS_SUBMITTED
+        submission.submitted_at = timezone.now()
         submission.updated_at = timezone.now()
-        submission.save(update_fields=["answers", "updated_at"])
+        submission.save(update_fields=["answers", "status", "submitted_at", "updated_at"])
 
         out = {
             "phase": 4,
@@ -599,6 +625,7 @@ class OnboardingPhase4View(GenericAPIView):
             "onboarding_complete": True,
             **answers["phase_4"],
         }
-        from payments.payouts.tasks import ensure_paystack_recipient_for_driver
-        ensure_paystack_recipient_for_driver.delay(profile.id)
+        if bank_success:
+            from payments.payouts.tasks import ensure_paystack_recipient_for_driver
+            ensure_paystack_recipient_for_driver.delay(profile.id)
         return Response(OnboardingPhase4OutputSerializer(out).data)

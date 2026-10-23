@@ -252,36 +252,22 @@ class AdminBusinessReviewUpdateSerializer(serializers.ModelSerializer):
         fields = [
             "needs_manual_review",
             "checked",
+            "is_onboarding_complete",
             "verifications",
         ]
 
     def update(self, instance, validated_data):
         verifications_data = validated_data.pop("verifications", None)
 
-        # Update onboarding status fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
-        instance.save()
+        business = getattr(instance.admin, "business", None)
 
-        business = instance.admin.business
-
-        needs_review = validated_data.get("needs_manual_review", True)
-        business.onboarding_complete = not needs_review
-        business.save()
-
-        if not business:
-            return instance
-
-        # Update verifications
-        if verifications_data is not None:
-
+        # Update verifications first if provided
+        if verifications_data is not None and business:
             for verification_data in verifications_data:
-
-                verification_type = verification_data.get(
-                    "verification_type"
-                )
-
+                verification_type = verification_data.get("verification_type")
                 if not verification_type:
                     continue
 
@@ -293,20 +279,26 @@ class AdminBusinessReviewUpdateSerializer(serializers.ModelSerializer):
                 if not verification:
                     continue
 
-                # Only update allowed fields
                 if "status" in verification_data:
                     verification.status = verification_data["status"]
-
                 if "provider_name" in verification_data:
-                    verification.provider_name = verification_data[
-                        "provider_name"
-                    ]
-
+                    verification.provider_name = verification_data["provider_name"]
                 if "provider_ref" in verification_data:
-                    verification.provider_ref = verification_data[
-                        "provider_ref"
-                    ]
-
+                    verification.provider_ref = verification_data["provider_ref"]
                 verification.save()
+
+        # Determine onboarding completion
+        if "is_onboarding_complete" in validated_data:
+            instance.is_onboarding_complete = validated_data["is_onboarding_complete"]
+        elif not instance.needs_manual_review and business:
+            all_verifs = BusinessVerification.objects.filter(business=business)
+            has_failures = any(v.status != BusinessVerification.STATUS_SUCCESS for v in all_verifs)
+            instance.is_onboarding_complete = not has_failures and all_verifs.exists()
+
+        instance.save()
+
+        if business:
+            business.onboarding_complete = instance.is_onboarding_complete
+            business.save(update_fields=["onboarding_complete"])
 
         return instance

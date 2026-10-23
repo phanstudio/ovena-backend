@@ -3,6 +3,6 @@ from phonenumbers import PhoneNumber
 
 def get_phone_number(number_carrier: User|PhoneNumber):
     if isinstance(number_carrier, User):
-        return str(number_carrier.phone_number) if number_carrier.phone_number else None
+        return str(number_carrier.phone_number).strip() if number_carrier.phone_number else None
     else:
-        return str(number_carrier)
+        return str(number_carrier).strip()

@@ -638,9 +638,9 @@ class ChangePasswordView(GenericAPIView):
         vd = serializer.validated_data
 
         user: User = request.user
-        if user.check_password(vd["password"]):
+        if not user.check_password(vd["password"]):
             return Response(
-                {"error": "Invalid password"}, status=status.HTTP_401_UNAUTHORIZED
+                {"error": "Current password is incorrect"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         user.set_password(vd["new_password"])
