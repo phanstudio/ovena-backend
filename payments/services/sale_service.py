@@ -1,17 +1,23 @@
 """
 sale_service.py - initialize payment, complete service, process refund
 """
+import logging
 import uuid
 
 from django.db import transaction
 from django.utils import timezone
-from payments.models import Sale, User
-from payments.services.split_calculator import calculate_split, credit_all_parties, load_split_config
+from payments.models import Sale, User, ResponsibleParty
+from payments.services.split_calculator import (
+    calculate_split,
+    credit_all_parties,
+    load_split_config,
+    reverse_ledger_entries,
+)
 from payments.integrations.paystack.client import PaystackClient
 from referrals.services import referred_by
-from payments.services.sale_extention import *
+from accounts.services.penalties import record_sales_penalty
 
-
+logger = logging.getLogger(__name__)
 paystack_client = PaystackClient()
 
 @transaction.atomic
@@ -151,3 +157,113 @@ def complete_service(sale_id, picked_up: bool= False):
         "sale_reference": sale.reference,
         "credits_issued": {k: v / 100 for k, v in split["amounts"].items()},
     }
+
+
+@transaction.atomic
+def process_refund(
+    sale_id,
+    reason,
+    responsible_party: str | ResponsibleParty = ResponsibleParty.BUSINESS,
+    responsible_party_reason: str = "",
+):
+    """
+    STEP 3 (if needed): Refund the user.
+    Reverses ledger entries (based on responsible party fault),
+    awards compensation points to the customer, and penalizes the responsible party.
+    """
+    from points.service import award_refund_compensation
+
+    if isinstance(responsible_party, str):
+        responsible_party = ResponsibleParty(responsible_party.lower().strip())
+    elif not isinstance(responsible_party, ResponsibleParty):
+        raise ValueError(f"Invalid responsible_party: {responsible_party!r}")
+
+    sale = Sale.objects.select_for_update().get(id=sale_id)
+
+    if sale.status == "refunded":
+        raise ValueError("Already refunded")
+    if sale.status not in ("paid", "in_escrow", "completed"):
+        raise ValueError(f"Cannot refund sale with status: {sale.status}")
+
+    if sale.status == "completed":
+        reverse_ledger_entries(sale, reason, responsible_party=responsible_party)
+
+    try:
+        award_refund_compensation(
+            user=sale.payer,
+            sale=sale,
+            idempotency_key=f"refund_comp:{sale.id}",
+            points=int(sale.total_amount // 100),
+        )
+    except Exception as e:
+        logger.error(f"Failed to award refund compensation points for sale {sale.id}: {e}")
+
+    sale.status = "refunded"
+    sale.refunded_at = timezone.now()
+    sale.refund_reason = reason
+    sale.responsible_party = responsible_party.value
+    sale.responsible_party_reason = responsible_party_reason
+    sale.save()
+
+    if responsible_party in (ResponsibleParty.BUSINESS, ResponsibleParty.DRIVER):
+        try:
+            record_sales_penalty(sale)
+        except Exception as e:
+            logger.error(f"Failed to record penalty for sale {sale.id}: {e}")
+
+    return {
+        "success": True,
+        "amount_refunded": sale.total_amount / 100,
+        "responsible_party": responsible_party.value,
+    }
+
+
+@transaction.atomic
+def cancel_sale(
+    sale_id,
+    reason,
+    responsible_party: str | ResponsibleParty = ResponsibleParty.PLATFORM,
+    responsible_party_reason: str = "",
+):
+    """
+    Entry point for order cancellations. Post-delivery disputes should keep
+    calling process_refund directly.
+    """
+    if isinstance(responsible_party, str):
+        responsible_party = ResponsibleParty(responsible_party.lower().strip())
+    elif not isinstance(responsible_party, ResponsibleParty):
+        raise ValueError(f"Invalid responsible_party: {responsible_party!r}")
+
+    sale = Sale.objects.select_for_update().select_related("order").get(id=sale_id)
+
+    if sale.status == "refunded":
+        return {"success": True, "already_cancelled": True}
+
+    if sale.status == "pending":
+        sale.status = "refunded"
+        sale.refunded_at = timezone.now()
+        sale.refund_reason = reason
+        sale.responsible_party = responsible_party.value
+        sale.responsible_party_reason = responsible_party_reason
+        sale.save()
+
+        if responsible_party in (ResponsibleParty.BUSINESS, ResponsibleParty.DRIVER):
+            try:
+                record_sales_penalty(sale, sale.order)
+            except Exception as e:
+                logger.error(f"Failed to record penalty for sale {sale.id}: {e}")
+
+        return {"success": True, "amount_refunded": 0, "responsible_party": responsible_party.value}
+
+    if sale.status in ("paid", "in_escrow"):
+        return process_refund(
+            sale_id,
+            reason,
+            responsible_party=responsible_party,
+            responsible_party_reason=responsible_party_reason,
+        )
+
+    raise ValueError(
+        f"Cannot cancel sale with status: {sale.status}. "
+        f"Completed sales need a dispute review -- call process_refund directly."
+    )
