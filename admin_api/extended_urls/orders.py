@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import admin_views as views
+from admin_api.views import orders as views
 
 order_endpoints = [
     path('orders/', views.AdminOrderListView.as_view(), name='admin-order-list'),

@@ -11,11 +11,11 @@ from accounts.models import DriverProfile
 from menu.websocket_utils import broadcast_to_order_group, broadcast_to_admins
 from menu.services.order_cancel import cancel_order, ACTORS
 
-from .admin_serializers import (
+from admin_api.serializers import (
     AdminOrderListSerializer, AdminOrderDetailSerializer, AdminOrderEventSerializer,
     AssignDriverSerializer, ForceStatusSerializer, CancelOrderSerializer,
 )
-from .views import BaseAppAdminAPIView
+from .base import BaseAppAdminAPIView
 
 logger = logging.getLogger(__name__)
 

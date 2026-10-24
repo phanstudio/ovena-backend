@@ -5,7 +5,7 @@ from accounts.views import (
     PasswordResetView, PassWordResetSendView, ChangePasswordView
 )
 import payments.views as pay_views
-from .admin_urls import order_endpoints
+from .extended_urls.orders import order_endpoints
 
 token_urls = [
     path("rotate-token/", jwt_views.RotateTokenView.as_view(), name="rotate-token"),
@@ -20,16 +20,25 @@ urlpatterns = [
 
     # dashboard + stats
     path("dashboard/stats/", views.AdminDashboardStatsView.as_view(), name="admin-dashboard-stats"),
+    path("finance/dashboard/", views.AdminFinanceDashboardView.as_view(), name="admin-finance-dashboard"),
 
     # user management
     path("users/", views.AdminUserListView.as_view(), name="admin-users"),
     path("users/<int:user_id>/", views.AdminUserDetailView.as_view(), name="admin-user-detail"),
+    path("users/<int:user_id>/status/", views.AdminUserStatusView.as_view(), name="admin-user-status"),
+    path("users/<int:user_id>/reset-password/", views.AdminUserPasswordResetView.as_view(), name="admin-user-reset-password"),
+    path("users/<int:user_id>/credit-wallet/", views.AdminCustomerWalletCreditView.as_view(), name="admin-user-credit-wallet"),
 
     # employee management
     path("employees/drivers/", views.AdminDriverListView.as_view(), name="admin-drivers"),
     path("employees/drivers/<int:driver_id>/onboarding/review/", views.AdminDriverOnboardingReviewView.as_view(), name="admin-driver-onboarding-review"),
+    path("employees/drivers/<int:driver_id>/approve/", views.ApproveDriverView.as_view(), name="admin-driver-approve"),
+    path("employees/drivers/<int:driver_id>/status/", views.AdminDriverStatusView.as_view(), name="admin-driver-status"),
+    path("employees/drivers/<int:driver_id>/documents/<int:document_id>/review/", views.AdminDriverDocumentReviewView.as_view(), name="admin-driver-document-review"),
     path("employees/businesses/", views.AdminBusinessListView.as_view(), name="admin-businesses"),
     path("employees/businesses/<int:business_id>/", views.AdminBusinessUpdateView.as_view(), name="admin-business-update"),
+    path("employees/businesses/<int:business_id>/status/", views.AdminBusinessStatusView.as_view(), name="admin-business-status"),
+    path("employees/businesses/<int:business_id>/commission/", views.AdminBusinessCommissionView.as_view(), name="admin-business-commission"),
 
     # withdrawals system
     path("withdrawals/", views.AdminWithdrawalListView.as_view(), name="admin-withdrawals"),
@@ -43,6 +52,9 @@ urlpatterns = [
     # notifications
     path("notifications/", views.AdminNotificationListView.as_view(), name="admin-notifications"),
     path("notifications/send/", views.AdminSendNotificationView.as_view(), name="admin-notifications-send"),
+
+    # system settings
+    path("settings/", views.AdminSystemSettingsView.as_view(), name="admin-system-settings"),
 
     # banks
     path("banks/sync/", pay_views.SyncBanks.as_view(), name="list-banks"),
