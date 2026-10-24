@@ -4,9 +4,13 @@ from accounts.models import User
 class AppAdmin(models.Model):
 
     class Role(models.TextChoices):
+        OWNER = "owner", "Owner"
+        MANAGER = "manager", "Manager"
         SUPPORT = "support", "Support Agent"
         SUPERVISOR = "supervisor", "Supervisor"
         FINANCE = "finance", "Finance"
+        MARKETING = "marketing", "Marketing"
+        OPERATIONS = "operations", "Operations"
         ADMIN = "admin", "Admin"
 
     name = models.CharField(max_length=100) # change to username

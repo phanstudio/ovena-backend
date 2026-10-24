@@ -271,3 +271,48 @@ class AdminSendNotificationSerializer(serializers.Serializer):
         if attrs.get("user_id") and attrs.get("audience"):
             raise serializers.ValidationError("Provide only one of user_id or audience.")
         return attrs
+
+
+class AdminUserStatusSerializer(serializers.Serializer):
+    is_active = serializers.BooleanField()
+    reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class AdminUserPasswordResetSerializer(serializers.Serializer):
+    new_password = serializers.CharField(required=False, allow_blank=True, min_length=6)
+
+
+class AdminCustomerWalletCreditSerializer(serializers.Serializer):
+    amount_ngn = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=1)
+    reason = serializers.CharField()
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class AdminDriverStatusSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(choices=["approve", "suspend", "block", "activate"])
+    reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class AdminDriverDocumentReviewSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=["approved", "rejected"])
+    rejection_reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class AdminBusinessStatusSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(choices=["approve", "suspend", "activate", "feature", "unfeature", "hide", "unhide"])
+    reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class AdminBusinessCommissionSerializer(serializers.Serializer):
+    commission_rate = serializers.DecimalField(max_digits=5, decimal_places=2, min_value=0, max_value=100)
+
+
+class AdminSystemSettingsSerializer(serializers.Serializer):
+    service_fee_percent = serializers.FloatField(required=False, min_value=0, max_value=100)
+    delivery_base_fee_ngn = serializers.DecimalField(required=False, max_digits=10, decimal_places=2, min_value=0)
+    restaurant_commission_percent = serializers.FloatField(required=False, min_value=0, max_value=100)
+    referral_reward_ngn = serializers.DecimalField(required=False, max_digits=10, decimal_places=2, min_value=0)
+    minimum_order_ngn = serializers.DecimalField(required=False, max_digits=10, decimal_places=2, min_value=0)
+    delivery_radius_km = serializers.FloatField(required=False, min_value=1)
+    maintenance_mode = serializers.BooleanField(required=False)
+
