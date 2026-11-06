@@ -159,6 +159,7 @@ class CreateCustomerSerializer(serializers.Serializer):
     name = serializers.CharField()
     email = serializers.EmailField(required=False, allow_blank=True)
     phone_number = PhoneNumberField(required=False, allow_null=True)
+    password = serializers.CharField(write_only=True, required=False, min_length=8)
     lat = serializers.FloatField(required=False)
     long = serializers.FloatField(required=False)
     birth_date = serializers.DateField(required=False)
@@ -172,6 +173,10 @@ class CreateCustomerSerializer(serializers.Serializer):
 
         if getattr(user, "customer_profile", None):
             raise serializers.ValidationError("Customer profile already exists.")
+
+        is_oauth = user.social_accounts.exists()
+        if not is_oauth and not data.get("password"):
+            raise serializers.ValidationError({"password": "Password is required for registration."})
 
         # identity fill rules
         if data.get("email") and str(data["email"]).strip().casefold() != str(user.email).casefold():
@@ -204,6 +209,10 @@ class CreateCustomerSerializer(serializers.Serializer):
             if validated_data.get(field):
                 setattr(user, field, validated_data[field])
                 update_fields.append(field)
+
+        if validated_data.get("password"):
+            user.set_password(validated_data["password"])
+            update_fields.append("password")
 
         if update_fields:
             user.save(update_fields=update_fields)

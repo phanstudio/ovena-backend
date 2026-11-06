@@ -40,6 +40,7 @@ class SendPhoneOTPMixin(SendOptMixin):
     serializer_class = InS.PhonenumberSendOptSerializer
 
     def request_data(self, _vd):
+        # TESTING MOCK: Active for development/testing environments
         # return request_phone_otp(get_phone_number(vd["phone_number"]))
         sent_at = timezone.now()
         return Response({"detail": "OTP sent.", "sent_at": sent_at.strftime("%b %d, %Y %H:%M:%S %Z"), 'pin_id': "98765433456789976"})
@@ -92,6 +93,7 @@ class VerifyPhoneOTPMixin(VerifyOtpMixin):
     unidentified_id_lookup = "phone_number"
 
     def verfiy_function(self, vd):
+        # TESTING MOCK: Active for development/testing environments
         # return verify_phonenumber(vd["otp_code"], get_phone_number(vd[self.unidentified_id_lookup]), vd["pin_id"])
         return vd[self.unidentified_id_lookup]
 
@@ -101,16 +103,27 @@ class VerifyPhoneOTPMixin(VerifyOtpMixin):
             defaults={"phone_number": identifier}
         )
 
-        if created:
+        needs_registration = not bool(getattr(user, "customer_profile", None))
+        if needs_registration:
             token = issue_jwt_for_user(user)
         else:
             token = issue_jwt_for_user_with_plan(user, active_profile=PROFILE_CUSTOMER)
-        
+
+        prefill = {
+            "name": getattr(user, "name", None),
+            "email": user.email,
+            "phone_number": str(user.phone_number) if user.phone_number else None,
+            "profile_pic": None,
+        }
+
         return Response({
             "message": "OTP verified successfully",
             "refresh": token["refresh"],
             "access": token["access"],
-            "is_new_user": created
+            "is_new_user": created,
+            "needs_registration": needs_registration,
+            "channel": "phone",
+            "prefill": prefill,
         }, status=status.HTTP_200_OK)
 
 
@@ -122,7 +135,7 @@ class VerifyEmailMixin(VerifyOtpMixin):
         return Response({"detail": "email verified"}, status=200)
 
 
-class VerifyPhoneOTPView(VerifyPhoneOTPMixin): # we need to revoke the jwt also use the refresh to get the new access, also the getting new refresh token
+class VerifyPhoneOTPView(VerifyPhoneOTPMixin):
     """
     Verifies OTP, creates user if not exists, and returns JWT tokens
     """
@@ -140,16 +153,27 @@ class VerifyEmailOTPView(VerifyEmailMixin):
             defaults={"email": identifier}
         )
 
-        if created:
+        needs_registration = not bool(getattr(user, "customer_profile", None))
+        if needs_registration:
             token = issue_jwt_for_user(user)
         else:
             token = issue_jwt_for_user_with_plan(user, active_profile=PROFILE_CUSTOMER)
-        
+
+        prefill = {
+            "name": getattr(user, "name", None),
+            "email": user.email,
+            "phone_number": str(user.phone_number) if user.phone_number else None,
+            "profile_pic": None,
+        }
+
         return Response({
             "message": "OTP verified successfully",
             "refresh": token["refresh"],
             "access": token["access"],
-            "is_new_user": created
+            "is_new_user": created,
+            "needs_registration": needs_registration,
+            "channel": "email",
+            "prefill": prefill,
         }, status=status.HTTP_200_OK)
 
 

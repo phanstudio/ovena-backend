@@ -119,7 +119,10 @@ class UserManager(BaseUserManager):
                 raise ValueError("Admins must have a password")
             user.set_password(password)
         else:
-            user.set_unusable_password()  # OTP-based login
+            if password:
+                user.set_password(password)
+            else:
+                user.set_unusable_password()  # OTP-based or OAuth initial
 
         user.save(using=self._db)
         return user
