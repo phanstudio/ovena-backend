@@ -82,11 +82,13 @@ class DriverDocument(models.Model): # we can use
     DOC_DELIVERY_BAG = "delivery_bag"
     DOC_PROFILE_PIC = "profile_pic"
     DOC_SELFIE = "selfie"
+    DOC_DRIVERS_LICENSE = "drivers_license"
 
     DOC_TYPES = [
         (DOC_DELIVERY_BAG, "Delivery Bag Photo"),
         (DOC_PROFILE_PIC, "Profile Picture"),
         (DOC_SELFIE, "Selfie Verification"),
+        (DOC_DRIVERS_LICENSE, "Driver's License"),
     ]
 
     STATUS_PENDING = "pending"

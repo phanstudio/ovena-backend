@@ -22,6 +22,8 @@ from .drivers import (
     AdminDriverOnboardingReviewView,
     ApproveDriverView,
     AdminDriverStatusView,
+    AdminDriverDocumentListView,
+    AdminDriverDocumentDetailView,
     AdminDriverDocumentReviewView,
 )
 from .businesses import (
@@ -69,6 +71,8 @@ __all__ = [
     "AdminDriverOnboardingReviewView",
     "ApproveDriverView",
     "AdminDriverStatusView",
+    "AdminDriverDocumentListView",
+    "AdminDriverDocumentDetailView",
     "AdminDriverDocumentReviewView",
     "AdminBusinessListView",
     "AdminBusinessUpdateView",

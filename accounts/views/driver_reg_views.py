@@ -327,7 +327,7 @@ class OnboardingPhase2View(GenericAPIView):
         # ── Driver's license document ──
         license_doc, _ = DriverDocument.objects.get_or_create(
             driver=profile,
-            doc_type="drivers_license",
+            doc_type=DriverDocument.DOC_DRIVERS_LICENSE,
         )
         license_doc.file = data["drivers_license"]
         license_doc.status = DriverDocument.STATUS_PENDING

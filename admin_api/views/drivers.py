@@ -11,6 +11,7 @@ from admin_api.models import AppAdmin
 from admin_api.serializers import (
     AdminDriverListSerializer,
     AdminDriverStatusSerializer,
+    AdminDriverDocumentSerializer,
     AdminDriverDocumentReviewSerializer,
 )
 from .base import BaseAppAdminAPIView, _AppAdminRoleGuardMixin
@@ -186,6 +187,48 @@ class AdminDriverStatusView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
         })
 
 
+class AdminDriverDocumentListView(BaseAppAdminAPIView, ListAPIView):
+    """
+    GET /api/admin/employees/drivers/<driver_id>/documents/
+    List all uploaded documents for a specific driver, with optional ?status= and ?doc_type= filters.
+    """
+    serializer_class = AdminDriverDocumentSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        driver_id = self.kwargs["driver_id"]
+        if not DriverProfile.objects.filter(id=driver_id).exists():
+            raise NotFound("Driver not found")
+
+        qs = DriverDocument.objects.filter(driver_id=driver_id).order_by("-uploaded_at")
+
+        status_filter = (self.request.query_params.get("status") or "").strip().lower()
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
+        doc_type_filter = (self.request.query_params.get("doc_type") or "").strip().lower()
+        if doc_type_filter:
+            qs = qs.filter(doc_type=doc_type_filter)
+
+        return qs
+
+
+class AdminDriverDocumentDetailView(BaseAppAdminAPIView):
+    """
+    GET /api/admin/employees/drivers/<driver_id>/documents/<document_id>/
+    Retrieve details of a single driver document.
+    """
+    serializer_class = AdminDriverDocumentSerializer
+
+    def get(self, request, driver_id: int, document_id: int):
+        doc = DriverDocument.objects.filter(id=document_id, driver_id=driver_id).first()
+        if not doc:
+            raise NotFound("Driver document not found")
+
+        serializer = self.get_serializer(doc)
+        return Response(serializer.data)
+
+
 class AdminDriverDocumentReviewView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
     """
     POST /api/admin/employees/drivers/<driver_id>/documents/<document_id>/review/
@@ -202,9 +245,11 @@ class AdminDriverDocumentReviewView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin
 
         vd = self.validate_serializer(request.data)
         doc.status = vd["status"]
-        if vd.get("rejection_reason"):
-            doc.rejection_reason = vd["rejection_reason"]
-        doc.save(update_fields=["status", "rejection_reason"] if hasattr(doc, "rejection_reason") else ["status"])
+        note = vd.get("reviewer_note") or vd.get("rejection_reason")
+        if note is not None:
+            doc.reviewer_note = note
+        doc.reviewed_at = timezone.now()
+        doc.save(update_fields=["status", "reviewer_note", "reviewed_at"])
 
         return Response({
             "detail": f"Document marked as {doc.status}",
@@ -212,4 +257,6 @@ class AdminDriverDocumentReviewView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin
             "document_id": doc.id,
             "doc_type": doc.doc_type,
             "status": doc.status,
+            "reviewer_note": doc.reviewer_note,
+            "reviewed_at": doc.reviewed_at,
         })

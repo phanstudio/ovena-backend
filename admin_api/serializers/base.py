@@ -4,6 +4,7 @@ from accounts.models import User
 from admin_api.models import AppAdmin
 from django.db import transaction
 from accounts.models import DriverProfile, Business
+from accounts.models.driver import DriverDocument
 from payments.models import Withdrawal
 from accounts.serializers import InS
 
@@ -293,9 +294,44 @@ class AdminDriverStatusSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True)
 
 
+class AdminDriverDocumentSerializer(serializers.ModelSerializer):
+    driver_id = serializers.IntegerField(read_only=True)
+    doc_type_display = serializers.CharField(source="get_doc_type_display", read_only=True)
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DriverDocument
+        fields = [
+            "id",
+            "driver_id",
+            "doc_type",
+            "doc_type_display",
+            "file",
+            "file_url",
+            "status",
+            "reviewer_note",
+            "uploaded_at",
+            "reviewed_at",
+        ]
+        read_only_fields = fields
+
+    def get_file_url(self, obj) -> str | None:
+        if not obj.file:
+            return None
+        try:
+            url = obj.file.url
+        except ValueError:
+            return None
+        request = self.context.get("request")
+        if request is not None:
+            return request.build_absolute_uri(url)
+        return url
+
+
 class AdminDriverDocumentReviewSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=["approved", "rejected"])
     rejection_reason = serializers.CharField(required=False, allow_blank=True)
+    reviewer_note = serializers.CharField(required=False, allow_blank=True)
 
 
 class AdminBusinessStatusSerializer(serializers.Serializer):
