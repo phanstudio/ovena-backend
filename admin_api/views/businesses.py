@@ -47,7 +47,7 @@ class AdminBusinessListView(BaseAppAdminAPIView, ListAPIView):
         return qs
 
 
-class AdminBusinessUpdateView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
+class AdminBusinessUpdateView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin): #:misleading_name 
     """
     PATCH /api/admin/employees/businesses/<business_id>/
     Update business onboarding status (review completion).

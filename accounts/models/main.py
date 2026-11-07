@@ -206,5 +206,3 @@ class SocialAccount(models.Model):
 
     def __str__(self):
         return f"{self.provider}:{self.provider_uid} -> user {self.user_id}"
-
-# SocialAccount.objects.filter(provider=X, provider_uid=sub).first()

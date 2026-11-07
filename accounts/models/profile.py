@@ -7,7 +7,6 @@ from ratings.models.mixin import RatingModelMixin
 from common.phone.utils import get_phone_number
 from authflow.services.generate import generate_referral_code
 
-
 # profile
 class ReferralCodeMixin(models.Model):
     referral_code = models.CharField(
@@ -191,6 +190,3 @@ class PrimaryAgent(
                 name="unique_active_device",
             ),
         ]
-
-
-# password;

@@ -4,7 +4,6 @@ from .profile import DriverProfile
 from payments.models import AbstractPayoutAccount
 
 
-
 # for verification, every driver must have cred
 class DriverCred(models.Model): # does the referral system work with drivers
     user = models.OneToOneField(DriverProfile, on_delete=models.CASCADE, related_name="driver_creds")
