@@ -71,4 +71,5 @@ urlpatterns = [
     path("", include("payments.subscriptions.urls.admin")),
     path("", include(order_endpoints)),
     path("points/", include("points.external_urls.admin")),
+    path("", include("notifications.urls.admin")),
 ]

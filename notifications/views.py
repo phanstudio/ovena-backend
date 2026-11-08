@@ -5,8 +5,8 @@ from rest_framework.mixins import ListModelMixin
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from authflow.authentication import CustomDriverAuth, CustomBusinessAgentsAuth, CustomCustomerAuth
-from authflow.permissions import IsDriver, IsBusinessAgent, IsCustomer, IsNotSuspended
+from authflow.authentication import CustomDriverAuth, CustomBusinessAgentsAuth, CustomCustomerAuth, CustomAppAdminAuth
+from authflow.permissions import IsDriver, IsBusinessAgent, IsCustomer, IsNotSuspended, IsAppAdmin
 
 from notifications.serializers import NotificationSerializer, BaseRegisterDeviceTokenSerialzer
 from notifications.services import (
@@ -97,6 +97,12 @@ class CustomerNotificationViewSet(BaseNotificationViewSet):
     permission_classes = [IsCustomer]
 
 
+class AdminNotificationViewSet(BaseNotificationViewSet):
+    authentication_classes = [CustomAppAdminAuth]
+    permission_classes = [IsAppAdmin]
+
+
+## register
 class BaseRegisterDeviceTokenView(GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = BaseRegisterDeviceTokenSerialzer
@@ -134,6 +140,12 @@ class DriverRegisterDeviceTokenView(BaseRegisterDeviceTokenView):
     permission_classes = [IsDriver, IsNotSuspended]
 
 
+class AdminRegisterDeviceTokenView(BaseRegisterDeviceTokenView):
+    authentication_classes = [CustomAppAdminAuth]
+    permission_classes = [IsAppAdmin]
+
+
+## unregister
 class BaseUnRegisterDeviceTokenView(GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = BaseRegisterDeviceTokenSerialzer
@@ -170,3 +182,12 @@ class BusinessUnRegisterDeviceTokenView(BaseUnRegisterDeviceTokenView):
 class DriverUnRegisterDeviceTokenView(BaseUnRegisterDeviceTokenView):
     authentication_classes = [CustomBusinessAgentsAuth]
     permission_classes = [IsBusinessAgent]
+
+
+class AdminUnRegisterDeviceTokenView(BaseUnRegisterDeviceTokenView):
+    authentication_classes = [CustomAppAdminAuth]
+    permission_classes = [IsAppAdmin]
+
+
+## bulk message
+# add the option for picking between all customers, all buisness, all drivers, all admins combinations like all customers and buisnesses etc
