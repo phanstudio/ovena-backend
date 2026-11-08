@@ -180,8 +180,8 @@ class BusinessUnRegisterDeviceTokenView(BaseUnRegisterDeviceTokenView):
 
 
 class DriverUnRegisterDeviceTokenView(BaseUnRegisterDeviceTokenView):
-    authentication_classes = [CustomBusinessAgentsAuth]
-    permission_classes = [IsBusinessAgent]
+    authentication_classes = [CustomDriverAuth]
+    permission_classes = [IsDriver, IsNotSuspended]
 
 
 class AdminUnRegisterDeviceTokenView(BaseUnRegisterDeviceTokenView):
@@ -190,4 +190,4 @@ class AdminUnRegisterDeviceTokenView(BaseUnRegisterDeviceTokenView):
 
 
 ## bulk message
-# add the option for picking between all customers, all buisness, all drivers, all admins combinations like all customers and buisnesses etc
+from admin_api.views.notifications import AdminSendNotificationView as AdminBulkNotificationView  # noqa: E402

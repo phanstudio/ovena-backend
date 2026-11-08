@@ -254,23 +254,62 @@ class AdminWithdrawalMarkFailedSerializer(serializers.Serializer):
 
 
 class AdminSendNotificationSerializer(serializers.Serializer):
-    # Either supply user_id (single user), or audience (broadcast segment).
+    AUDIENCE_CHOICES = (
+        "all",
+        "customers",
+        "drivers",
+        "businesses",
+        "business_admins",
+        "business_staff",
+        "admins",
+    )
+
+    # Target selection: single user_id, multiple user_ids, single audience, or list of audiences.
     user_id = serializers.IntegerField(required=False)
-    audience = serializers.ChoiceField(
-        choices=("all", "customers", "drivers", "business_admins"),
+    user_ids = serializers.ListField(
+        child=serializers.IntegerField(),
         required=False,
+        allow_empty=False,
+    )
+    audience = serializers.ChoiceField(
+        choices=AUDIENCE_CHOICES,
+        required=False,
+    )
+    audiences = serializers.ListField(
+        child=serializers.ChoiceField(choices=AUDIENCE_CHOICES),
+        required=False,
+        allow_empty=False,
     )
 
     notification_type = serializers.CharField(required=False, allow_blank=True, default="system")
-    title = serializers.CharField()
+    title = serializers.CharField(max_length=160)
     body = serializers.CharField()
     payload_json = serializers.JSONField(required=False)
+    push = serializers.BooleanField(required=False, default=True)
 
     def validate(self, attrs):
-        if not attrs.get("user_id") and not attrs.get("audience"):
-            raise serializers.ValidationError("Provide either user_id or audience.")
-        if attrs.get("user_id") and attrs.get("audience"):
-            raise serializers.ValidationError("Provide only one of user_id or audience.")
+        has_single_user = bool(attrs.get("user_id"))
+        has_multi_target = bool(
+            attrs.get("user_ids") or attrs.get("audience") or attrs.get("audiences")
+        )
+
+        if not has_single_user and not has_multi_target:
+            raise serializers.ValidationError(
+                "Provide at least one target: user_id, user_ids, audience, or audiences."
+            )
+        if has_single_user and has_multi_target:
+            raise serializers.ValidationError(
+                "Provide only one of user_id or bulk target (audience, audiences, user_ids)."
+            )
+
+        combined_audiences = []
+        if attrs.get("audience"):
+            combined_audiences.append(attrs["audience"])
+        if attrs.get("audiences"):
+            for aud in attrs["audiences"]:
+                if aud not in combined_audiences:
+                    combined_audiences.append(aud)
+        attrs["resolved_audiences"] = combined_audiences
         return attrs
 
 

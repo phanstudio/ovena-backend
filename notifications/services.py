@@ -1,8 +1,76 @@
+from django.db.models import Q
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 
+from accounts.models import User
 from notifications.models import Notification
 from notifications.firebase_service import send_push_to_user, send_push_to_users
+
+AUDIENCE_ALL = "all"
+AUDIENCE_CUSTOMERS = "customers"
+AUDIENCE_DRIVERS = "drivers"
+AUDIENCE_BUSINESSES = "businesses"
+AUDIENCE_BUSINESS_ADMINS = "business_admins"
+AUDIENCE_BUSINESS_STAFF = "business_staff"
+AUDIENCE_ADMINS = "admins"
+
+VALID_AUDIENCES = (
+    AUDIENCE_ALL,
+    AUDIENCE_CUSTOMERS,
+    AUDIENCE_DRIVERS,
+    AUDIENCE_BUSINESSES,
+    AUDIENCE_BUSINESS_ADMINS,
+    AUDIENCE_BUSINESS_STAFF,
+    AUDIENCE_ADMINS,
+)
+
+
+def resolve_notification_recipients(
+    *,
+    audiences: list[str] | set[str] | tuple[str, ...] | None = None,
+    user_ids: list[int] | set[int] | tuple[int, ...] | None = None,
+):
+    """
+    Resolve active, deduplicated User queryset for any combination of
+    audience segments and/or explicit user_ids.
+    """
+    qs = User.objects.filter(is_active=True)
+    audience_set = set(audiences or [])
+
+    if AUDIENCE_ALL in audience_set:
+        return qs.distinct()
+
+    query = Q()
+    has_filter = False
+
+    if AUDIENCE_CUSTOMERS in audience_set:
+        query |= Q(customer_profile__isnull=False)
+        has_filter = True
+    if AUDIENCE_DRIVERS in audience_set:
+        query |= Q(driver_profile__isnull=False)
+        has_filter = True
+    if AUDIENCE_BUSINESSES in audience_set:
+        query |= Q(business_admin__isnull=False) | Q(
+            primary_agent__isnull=False, primary_agent__revoked=False
+        )
+        has_filter = True
+    if AUDIENCE_BUSINESS_ADMINS in audience_set:
+        query |= Q(business_admin__isnull=False)
+        has_filter = True
+    if AUDIENCE_BUSINESS_STAFF in audience_set:
+        query |= Q(primary_agent__isnull=False, primary_agent__revoked=False)
+        has_filter = True
+    if AUDIENCE_ADMINS in audience_set:
+        query |= Q(app_admin__isnull=False)
+        has_filter = True
+    if user_ids:
+        query |= Q(id__in=list(user_ids))
+        has_filter = True
+
+    if not has_filter:
+        return qs.none()
+
+    return qs.filter(query).distinct()
 
 
 def create_notification(

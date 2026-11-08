@@ -179,3 +179,127 @@ def test_admin_system_settings_no_holiday_mode(admin_client):
     assert check_resp.data["service_fee_percent"] == 5.0
     assert check_resp.data["delivery_base_fee_ngn"] == Decimal("750.00")
     assert check_resp.data["maintenance_mode"] is True
+
+
+@pytest.mark.django_db
+def test_admin_send_bulk_notifications_combinations_and_push(admin_client, monkeypatch):
+    from accounts.models import CustomerProfile, BusinessAdmin, PrimaryAgent
+    from notifications.models import Notification
+
+    client, admin_user = admin_client
+
+    push_calls = []
+
+    def fake_send_push_to_users(users, title, body, data=None):
+        push_calls.append(("bulk", [u.id for u in users], title, body, data))
+
+    def fake_send_push_to_user(user, title, body, data=None):
+        push_calls.append(("single", user.id, title, body, data))
+
+    monkeypatch.setattr("notifications.services.send_push_to_users", fake_send_push_to_users)
+    monkeypatch.setattr("notifications.services.send_push_to_user", fake_send_push_to_user)
+
+    # 1. Customer user
+    cust_user = User.objects.create_user(email="cust@example.com", phone_number="+2348010000001")
+    CustomerProfile.objects.create(user=cust_user, name="Customer One")
+
+    # 2. Driver user (who is ALSO a customer — tests deduplication!)
+    driver_user = User.objects.create_user(email="driver@example.com", phone_number="+2348010000002")
+    DriverProfile.objects.create(user=driver_user, first_name="Driver", last_name="One")
+    CustomerProfile.objects.create(user=driver_user, name="Driver Customer")
+
+    # 3. Business Admin user
+    badmin_user = User.objects.create_user(email="badmin@example.com", phone_number="+2348010000003")
+    biz = Business.objects.create(business_name="Oven Hub")
+    badmin = BusinessAdmin.objects.create(user=badmin_user, business=biz, name="Biz Owner")
+
+    # 4. Active Business Staff (PrimaryAgent)
+    bstaff_user = User.objects.create_user(email="bstaff@example.com", phone_number="+2348010000004")
+    branch1 = Branch.objects.create(business=biz, name="Main Branch")
+    PrimaryAgent.objects.create(
+        branch=branch1,
+        user=bstaff_user,
+        created_by=badmin,
+        device_name="POS-1",
+        revoked=False,
+    )
+
+    # 5. Revoked Business Staff (should NOT receive business notifications)
+    revoked_staff_user = User.objects.create_user(email="revoked@example.com", phone_number="+2348010000005")
+    branch2 = Branch.objects.create(business=biz, name="Second Branch")
+    PrimaryAgent.objects.create(
+        branch=branch2,
+        user=revoked_staff_user,
+        created_by=badmin,
+        device_name="POS-2",
+        revoked=True,
+    )
+
+    # Case A: Combination of "customers" and "businesses"
+    # Should notify: cust_user, driver_user (has customer profile), badmin_user, bstaff_user (4 distinct users)
+    resp = client.post(
+        "/api/admin/notifications/send/",
+        {
+            "audiences": ["customers", "businesses"],
+            "title": "Promo Update",
+            "body": "Big news for customers and businesses!",
+        },
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert resp.data["created"] == 4
+    assert resp.data["audiences"] == ["customers", "businesses"]
+    assert len(push_calls) == 1
+    assert set(push_calls[0][1]) == {cust_user.id, driver_user.id, badmin_user.id, bstaff_user.id}
+    assert revoked_staff_user.id not in push_calls[0][1]
+
+    # Case B: Deduplication when user matches multiple selected audiences ("customers" + "drivers")
+    Notification.objects.all().delete()
+    push_calls.clear()
+    resp = client.post(
+        "/api/admin/notifications/send/",
+        {
+            "audiences": ["customers", "drivers"],
+            "title": "Customer + Driver Notice",
+            "body": "Deduplicated message",
+        },
+        format="json",
+    )
+    assert resp.status_code == 200
+    # Only cust_user and driver_user (2 distinct users, even though driver_user is in both)
+    assert resp.data["created"] == 2
+    assert Notification.objects.filter(user=driver_user).count() == 1
+
+    # Case C: Separate "business_admins" vs "business_staff" vs "admins"
+    Notification.objects.all().delete()
+    push_calls.clear()
+    resp = client.post(
+        "/api/admin/notifications/send/",
+        {
+            "audiences": ["business_staff", "admins"],
+            "title": "Staff & Admin Alert",
+            "body": "Internal notice",
+            "push": False,
+        },
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert resp.data["created"] == 2  # bstaff_user + admin_user
+    assert len(push_calls) == 0  # push=False skipped FCM
+
+    # Case D: Single user_id with push=True
+    resp = client.post(
+        "/api/admin/notifications/send/",
+        {
+            "user_id": cust_user.id,
+            "title": "Direct Message",
+            "body": "Hello Customer",
+        },
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert resp.data["detail"] == "Notification sent"
+    assert len(push_calls) == 1
+    assert push_calls[0][0] == "single"
+    assert push_calls[0][1] == cust_user.id
+

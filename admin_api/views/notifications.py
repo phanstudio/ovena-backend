@@ -5,7 +5,11 @@ from rest_framework.exceptions import NotFound
 from accounts.models import User
 from notifications.models import Notification
 from notifications.serializers import NotificationSerializer
-from notifications.services import create_notification, create_bulk_notifications
+from notifications.services import (
+    notify_user,
+    notify_users_bulk,
+    resolve_notification_recipients,
+)
 from admin_api.models import AppAdmin
 from admin_api.serializers import AdminSendNotificationSerializer
 from .base import BaseAppAdminAPIView, _AppAdminRoleGuardMixin
@@ -62,17 +66,19 @@ class AdminSendNotificationView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
         title = vd["title"]
         body = vd["body"]
         payload = vd.get("payload_json") or {}
+        push = vd.get("push", True)
 
         if vd.get("user_id"):
             user = User.objects.filter(id=vd["user_id"]).first()
             if not user:
                 raise NotFound("User not found")
-            notif = create_notification(
+            notif = notify_user(
                 user=user,
                 title=title,
                 body=body,
                 notification_type=notification_type,
                 payload=payload,
+                push=push,
             )
             return Response(
                 {
@@ -81,28 +87,31 @@ class AdminSendNotificationView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
                 }
             )
 
-        audience = vd.get("audience")
-        users_qs = User.objects.filter(is_active=True)
-        if audience == "customers":
-            users_qs = users_qs.filter(customer_profile__isnull=False)
-        elif audience == "drivers":
-            users_qs = users_qs.filter(driver_profile__isnull=False)
-        elif audience == "business_admins":
-            users_qs = users_qs.filter(business_admin__isnull=False)
-
-        users_qs = users_qs.distinct()
-        created = create_bulk_notifications(
+        resolved_audiences = vd.get("resolved_audiences") or []
+        user_ids = vd.get("user_ids") or []
+        users_qs = resolve_notification_recipients(
+            audiences=resolved_audiences,
+            user_ids=user_ids,
+        )
+        created = notify_users_bulk(
             users=list(users_qs),
             title=title,
             body=body,
             notification_type=notification_type,
             payload=payload,
+            push=push,
+        )
+
+        audience_summary = (
+            vd.get("audience")
+            or (resolved_audiences[0] if len(resolved_audiences) == 1 else resolved_audiences)
         )
 
         return Response(
             {
                 "detail": "Broadcast queued",
-                "audience": audience,
+                "audience": audience_summary,
+                "audiences": resolved_audiences,
                 "created": len(created),
             }
         )
