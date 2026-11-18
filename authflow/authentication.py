@@ -161,7 +161,6 @@ class CustomJWtAuth(SimpleJWTAuth):
         if not profile_type:
             self.raise_profile_error(holder_label)
         token["active_profile"] = profile_type
-        user.active_profile = profile_type
         return (user, token)
 
     
