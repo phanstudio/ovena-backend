@@ -57,7 +57,7 @@ class UserProfileView(APIView):
                     {"detail": "Customer profile not found."},
                     status=status.HTTP_404_NOT_FOUND,
                 )
-            serializer = CustomerProfileSerializer(profile, user_context)
+            serializer = CustomerProfileSerializer(profile, context=user_context)
         elif requested_type == "driver":
             profile = getattr(user, "driver_profile", None)
             if not profile:
