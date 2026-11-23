@@ -320,6 +320,7 @@ class AdminUserStatusSerializer(serializers.Serializer):
 
 class AdminUserPasswordResetSerializer(serializers.Serializer):
     new_password = serializers.CharField(required=False, allow_blank=True, min_length=6)
+    profile_type = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class AdminCustomerWalletCreditSerializer(serializers.Serializer):

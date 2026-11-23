@@ -51,11 +51,22 @@ def compute_is_approved(user: User, active_profile: str | None) -> bool:
     return bool(getattr(user, "is_approved", True))
 
 
-def build_jwt_claims(user: User, *, active_profile: str | None = None, plan_id: int | None = None) -> dict:
+def build_jwt_claims(
+    user: User,
+    *,
+    active_profile: str | None = None,
+    plan_id: int | None = None,
+    resolve_default_profile: bool = True,
+) -> dict:
     """
     Build standardized claims dictionary for a locked user identity.
     """
-    resolved_profile = active_profile or get_default_profile_for_user(user)
+    if active_profile is not None:
+        resolved_profile = active_profile
+    elif resolve_default_profile:
+        resolved_profile = get_default_profile_for_user(user)
+    else:
+        resolved_profile = None
     normalized_profile = normalize_profile_type(resolved_profile)
 
     suspended = is_suspended(user.id, role=normalized_profile) if user and user.id else False
@@ -70,14 +81,25 @@ def build_jwt_claims(user: User, *, active_profile: str | None = None, plan_id: 
     }
 
 
-def issue_jwt_for_user(user: User, *, active_profile: str | None = None, plan_id: int | None = None) -> dict:
+def issue_jwt_for_user(
+    user: User,
+    *,
+    active_profile: str | None = None,
+    plan_id: int | None = None,
+    resolve_default_profile: bool = True,
+) -> dict:
     """
     Issue JWT access and refresh token pair locked to a specific active profile.
     """
     if not user.is_active:
         raise AuthenticationFailed(_("User is inactive"), code="user_inactive")
 
-    claims = build_jwt_claims(user, active_profile=active_profile, plan_id=plan_id)
+    claims = build_jwt_claims(
+        user,
+        active_profile=active_profile,
+        plan_id=plan_id,
+        resolve_default_profile=resolve_default_profile,
+    )
     refresh = RefreshToken.for_user(user)
 
     for k, v in claims.items():

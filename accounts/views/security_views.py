@@ -17,6 +17,12 @@ from accounts.services.security_guards import (
     set_security_cooldown,
     is_security_cooldown_active,
 )
+from accounts.services.passwords import (
+    check_profile_password,
+    profile_has_usable_password,
+    resolve_request_profile_type,
+    set_profile_password,
+)
 from common.phone.utils import get_phone_number
 
 User = get_user_model()
@@ -45,8 +51,9 @@ def verify_actor_intent(user, request) -> tuple[bool, Response | None]:
     pin = req_data.get("transaction_pin")
     auth_otp = req_data.get("auth_otp_code")
 
-    if user.has_usable_password():
-        if not password or not user.check_password(password):
+    active_profile = resolve_request_profile_type(request)
+    if profile_has_usable_password(user, active_profile):
+        if not password or not check_profile_password(user, active_profile, password):
             return False, Response({"error": "Invalid current password."}, status=status.HTTP_401_UNAUTHORIZED)
         return True, None
 
@@ -493,7 +500,8 @@ class SetPasswordView(APIView):
 
     def post(self, request):
         user = request.user
-        if user.has_usable_password():
+        active_profile = resolve_request_profile_type(request)
+        if profile_has_usable_password(user, active_profile):
             return Response(
                 {"error": "Password already configured. Use the change password endpoint instead."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -510,8 +518,11 @@ class SetPasswordView(APIView):
         if not ok:
             return err_resp
 
-        user.set_password(str(new_password))
-        user.save(update_fields=["password"])
+        if not set_profile_password(user, active_profile, str(new_password)):
+            return Response(
+                {"error": "Profile not found for this account."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         set_security_cooldown(user, hours=24, reason="Initial password configured", ip_address=request.META.get("REMOTE_ADDR"))
 
         return Response({"message": "Password configured successfully. 24-hour security cooldown applied to withdrawals."})

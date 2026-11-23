@@ -137,8 +137,19 @@ class AdminUserPasswordResetView(BaseAppAdminAPIView, _AppAdminRoleGuardMixin):
             chars = string.ascii_letters + string.digits + "!@#$%"
             new_password = "".join(secrets.choice(chars) for _ in range(12))
 
-        user.set_password(new_password)
-        user.save(update_fields=["password"])
+        from accounts.services.passwords import get_passworded_profiles, set_profile_password
+        from accounts.services.profiles import normalize_profile_type
+
+        requested_profile = normalize_profile_type(vd.get("profile_type"))
+        if requested_profile:
+            if not set_profile_password(user, requested_profile, new_password):
+                raise NotFound(f"Profile '{requested_profile}' not found for user")
+        else:
+            user.set_password(new_password)
+            user.save(update_fields=["password"])
+            passworded = get_passworded_profiles(user)
+            if len(passworded) == 1:
+                set_profile_password(user, passworded[0], new_password)
 
         return Response({
             "detail": "User password reset successfully",

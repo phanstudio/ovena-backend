@@ -1,11 +1,30 @@
 from addresses.models import Address
 from django.utils import timezone
-from django.contrib.auth.hashers import check_password, make_password
+from django.contrib.auth.hashers import check_password, make_password, is_password_usable
 from django.db import models, IntegrityError, transaction
 from .main import User, Branch, Business
 from ratings.models.mixin import RatingModelMixin
 from common.phone.utils import get_phone_number
 from authflow.services.generate import generate_referral_code
+
+
+class ProfilePasswordMixin(models.Model):
+    password_hash = models.CharField(max_length=128, blank=True, default="")
+
+    class Meta:
+        abstract = True
+
+    @property
+    def has_usable_password(self) -> bool:
+        return bool(self.password_hash) and is_password_usable(self.password_hash)
+
+    def set_password(self, raw_password: str) -> None:
+        self.password_hash = make_password(raw_password)
+
+    def check_password(self, raw_password: str) -> bool:
+        if not self.password_hash:
+            return False
+        return check_password(raw_password, self.password_hash)
 
 # profile
 class ReferralCodeMixin(models.Model):
@@ -49,7 +68,7 @@ class ReferralCodeMixin(models.Model):
         return super().save(*args, **kwargs)
 
 
-class CustomerProfile(ReferralCodeMixin, models.Model):
+class CustomerProfile(ProfilePasswordMixin, ReferralCodeMixin, models.Model):
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="customer_profile"
     )
@@ -88,7 +107,7 @@ class CustomerProfile(ReferralCodeMixin, models.Model):
         return f"Customer: {self.name or self.user_id}"
 
 
-class DriverProfile(RatingModelMixin, ReferralCodeMixin, models.Model):
+class DriverProfile(ProfilePasswordMixin, RatingModelMixin, ReferralCodeMixin, models.Model):
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="driver_profile"
     )
@@ -127,7 +146,7 @@ class DriverProfile(RatingModelMixin, ReferralCodeMixin, models.Model):
         return (self.first_name + " " + self.last_name).strip()
 
 
-class BusinessAdmin(models.Model):
+class BusinessAdmin(ProfilePasswordMixin, models.Model):
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="business_admin"
     )
@@ -155,7 +174,7 @@ class BusinessAdmin(models.Model):
 
 
 class PrimaryAgent(
-    models.Model
+    ProfilePasswordMixin, models.Model
 ):  # only one primary users, so the branch should be a one to one
     branch = models.OneToOneField(
         Branch,

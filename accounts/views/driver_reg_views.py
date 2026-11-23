@@ -195,89 +195,145 @@ class OnboardingPhase1View(GenericAPIView):
     serializer_class = OnboardingPhase1InputSerializer
 
     def put(self, request):
-        email = request.data.get("email")
-        existing_user = User.objects.filter(email=email).first() if email else None
+        raw_email = request.data.get("email")
+        normalized_email = str(raw_email).strip().lower() if raw_email else None
+        raw_phone = request.data.get("phone_number")
+
+        email_user = (
+            User.objects.filter(email__iexact=normalized_email).first()
+            if normalized_email
+            else None
+        )
+        phone_user = None
+        if raw_phone:
+            try:
+                phone_user = User.objects.filter(phone_number=raw_phone).first()
+            except Exception:
+                phone_user = None
+
+        if email_user and phone_user and email_user.pk != phone_user.pk:
+            return Response(
+                {"detail": "Email and phone number belong to different accounts."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        existing_user = email_user or phone_user
         if existing_user and hasattr(existing_user, "driver_profile"):
             guard = _guard_already_approved(existing_user.driver_profile)
             if guard:
                 return guard
 
-        user, _ = User.objects.get_or_create(email=request.data["email"])
         serializer = self.get_serializer(
             data=request.data,
-            context={"driver_user_id": user.pk},
+            context={"driver_user_id": existing_user.pk if existing_user else None},
         )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        clean_email = str(data["email"]).strip().lower()
 
-        profile, _ = DriverProfile.objects.get_or_create(user=user)
-
-        guard = _guard_already_approved(profile)
-        if guard:
-            return guard
-
-        submission = _get_or_create_submission(profile)
-
-        guard = _guard_submitted(submission, None)
-        if guard:
-            return guard        
-
-        # ── Persist to DriverProfile ──
-        profile.first_name = data["first_name"]
-        profile.last_name = data["last_name"]
-        profile.gender = data["gender"]
-        profile.birth_date = data["birth_date"]
-        profile.residential_address = data["residential_address"]
-        profile.save(update_fields=["first_name", "last_name", "gender", "birth_date", "residential_address"])
-
-        # ── Persist to User ──
-        user.phone_number = data["phone_number"]
-        user.email = data["email"]
-        user.set_password(data["password"])
-        user.save(update_fields=["phone_number", "email", "password"])
-        token = issue_jwt_for_user_with_plan(user, active_profile=PROFILE_DRIVER)
-
-        # ── Persist next-of-kin to DriverCred ──
-        cred, _ = DriverCred.objects.get_or_create(user=profile)
-        cred.next_of_kin_name = data["next_of_kin_name"]
-        cred.next_of_kin_phone = data["next_of_kin_phone"]
-        cred.save(update_fields=["next_of_kin_name", "next_of_kin_phone"])
-
-        referre_code = data.get("referre_code", "")
-        if referre_code:
-            try:
-                device_id = request.headers.get("X-Device-ID")
-                ip_address = request.META.get("REMOTE_ADDR")
-                apply_referral_code(
-                    user=profile.user,
-                    profile=profile,
-                    code=referre_code,
-                    role="driver",
-                    device_id=device_id,
-                    ip_address=ip_address,
+        if existing_user:
+            if existing_user.email and existing_user.email.strip().lower() != clean_email:
+                return Response(
+                    {"email": ["This account already has a different email registered."]},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
-            except DjangoValidationError as exc:
-                msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
-                return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+            if existing_user.phone_number and str(existing_user.phone_number) != str(data["phone_number"]):
+                return Response(
+                    {"phone_number": ["This account already has a different phone number registered."]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        # ── Snapshot into submission answers ──
-        answers = submission.answers or {}
-        answers["phase_1"] = {
-            "first_name": data["first_name"],
-            "last_name": data["last_name"],
-            "phone_number": get_phone_number(data["phone_number"]),
-            "email": data["email"],
-            "gender": data["gender"],
-            "birth_date": str(data["birth_date"]),
-            "residential_address": data["residential_address"],
-            "next_of_kin_name": data["next_of_kin_name"],
-            "next_of_kin_phone": get_phone_number(data["next_of_kin_phone"]),
-            "next_of_kin_address": data["next_of_kin_address"],
-        }
-        answers["phase_1_complete"] = True
-        submission.answers = answers
-        submission.updated_at = timezone.now()
-        submission.save(update_fields=["answers", "updated_at"])
+        with transaction.atomic():
+            if existing_user:
+                user = existing_user
+                user_update_fields = []
+                if not user.email:
+                    user.email = clean_email
+                    user_update_fields.append("email")
+                if not user.phone_number:
+                    user.phone_number = data["phone_number"]
+                    user_update_fields.append("phone_number")
+                if user_update_fields:
+                    user.save(update_fields=user_update_fields)
+            else:
+                user = User.objects.create(
+                    email=clean_email,
+                    phone_number=data["phone_number"],
+                )
+
+            profile, _ = DriverProfile.objects.get_or_create(user=user)
+
+            guard = _guard_already_approved(profile)
+            if guard:
+                return guard
+
+            submission = _get_or_create_submission(profile)
+
+            guard = _guard_submitted(submission, None)
+            if guard:
+                return guard
+
+            # ── Persist to DriverProfile (including driver-scoped password) ──
+            profile.first_name = data["first_name"]
+            profile.last_name = data["last_name"]
+            profile.gender = data["gender"]
+            profile.birth_date = data["birth_date"]
+            profile.residential_address = data["residential_address"]
+            profile.set_password(data["password"])
+            profile.save(
+                update_fields=[
+                    "first_name",
+                    "last_name",
+                    "gender",
+                    "birth_date",
+                    "residential_address",
+                    "password_hash",
+                ]
+            )
+
+            token = issue_jwt_for_user_with_plan(user, active_profile=PROFILE_DRIVER)
+
+            # ── Persist next-of-kin to DriverCred ──
+            cred, _ = DriverCred.objects.get_or_create(user=profile)
+            cred.next_of_kin_name = data["next_of_kin_name"]
+            cred.next_of_kin_phone = data["next_of_kin_phone"]
+            cred.save(update_fields=["next_of_kin_name", "next_of_kin_phone"])
+
+            referre_code = data.get("referre_code", "")
+            if referre_code:
+                try:
+                    device_id = request.headers.get("X-Device-ID")
+                    ip_address = request.META.get("REMOTE_ADDR")
+                    apply_referral_code(
+                        user=profile.user,
+                        profile=profile,
+                        code=referre_code,
+                        role="driver",
+                        device_id=device_id,
+                        ip_address=ip_address,
+                    )
+                except DjangoValidationError as exc:
+                    msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+                    return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+
+            # ── Snapshot into submission answers ──
+            answers = submission.answers or {}
+            answers["phase_1"] = {
+                "first_name": data["first_name"],
+                "last_name": data["last_name"],
+                "phone_number": get_phone_number(data["phone_number"]),
+                "email": clean_email,
+                "gender": data["gender"],
+                "birth_date": str(data["birth_date"]),
+                "residential_address": data["residential_address"],
+                "next_of_kin_name": data["next_of_kin_name"],
+                "next_of_kin_phone": get_phone_number(data["next_of_kin_phone"]),
+                "next_of_kin_address": data["next_of_kin_address"],
+            }
+            answers["phase_1_complete"] = True
+            submission.answers = answers
+            submission.updated_at = timezone.now()
+            submission.save(update_fields=["answers", "updated_at"])
 
         out = {
             "phase": 1,

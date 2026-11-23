@@ -1,7 +1,8 @@
 from django.db import models
 from accounts.models import User
+from accounts.models.profile import ProfilePasswordMixin
 
-class AppAdmin(models.Model):
+class AppAdmin(ProfilePasswordMixin, models.Model):
 
     class Role(models.TextChoices):
         OWNER = "owner", "Owner"

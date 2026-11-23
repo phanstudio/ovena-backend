@@ -11,6 +11,7 @@ from authflow.services.jwt import issue_jwt_for_user, issue_jwt_for_user_with_pl
 from business_api.views import BaseBuisAdminAPIView
 from accounts.services.profiles import (
     PROFILE_CUSTOMER,
+    has_profile,
 )
 
 # do we have dedcted endpoints for sending otp for the admin registration since it still send the otp forward.
@@ -96,21 +97,27 @@ class VerifyPhoneOTPMixin(VerifyOtpMixin):
         return vd[self.unidentified_id_lookup]
 
     def send_response(self, identifier):
-        user, created = User.objects.get_or_create(
+        user, _created = User.objects.get_or_create(
             phone_number=identifier,
             defaults={"phone_number": identifier}
         )
 
-        if created:
-            token = issue_jwt_for_user(user)
+        needs_registration = not has_profile(user, PROFILE_CUSTOMER)
+        if needs_registration:
+            token = issue_jwt_for_user(user, active_profile=None, resolve_default_profile=False)
         else:
             token = issue_jwt_for_user_with_plan(user, active_profile=PROFILE_CUSTOMER)
-        
+
         return Response({
             "message": "OTP verified successfully",
             "refresh": token["refresh"],
             "access": token["access"],
-            "is_new_user": created
+            "is_new_user": needs_registration,
+            "needs_registration": needs_registration,
+            "prefill": {
+                "email": user.email,
+                "phone_number": get_phone_number(user.phone_number) if user.phone_number else None,
+            },
         }, status=status.HTTP_200_OK)
 
 
@@ -135,21 +142,27 @@ class VerifyEmailOTPView(VerifyEmailMixin):
     """
 
     def send_response(self, identifier):
-        user, created = User.objects.get_or_create(
-            email=identifier,
-            defaults={"email": identifier}
-        )
+        normalized_email = str(identifier).strip().lower()
+        user = User.objects.filter(email__iexact=normalized_email).first()
+        if not user:
+            user = User.objects.create(email=normalized_email)
 
-        if created:
-            token = issue_jwt_for_user(user)
+        needs_registration = not has_profile(user, PROFILE_CUSTOMER)
+        if needs_registration:
+            token = issue_jwt_for_user(user, active_profile=None, resolve_default_profile=False)
         else:
             token = issue_jwt_for_user_with_plan(user, active_profile=PROFILE_CUSTOMER)
-        
+
         return Response({
             "message": "OTP verified successfully",
             "refresh": token["refresh"],
             "access": token["access"],
-            "is_new_user": created
+            "is_new_user": needs_registration,
+            "needs_registration": needs_registration,
+            "prefill": {
+                "email": user.email,
+                "phone_number": get_phone_number(user.phone_number) if user.phone_number else None,
+            },
         }, status=status.HTTP_200_OK)
 
 

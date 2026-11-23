@@ -11,7 +11,8 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework.generics import GenericAPIView
 from accounts.models import SocialAccount
-from accounts.services.profiles import PROFILE_CUSTOMER
+from accounts.services.profiles import PROFILE_CUSTOMER, has_profile
+from common.phone.utils import get_phone_number
 
 User = get_user_model()
 
@@ -26,20 +27,21 @@ class AuthLogic:
         if social:
             return social.user, False
 
+        normalized_email = email.strip().lower() if email else None
         user = None
-        if email:
-            user = User.objects.filter(email=email).first()
+        if normalized_email:
+            user = User.objects.filter(email__iexact=normalized_email).first()
 
         created = False
         if not user:
-            user = User.objects.create(email=email, **(defaults or {}))
+            user = User.objects.create(email=normalized_email, **(defaults or {}))
             created = True
 
         SocialAccount.objects.create(
             user=user,
             provider=provider,
             provider_uid=sub,
-            email_at_signup=email,
+            email_at_signup=normalized_email,
             raw_signup_payload=raw_signup,
         )
         return user, created
@@ -126,17 +128,20 @@ class OAuthExchangeView(GenericAPIView):
                     "detail": "provider should be google or apple", "error": "provider invalid"},
                       status=status.HTTP_400_BAD_REQUEST)
 
-        needs_registration = not bool(getattr(user, "customer_profile", None))
+        needs_registration = not has_profile(user, PROFILE_CUSTOMER)
         if needs_registration:
-            token = issue_jwt_for_user(user)
+            token = issue_jwt_for_user(user, active_profile=None, resolve_default_profile=False)
         else:
             token = issue_jwt_for_user_with_plan(user, active_profile=PROFILE_CUSTOMER)
+
+        if user.phone_number and not prefill.get("phone_number"):
+            prefill["phone_number"] = get_phone_number(user.phone_number)
 
         return Response({
             "refresh": token["refresh"],
             "access": token["access"],
-            "is_new_user": created,
+            "is_new_user": needs_registration,
             "needs_registration": needs_registration,
             "provider": provider,
-            "prefill": prefill,  # {"name": ..., "email": ..., "profile_pic": ...} or {}
+            "prefill": prefill,  # {"name": ..., "email": ..., "profile_pic": ..., "phone_number": ...}
         })

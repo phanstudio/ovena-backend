@@ -174,20 +174,25 @@ class CreateCustomerSerializer(serializers.Serializer):
             raise serializers.ValidationError("Customer profile already exists.")
 
         # identity fill rules
-        if data.get("email") and str(data["email"]).strip().casefold() != str(user.email).casefold():
-            if user.email:
-                raise serializers.ValidationError(
-                    {"email": "User already has an email."}
-                )
-            if not user.email and User.objects.filter(email=data["email"]).exists():
-                raise serializers.ValidationError({"email": "Email already in use."})
+        incoming_email = data.get("email")
+        if incoming_email:
+            normalized_email = str(incoming_email).strip().lower()
+            data["email"] = normalized_email
+            current_email = str(user.email).strip().lower() if user.email else ""
+            if normalized_email != current_email:
+                if user.email:
+                    raise serializers.ValidationError(
+                        {"email": "User already has an email."}
+                    )
+                if User.objects.filter(email__iexact=normalized_email).exists():
+                    raise serializers.ValidationError({"email": "Email already in use."})
 
-        if data.get("phone_number") and str(data["phone_number"]) != str(user.phone_number):
+        if data.get("phone_number") and str(data["phone_number"]) != str(user.phone_number or ""):
             if user.phone_number:
                 raise serializers.ValidationError(
                     {"phone_number": "User already has a phone number."}
                 )
-            if not user.phone_number and User.objects.filter(phone_number=data["phone_number"]).exists():
+            if User.objects.filter(phone_number=data["phone_number"]).exists():
                 raise serializers.ValidationError(
                     {"phone_number": "Phone number already in use."}
                 )
@@ -200,10 +205,13 @@ class CreateCustomerSerializer(serializers.Serializer):
 
         update_fields = []
 
-        for field in ("email", "phone_number"):
-            if validated_data.get(field):
-                setattr(user, field, validated_data[field])
-                update_fields.append(field)
+        if validated_data.get("email") and not user.email:
+            user.email = validated_data["email"]
+            update_fields.append("email")
+
+        if validated_data.get("phone_number") and not user.phone_number:
+            user.phone_number = validated_data["phone_number"]
+            update_fields.append("phone_number")
 
         if update_fields:
             user.save(update_fields=update_fields)

@@ -81,11 +81,12 @@ class RegisterBAdmin(GenericAPIView):
         except OTPInvalidError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+        normalized_email = str(vd["email"]).strip().lower()
         try:
             with transaction.atomic():
                 user, is_new = User.objects.get_or_create(
                     phone_number=identifier,
-                    defaults={"email": vd["email"]},
+                    defaults={"email": normalized_email},
                 )
                 if not is_new:
                     admin = getattr(user, "business_admin", None)
@@ -96,8 +97,19 @@ class RegisterBAdmin(GenericAPIView):
                                 {"error": "Business registration already completed. Please log in to your account."},
                                 status=status.HTTP_403_FORBIDDEN,
                             )
-                    user.email = vd["email"]
-                    user.save(update_fields=["email"])
+                    if user.email and user.email.strip().lower() != normalized_email:
+                        return Response(
+                            {"email": ["This account already has a different email registered."]},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    if not user.email:
+                        if User.objects.exclude(pk=user.pk).filter(email__iexact=normalized_email).exists():
+                            return Response(
+                                {"email": ["This email is already registered to another account."]},
+                                status=status.HTTP_400_BAD_REQUEST,
+                            )
+                        user.email = normalized_email
+                        user.save(update_fields=["email"])
 
                 business_admin, _ = BusinessAdmin.objects.get_or_create(user=user)
                 business_admin.name = vd["full_name"]
@@ -209,14 +221,9 @@ class RestaurantPhase1RegisterView(BaseBuisAdminAPIView, ImageMixin):
                     BusinessAdmin.objects.filter(id=business_admin.id).update(business=business)
                     is_new = True
 
-                # NOTE: password is still required by the serializer on every
-                # call, so correcting e.g. just the address also means
-                # resupplying the password. Worth making it optional on
-                # resubmission if that's awkward for your frontend - didn't
-                # touch InS.RestaurantPhase1Serializer since it wasn't in
-                # what you uploaded this round.
-                user.set_password(vd["password"])
-                user.save()
+                # Store password on BusinessAdmin profile (isolated from other roles)
+                business_admin.set_password(vd["password"])
+                business_admin.save(update_fields=["password_hash"])
 
                 BusinessOnboardStatus.objects.filter(admin=business_admin).update(onboarding_step=1)
 

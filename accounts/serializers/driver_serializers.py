@@ -49,16 +49,17 @@ class OnboardingPhase1InputSerializer(serializers.Serializer):
         if self.context.get("driver_user_id"):
             qs = qs.exclude(pk=self.context["driver_user_id"])
         if qs.exists():
-            raise serializers.ValidationError("A driver with this phone number already exists.")
+            raise serializers.ValidationError("This phone number is already registered to another account.")
         return value
 
     def validate_email(self, value):
-        qs = User.objects.filter(email=value)
+        normalized = str(value).strip().lower()
+        qs = User.objects.filter(email__iexact=normalized)
         if self.context.get("driver_user_id"):
             qs = qs.exclude(pk=self.context["driver_user_id"])
         if qs.exists():
-            raise serializers.ValidationError("A driver with this email already exists.")
-        return value
+            raise serializers.ValidationError("This email is already registered to another account.")
+        return normalized
 
 
 class OnboardingPhase1OutputSerializer(serializers.Serializer):

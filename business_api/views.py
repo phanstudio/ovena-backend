@@ -466,7 +466,10 @@ class BuisnessUpdateView(BaseBuisAdminAPIView, ImageMixin, BuilkS3ImageManagedMi
         serializer.is_valid(raise_exception=True)
         vd = serializer.validated_data
 
-        if not user.check_password(vd["password"]):
+        from accounts.services.passwords import check_profile_password
+        from accounts.services.profiles import PROFILE_BUSINESS_ADMIN
+
+        if not check_profile_password(user, PROFILE_BUSINESS_ADMIN, vd["password"]):
             return Response(
                 {"detail": "Password is incorrect"},
                 status=status.HTTP_400_BAD_REQUEST,

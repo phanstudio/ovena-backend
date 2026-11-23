@@ -36,7 +36,15 @@ from accounts.services.profiles import (
     PROFILE_CUSTOMER,
     PROFILE_DRIVER,
     PROFILE_APP_ADMIN,
+    normalize_profile_type,
     retieve_profile,
+)
+from accounts.services.passwords import (
+    check_profile_password,
+    get_existing_profiles,
+    get_passworded_profiles,
+    resolve_request_profile_type,
+    set_profile_password,
 )
 from accounts.models import record_primary_agent_history
 
@@ -45,7 +53,9 @@ class UserProfileView(APIView):
 
     def get(self, request):
         user = request.user
-        requested_type = request.query_params.get("profile_type")
+        requested_type = normalize_profile_type(request.query_params.get("profile_type"))
+        if not requested_type:
+            requested_type = resolve_request_profile_type(request)
         user_roles = sorted(get_user_roles(user))
         user_context = {"user": user}
 
@@ -361,7 +371,7 @@ class RegisterCustomer(GenericAPIView):
 
     def post(self, request):
         serializer = self.get_serializer(
-            data=request.data, context={"user": request.user}
+            data=request.data, context={"user": request.user, "request": request}
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -439,12 +449,38 @@ class AppAdminApproveView(GenericAPIView):
 
         try:
             with transaction.atomic():
-                user = User.objects.create_user(
-                    phone_number=vd["phone_number"],
-                    email=vd["email"],
-                    password=vd["password"],
-                )
-                subadmin = AppAdmin.objects.create(user=user, role=identifier, name=vd["full_name"])
+                normalized_email = str(vd["email"]).strip().lower()
+                email_user = User.objects.filter(email__iexact=normalized_email).first()
+                phone_user = User.objects.filter(phone_number=vd["phone_number"]).first()
+                if email_user and phone_user and email_user.id != phone_user.id:
+                    return Response(
+                        {"error": "Email and phone number belong to different accounts."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                user = email_user or phone_user
+                if user:
+                    if getattr(user, "app_admin", None):
+                        return Response(
+                            {"error": "App admin profile already exists for this account."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    update_fields = []
+                    if not user.email:
+                        user.email = normalized_email
+                        update_fields.append("email")
+                    if not user.phone_number:
+                        user.phone_number = vd["phone_number"]
+                        update_fields.append("phone_number")
+                    if update_fields:
+                        user.save(update_fields=update_fields)
+                else:
+                    user = User.objects.create_user(
+                        phone_number=vd["phone_number"],
+                        email=normalized_email,
+                    )
+                subadmin = AppAdmin(user=user, role=identifier, name=vd["full_name"])
+                subadmin.set_password(vd["password"])
+                subadmin.save()
         except IntegrityError as e:
             return Response(
                 {
@@ -520,7 +556,7 @@ class LoginView(GenericAPIView):
         return user, None
     
     def check_password(self, password, user):
-        if not user or not user.check_password(password):
+        if not user or not check_profile_password(user, self.get_profile_type(), password):
             return Response(
                 {"error": "Invalid password"}, status=status.HTTP_401_UNAUTHORIZED
             )
@@ -535,15 +571,15 @@ class LoginView(GenericAPIView):
         user, error = self.get_user_from_phone(vd)
         if error:
             return None, error
-        
-        error = self.check_password(vd["password"], user)
-        if error:
-            return None, error
-        
+
         profile, error = self.get_user_profile(user)
         if error:
             return None, error
-        
+
+        error = self.check_password(vd["password"], user)
+        if error:
+            return None, error
+
         return {"user": user, "profile": profile}, None
 
     def post(self, request):
@@ -638,13 +674,22 @@ class ChangePasswordView(GenericAPIView):
         vd = serializer.validated_data
 
         user: User = request.user
-        if not user.check_password(vd["password"]):
+        profile_type = resolve_request_profile_type(request)
+        if not profile_type:
+            return Response(
+                {"error": "Active profile token claim is required to change password"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not check_profile_password(user, profile_type, vd["password"]):
             return Response(
                 {"error": "Current password is incorrect"}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        user.set_password(vd["new_password"])
-        user.save(update_fields=["password"])
+        if not set_profile_password(user, profile_type, vd["new_password"]):
+            return Response(
+                {"error": "Profile not found for this account"}, status=status.HTTP_404_NOT_FOUND
+            )
         return Response({"message": "Password Changed"})
 
 
@@ -674,16 +719,36 @@ class PasswordResetView(GenericAPIView):
             return Response({"error": str(e)}, status=400)
         # identifier = vd["phone_number"]
 
-        user = User.objects.filter(email=identifier).first()
+        normalized_email = str(identifier).strip().lower()
+        user = User.objects.filter(email__iexact=normalized_email).first()
         if not user:
             return Response({"error": "User not found"}, status=404)
 
-        user.set_password(vd["new_password"])
-        user.save(update_fields=["password"])
-
-        # force re-login on all devices
-        # if you store a token version on the user model you can invalidate all JWTs
-        # simplest approach: tell frontend to discard tokens and re-login
-        # force login flow
+        requested_profile = normalize_profile_type(vd.get("profile_type"))
+        if requested_profile:
+            if not set_profile_password(user, requested_profile, vd["new_password"]):
+                return Response(
+                    {"error": f"Profile '{requested_profile}' not found for this account"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+        else:
+            passworded = get_passworded_profiles(user)
+            if len(passworded) == 1:
+                set_profile_password(user, passworded[0], vd["new_password"])
+            elif len(passworded) > 1:
+                return Response(
+                    {
+                        "error": "profile_type is required when an account has multiple passworded profiles.",
+                        "available_profiles": passworded,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            else:
+                existing = get_existing_profiles(user)
+                if len(existing) == 1:
+                    set_profile_password(user, existing[0], vd["new_password"])
+                else:
+                    user.set_password(vd["new_password"])
+                    user.save(update_fields=["password"])
 
         return Response({"message": "Password updated successfully"})
