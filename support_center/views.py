@@ -439,6 +439,8 @@ class AppAdminSupportTicketViewSet(
             status=status.HTTP_200_OK
         )
 
+    ## override_assign
+
 class CustomerSupportTicketViewSet(
     BaseCustomerAPIView,
     BaseSupportTicketViewSet

@@ -111,7 +111,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=7),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
     "AUTH_HEADER_TYPES": ("Bearer",),
     "ROTATE_REFRESH_TOKENS": True,
@@ -124,10 +124,10 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
 # CACHES
+REDIS_URL = env("REDIS_URL")
 CACHES = {
     "default": env.cache("CACHE_URL", default="locmemcache://")
 }
-REDIS_URL = env("REDIS_URL")
 FEATURE_CACHE_BACKEND = "redis" # auto# redis# cache
 FEATURE_REDIS_URL = env(
     "FEATURE_REDIS_URL",
