@@ -186,3 +186,28 @@ class AppAdminTicketCreateSerializer(TicketCreateSerializer):
     role = serializers.ChoiceField(
         choices=SupportTicket.OWNER_CHOICES
     )
+
+    class Meta(TicketCreateSerializer.Meta):
+        fields = TicketCreateSerializer.Meta.fields + [
+            "user_id",
+            "role",
+        ]
+
+
+class AppAdminTicketListSerializer(TicketListSerializer):
+    assigned_to = serializers.CharField(
+        source="assigned_to.id",
+        read_only=True
+    )
+    assigned_name = serializers.SerializerMethodField()
+
+    def get_assigned_name(self, obj):
+        if obj.assigned_to:
+            return obj.assigned_to.get_full_name()
+        return None
+
+    class Meta(TicketListSerializer.Meta):
+        fields = TicketListSerializer.Meta.fields + [
+            "assigned_to",
+            "assigned_name",
+        ]
