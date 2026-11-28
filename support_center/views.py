@@ -27,7 +27,8 @@ from support_center.serializers import (
     TicketListSerializer,
     TicketMessageCreateSerializer,
     TicketMessageSerializer,
-    AppAdminTicketCreateSerializer
+    AppAdminTicketCreateSerializer,
+    AppAdminTicketListSerializer
 )
 from support_center.services import (
     get_active_faq_queryset, create_support_ticket, 
@@ -336,7 +337,7 @@ class AppAdminSupportTicketViewSet(
     owner_role = Role.OWNER_BUSINESS_ADMIN
     sender_role = SenderRole.SENDER_SUPPORT
 
-    list_serializer = BusinessTicketListSerializer
+    list_serializer = AppAdminTicketListSerializer
     detail_serializer = BusinessTicketDetailSerializer
     create_serializer = AppAdminTicketCreateSerializer
     message_serializer = BusinessTicketMessageSerializer
@@ -345,7 +346,8 @@ class AppAdminSupportTicketViewSet(
     def get_queryset(self):
         return SupportTicket.objects.filter(
             # assigned_to=self.request.user,
-        ).order_by("-created_at")
+        ).order_by("-created_at")\
+        .select_related("assigned_to")
 
     @extend_schema(methods=["GET"], responses=BusinessTicketMessageSerializer(many=True))
     @extend_schema(methods=["POST"], request=BusinessTicketMessageCreateSerializer, responses=BusinessTicketMessageSerializer)

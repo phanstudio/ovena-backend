@@ -195,19 +195,16 @@ class AppAdminTicketCreateSerializer(TicketCreateSerializer):
 
 
 class AppAdminTicketListSerializer(TicketListSerializer):
-    assigned_to = serializers.CharField(
-        source="assigned_to.id",
-        read_only=True
-    )
-    assigned_name = serializers.SerializerMethodField()
+    assigned_to = serializers.PrimaryKeyRelatedField(read_only=True)
+    assigned_identifier = serializers.SerializerMethodField()
 
-    def get_assigned_name(self, obj):
+    def get_assigned_identifier(self, obj):
         if obj.assigned_to:
-            return obj.assigned_to.get_full_name()
+            return obj.assigned_to.email or obj.assigned_to.phone_number
         return None
 
     class Meta(TicketListSerializer.Meta):
         fields = TicketListSerializer.Meta.fields + [
             "assigned_to",
-            "assigned_name",
+            "assigned_identifier",
         ]
