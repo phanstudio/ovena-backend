@@ -253,6 +253,26 @@ class BusinessListSerializer(BaseWithNearestSerializer):
         ]
 
 
+class SearchMatchItemSerializer(serializers.Serializer):
+    """
+    A single matched menu item or addon entry inside a business search result.
+    """
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    type = serializers.ChoiceField(choices=["menu_item", "addon"])
+
+
+class BusinessSearchResultSerializer(serializers.Serializer):
+    """
+    Output serializer for one paginated entry in BusinessSearchView.
+    Expects `context["branches_by_id"]` for nested BusinessListSerializer.
+    """
+    business = BusinessListSerializer(read_only=True)
+    match_type = serializers.ChoiceField(choices=["menu_item", "addon", "business"])
+    matches = SearchMatchItemSerializer(many=True, read_only=True)
+    total_matches = serializers.IntegerField()
+
+
 class BusinessBannerSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessSubscription

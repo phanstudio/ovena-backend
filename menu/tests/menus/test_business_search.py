@@ -15,6 +15,8 @@ from menu.models import (
     MenuItemAddon,
     MenuItemAddonGroup,
 )
+from menu.serializers.menu import BusinessSearchResultSerializer
+from menu.utils.helper import annotate_with_nearest_branch, bulk_load_branches
 
 USER_LAT = 6.5244
 USER_LNG = 3.3792
@@ -324,3 +326,43 @@ def test_business_category_and_empty_search_regressions():
     assert res_empty[0]["match_type"] == "business"
     assert res_empty[0]["matches"] == []
     assert res_empty[0]["total_matches"] == 0
+
+
+@pytest.mark.django_db
+def test_business_search_result_serializer_shape():
+    business, branch, category = _create_business_with_branch("Serializer Bistro")
+    item, _ = _create_item(business, category, "Rice Bowl")
+    addon, _ = _attach_addon(business, [item], "Avocado Slices")
+
+    annotated_business = (
+        annotate_with_nearest_branch(Business.objects.filter(id=business.id), NEAR_POINT)
+        .get()
+    )
+    branches_by_id = bulk_load_branches([annotated_business])
+
+    serializer = BusinessSearchResultSerializer(
+        [
+            {
+                "business": annotated_business,
+                "match_type": "addon",
+                "matches": [
+                    {"id": addon.id, "name": "Avocado Slices", "type": "addon"}
+                ],
+                "total_matches": 1,
+            }
+        ],
+        many=True,
+        context={"branches_by_id": branches_by_id},
+    )
+
+    data = serializer.data
+    assert len(data) == 1
+    assert set(data[0].keys()) == {"business", "match_type", "matches", "total_matches"}
+    assert data[0]["business"]["id"] == business.id
+    assert data[0]["business"]["business_name"] == "Serializer Bistro"
+    assert data[0]["business"]["nearest_branch"]["id"] == branch.id
+    assert data[0]["match_type"] == "addon"
+    assert data[0]["matches"] == [
+        {"id": addon.id, "name": "Avocado Slices", "type": "addon"}
+    ]
+    assert data[0]["total_matches"] == 1
