@@ -12,7 +12,7 @@ from authflow.features import TOP3_FEATURE_CODE, HIGH_RANK_FEATURE_CODE, HIGH_RA
 import hashlib
 from datetime import date
 from collections import defaultdict
-from menu.models import MenuItem
+from menu.models import MenuItem, MenuItemAddon
 
 MENU_MATCH_LIMIT = 3
 
@@ -20,11 +20,11 @@ MENU_MATCH_LIMIT = 3
 # SHARED HELPERS
 # ============================================================================
 
-def nearest_branch_subquery(user_point, max_km=15):
+def nearest_branch_subquery(user_point, max_km=15, business_ref="pk"):
     return (
         Branch.objects
         .filter(
-            business_id=OuterRef("pk"),
+            business_id=OuterRef(business_ref),
             is_active=True,
             is_accepting_orders=True,
             location__isnull=False,
@@ -215,51 +215,69 @@ def in_stock_menu_item_exists(query):
     )
 
 
+def in_stock_addon_exists(query):
+    """
+    Exists(...) condition for a Business queryset that already has
+    `nearest_branch_id` annotated (see annotate_with_nearest_branch).
+    Combine with other Q() conditions using `|` / `&` as normal.
+
+    True when the business has at least one addon whose BaseItem name
+    matches `query`, is in stock at the business's nearest branch, AND
+    is attached to at least one in-stock MenuItem of that business.
+    No BaseItemAvailability row => in stock.
+    """
+    return Exists(
+        MenuItemAddon.groups.through.objects.filter(
+            menuitemaddongroup__item__category__menu__business_id=OuterRef("pk"),
+            menuitemaddon__base_item__name__icontains=query,
+        )
+        .exclude(
+            menuitemaddon__base_item__item_availabilities__branch_id=OuterRef("nearest_branch_id"),
+            menuitemaddon__base_item__item_availabilities__is_available=False,
+        )
+        .exclude(
+            menuitemaddongroup__item__base_item__item_availabilities__branch_id=OuterRef("nearest_branch_id"),
+            menuitemaddongroup__item__base_item__item_availabilities__is_available=False,
+        )
+    )
+
+
 def get_menu_matches_for_businesses(businesses, query, user_point, max_km=15, limit=MENU_MATCH_LIMIT):
     """
-    Return in-stock menu-item search matches grouped by business.
+    Return in-stock menu-item and addon search matches grouped by business.
 
-    An item only counts as a match if it's in stock at the business's
-    nearest branch -- the same rule that decides whether the business
-    matched the search at all (see in_stock_menu_item_exists), so
-    total_matches here is always real: total_matches == 0 for a given
-    business can't happen for a business that reached this function via
-    a menu-item match.
+    An item or addon only counts as a match if it's in stock at the
+    business's nearest branch -- the same rule that decides whether the
+    business matched the search at all (see in_stock_menu_item_exists and
+    in_stock_addon_exists), so total_matches here is always real.
 
     Result:
 
     {
         business_id: {
+            "match_type": "menu_item" | "addon",
             "matches": [
-                {"id": 123, "name": "Cheese Burger"},
-                {"id": 124, "name": "Ham Burger"},
+                {"id": 123, "name": "Cheese Burger", "type": "menu_item"},
+                {"id": 456, "name": "Extra Cheese", "type": "addon"},
             ],
-            "total_matches": 15,   # total valid (in-stock) matches
+            "total_matches": 15,   # total valid (in-stock) unique matches
         }
     }
 
-    Only the first `limit` matches are returned per business.
+    Menu items appear first, followed by deduplicated addons, capped at `limit`.
     """
     business_ids = [business.id for business in businesses]
 
     if not business_ids or not query:
         return {}
 
-    nearest_branch_for_item = (
-        Branch.objects
-        .filter(
-            business_id=OuterRef("category__menu__business_id"),
-            is_active=True,
-            is_accepting_orders=True,
-            location__isnull=False,
-            location__distance_lte=(user_point, D(km=max_km)),
-        )
-        .annotate(dist=Distance("location", user_point))
-        .order_by("dist")
-        .values("id")[:1]
-    )
+    nearest_branch_for_item = nearest_branch_subquery(
+        user_point,
+        max_km=max_km,
+        business_ref="category__menu__business_id",
+    ).values("id")[:1]
 
-    rows = (
+    menu_rows = (
         MenuItem.objects
         .filter(
             category__menu__business_id__in=business_ids,
@@ -273,22 +291,96 @@ def get_menu_matches_for_businesses(businesses, query, user_point, max_km=15, li
         .values(
             "category__menu__business_id",
             "id",
+            "base_item_id",
             "custom_name",
         )
         .order_by("category__menu__business_id", "id")
     )
 
-    grouped = defaultdict(lambda: {"matches": [], "total_matches": 0})
+    nearest_branch_for_addon = nearest_branch_subquery(
+        user_point,
+        max_km=max_km,
+        business_ref="menuitemaddongroup__item__category__menu__business_id",
+    ).values("id")[:1]
 
-    for row in rows:
+    addon_rows = (
+        MenuItemAddon.groups.through.objects
+        .filter(
+            menuitemaddongroup__item__category__menu__business_id__in=business_ids,
+            menuitemaddon__base_item__name__icontains=query,
+        )
+        .annotate(nearest_branch_id=Subquery(nearest_branch_for_addon))
+        .exclude(
+            menuitemaddon__base_item__item_availabilities__branch_id=F("nearest_branch_id"),
+            menuitemaddon__base_item__item_availabilities__is_available=False,
+        )
+        .exclude(
+            menuitemaddongroup__item__base_item__item_availabilities__branch_id=F("nearest_branch_id"),
+            menuitemaddongroup__item__base_item__item_availabilities__is_available=False,
+        )
+        .values(
+            "menuitemaddongroup__item__category__menu__business_id",
+            "menuitemaddon_id",
+            "menuitemaddon__base_item_id",
+            "menuitemaddon__base_item__name",
+        )
+        .order_by(
+            "menuitemaddongroup__item__category__menu__business_id",
+            "menuitemaddon_id",
+        )
+    )
+
+    grouped = defaultdict(lambda: {
+        "matches": [],
+        "total_matches": 0,
+        "has_menu_item": False,
+    })
+    seen_menu_base_items = defaultdict(set)
+
+    for row in menu_rows:
         business_id = row["category__menu__business_id"]
+        seen_menu_base_items[business_id].add(row["base_item_id"])
 
-        grouped[business_id]["total_matches"] += 1
+        entry = grouped[business_id]
+        entry["has_menu_item"] = True
+        entry["total_matches"] += 1
 
-        if len(grouped[business_id]["matches"]) < limit:
-            grouped[business_id]["matches"].append({
+        if len(entry["matches"]) < limit:
+            entry["matches"].append({
                 "id": row["id"],
                 "name": row["custom_name"],
+                "type": "menu_item",
             })
 
-    return dict(grouped)
+    seen_addon_base_items = defaultdict(set)
+
+    for row in addon_rows:
+        business_id = row["menuitemaddongroup__item__category__menu__business_id"]
+        base_item_id = row["menuitemaddon__base_item_id"]
+
+        if (
+            base_item_id in seen_addon_base_items[business_id]
+            or base_item_id in seen_menu_base_items[business_id]
+        ):
+            continue
+
+        seen_addon_base_items[business_id].add(base_item_id)
+
+        entry = grouped[business_id]
+        entry["total_matches"] += 1
+
+        if len(entry["matches"]) < limit:
+            entry["matches"].append({
+                "id": row["menuitemaddon_id"],
+                "name": row["menuitemaddon__base_item__name"],
+                "type": "addon",
+            })
+
+    return {
+        business_id: {
+            "match_type": "menu_item" if entry["has_menu_item"] else "addon",
+            "matches": entry["matches"],
+            "total_matches": entry["total_matches"],
+        }
+        for business_id, entry in grouped.items()
+    }

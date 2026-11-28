@@ -30,6 +30,7 @@ from ..serializers.menu import (
     BusinessListSerializer,
     BusinessWithMenuNamesSerializer,
     BusinessDetailSerializer,
+    BusinessSearchResultSerializer,
 )
 
 from common.customer.view import BaseCustomerAPIView
@@ -37,7 +38,8 @@ from abc import ABC, abstractmethod
 from menu.utils.helper import (
     annotate_with_nearest_branch, 
     bulk_load_branches, annotate_business_metrics, 
-    get_menu_matches_for_businesses, in_stock_menu_item_exists
+    get_menu_matches_for_businesses, in_stock_menu_item_exists,
+    in_stock_addon_exists,
 )
 from accounts.models import BranchOperatingHours
 from django.utils import timezone
@@ -216,20 +218,22 @@ class BusinessListWithMenuNamesView(LocationDependantMixin, APIView):
 
 class BusinessSearchView(LocationDependantMixin, GenericAPIView):
     """
-    GET /businesses/search/?lat=&lng=&q=&type=&min_rating=&max_distance=&page=
+    GET /businesses/search/?lat=&lng=&search=&type=&min_rating=&max_distance=&page=
 
     Search across:
       - business_name
-      - menu item names
+      - menu item names (in-stock at nearest branch)
+      - addon names (in-stock at nearest branch, on in-stock menu items)
       - menu category names
 
     Business ranking remains business-based.
 
-    For menu-item searches, one business can contribute multiple
-    matching menu items, capped at MENU_MATCH_LIMIT.
+    For menu-item and addon searches, one business can contribute multiple
+    matching entries, capped at MENU_MATCH_LIMIT.
     """
 
     pagination_class = BusinessPagination
+    serializer_class = BusinessSearchResultSerializer
 
     def get(self, request):
         user_point = self.get_user_point(request)
@@ -267,14 +271,12 @@ class BusinessSearchView(LocationDependantMixin, GenericAPIView):
         # ==============================================================
 
         if query:
-            if query:
-                base_qs = base_qs.filter(
-                    Q(business_name__icontains=query)
-                    |
-                    Q(menus__categories__name__icontains=query)
-                    |
-                    in_stock_menu_item_exists(query)
-                ).distinct()
+            base_qs = base_qs.filter(
+                Q(business_name__icontains=query)
+                | Q(menus__categories__name__icontains=query)
+                | in_stock_menu_item_exists(query)
+                | in_stock_addon_exists(query)
+            ).distinct()
 
         # ==============================================================
         # 3. OTHER FILTERS
@@ -380,19 +382,7 @@ class BusinessSearchView(LocationDependantMixin, GenericAPIView):
         branches_by_id = bulk_load_branches(page)
 
         # ==============================================================
-        # 10. BUSINESS SERIALIZATION
-        # ==============================================================
-
-        business_data = BusinessListSerializer(
-            page,
-            many=True,
-            context={
-                "branches_by_id": branches_by_id,
-            },
-        ).data
-
-        # ==============================================================
-        # 11. MENU SEARCH MATCHES
+        # 10. MENU SEARCH MATCHES
         # ==============================================================
 
         menu_matches = {}
@@ -406,33 +396,41 @@ class BusinessSearchView(LocationDependantMixin, GenericAPIView):
             )
 
         # ==============================================================
-        # 12. BUILD FINAL SEARCH RESULTS
+        # 11. BUILD FINAL SEARCH RESULTS
         # ==============================================================
 
-        results = []
-        for business, serialized_business in zip(page, business_data):
+        search_results = []
+        for business in page:
             business_match = menu_matches.get(business.id)
 
             if business_match:
-                results.append({
-                    "business": serialized_business,
-                    "match_type": "menu_item",
+                search_results.append({
+                    "business": business,
+                    "match_type": business_match["match_type"],
                     "matches": business_match["matches"],
                     "total_matches": business_match["total_matches"],
                 })
             else:
-                results.append({
-                    "business": serialized_business,
+                search_results.append({
+                    "business": business,
                     "match_type": "business",
                     "matches": [],
                     "total_matches": 0,
                 })
 
         # ==============================================================
-        # 13. RETURN PAGINATED RESPONSE
+        # 12. SERIALIZE & RETURN PAGINATED RESPONSE
         # ==============================================================
 
-        return self.get_paginated_response(results)
+        serializer = self.serializer_class(
+            search_results,
+            many=True,
+            context={
+                "branches_by_id": branches_by_id,
+            },
+        )
+
+        return self.get_paginated_response(serializer.data)
 
 
 # ============================================================================
