@@ -19,8 +19,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from menu.serializers import OrderCreateSerializer
 from menu.views import notify_order_created
-from addresses.utils import make_point, get_cached_distance_km_from_2points, get_distance_km_from_2points
-from addresses.serializers import LocationGetSerializer
+from addresses.utils import make_point, get_cached_distance_km_from_2points
 from accounts.models import Branch
 from coupons_discount.models import Coupons
 from django.db.models import Q
