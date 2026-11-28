@@ -1,13 +1,14 @@
 from common.customer.view import BaseCustomerAPIView
 from rest_framework.response import Response
-from menu.models import Order, OrderEvent
+from menu.models import Order, OrderEvent, OrderStatus
 from common.customer.paginations import StandardResultsSetPagination
 # from rest_framework.mixins import ListModelMixin
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from .serializers import (
     OrderHistorySerializer, OrderRetrieveSerializer, FavoriteCreateSerializer, 
     FavoriteListSerializer, OrderCalculationGetSerializer, StoreDetailsSerializer,
-    AccountCreateSerializer, AccountDetailSerializer, AccountChangeConfirmSerializer, AccountChangeRequestSerializer
+    AccountCreateSerializer, AccountDetailSerializer, AccountChangeConfirmSerializer, 
+    AccountChangeRequestSerializer, ReOrderSerializer
 )
 # from referrals.models import ProfileReferral
 from django.conf import settings
@@ -18,7 +19,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from menu.serializers import OrderCreateSerializer
 from menu.views import notify_order_created
-from addresses.utils import make_point, get_cached_distance_km_from_2points
+from addresses.utils import make_point, get_cached_distance_km_from_2points, get_distance_km_from_2points
 from addresses.serializers import LocationGetSerializer
 from accounts.models import Branch
 from coupons_discount.models import Coupons
@@ -67,7 +68,7 @@ class OrderRetrieveView(BaseCustomerAPIView, RetrieveAPIView):
 
 
 class ReorderView(BaseCustomerAPIView): # location to the body #:attention 
-    serializer_class = LocationGetSerializer
+    serializer_class = ReOrderSerializer
 
     @transaction.atomic
     def post(self, request):
@@ -85,7 +86,7 @@ class ReorderView(BaseCustomerAPIView): # location to the body #:attention
                 "items__variants",
                 "items__addons",
             ),
-            id=order_id,
+            id=vd["order_id"],
             orderer=customer,
         )
 
@@ -127,7 +128,7 @@ class ReorderView(BaseCustomerAPIView): # location to the body #:attention
             order=order,
             event_type="created",
             actor_type="customer",
-            actor_id=user.customer_profile.id,
+            actor_id=customer.id,
             new_status=order.status,
             metadata={"items_count": order.items.count()},
         )

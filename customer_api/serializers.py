@@ -325,4 +325,7 @@ class AccountDetailSerializer(serializers.ModelSerializer):
 
         last4 = obj.bank_account_number[-4:]
         return f"******{last4}"
-            
+
+class ReOrderSerializer(LocationGetSerializer):
+    order_id = serializers.CharField()
+    
